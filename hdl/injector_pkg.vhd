@@ -1,0 +1,695 @@
+------------------------------------------------------------------------------
+-- Package:     injector_pkg
+-- File:        injector_pkg.vhd
+-- Author:      Oriol Sala
+-- Description: Internal package for Traffic Injector
+------------------------------------------------------------------------------
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+library grlib;
+use grlib.amba.all;
+use grlib.stdlib.all;
+-- pragma translate_off
+use grlib.at_pkg.all;
+use grlib.at_util.all;
+use grlib.at_ahb_mst_pkg.all;
+use grlib.testlib.check;
+-- pragma translate_on
+library techmap;
+use techmap.gencomp.all;
+
+
+package injector_pkg is
+
+-------------------------------------------------------------------------------
+-- Types and records
+-------------------------------------------------------------------------------
+
+  -- BM specific types
+  type bm_out_type is record  --Input to injector_ctrl from bus master interface output
+    -- Read channel
+    rd_data      : std_logic_vector(127 downto 0);
+    rd_req_grant : std_logic;
+    rd_valid     : std_logic;
+    rd_done      : std_logic;
+    rd_err       : std_logic;
+    -- Write channel
+    wr_req_grant : std_logic;
+    wr_full      : std_logic;
+    wr_done      : std_logic;
+    wr_err       : std_logic;
+  end record;
+
+  type bm_in_type is record  --Output from injector_ctrl to bus master interface input
+    -- Read channel
+    rd_addr : std_logic_vector(31 downto 0);
+    rd_size : std_logic_vector(9 downto 0);
+    rd_req  : std_logic;
+    -- Write channel
+    wr_addr : std_logic_vector(31 downto 0);
+    wr_size : std_logic_vector(9 downto 0);
+    wr_req  : std_logic;
+    wr_data : std_logic_vector(127 downto 0);
+  end record;
+
+  -- Reset value for Bus Master interface signals
+  constant BM_OUT_RST : bm_out_type := (
+    rd_data      => (others => '0'),
+    rd_req_grant => '0',
+    rd_valid     => '0',
+    rd_done      => '0',
+    rd_err       => '0',
+    -- Write channel
+    wr_req_grant => '0',
+    wr_full      => '0',
+    wr_done      => '0',
+    wr_err       => '0'
+    );
+
+  constant BM_IN_RST : bm_in_type := (
+    -- Read channel
+    rd_addr => (others => '0'),
+    rd_size => (others => '0'),
+    rd_req  => '0',
+    -- Write channel
+    wr_addr => (others => '0'),
+    wr_size => (others => '0'),
+    wr_req  => '0',
+    wr_data => (others => '0')
+    );  
+
+  -- Bus master control registers
+  type bm_ctrl_reg_type is record
+    -- Read access
+    rd_addr : std_logic_vector(31 downto 0);
+    rd_size : std_logic_vector(9 downto 0);
+    rd_req  : std_logic;
+    -- Write channel
+    wr_addr : std_logic_vector(31 downto 0);
+    wr_size : std_logic_vector(9 downto 0);
+    wr_req  : std_logic;
+    wr_data : std_logic_vector(127 downto 0);
+  end record;
+
+  -- Reset value for Bus Master control registers
+  constant BM_CTRL_REG_RST : bm_ctrl_reg_type := (
+    rd_addr => (others => '0'),
+    rd_size => (others => '0'),
+    rd_req  => '0',
+    wr_addr => (others => '0'),
+    wr_size => (others => '0'),
+    wr_req  => '0',
+    wr_data => (others => '0')
+    );
+  
+  -- status out type 
+  type status_out_type is record
+    err             : std_ulogic;       -- General error status. Asserted along with other errors
+    decode_desc_err : std_ulogic;       -- Error while decoding descriptor 
+    rd_desc_err     : std_ulogic;       -- Error while reading desc from BM IF
+    rd_data_err     : std_ulogic;       -- Error while reading data from BM IF
+    wr_data_err     : std_ulogic;       -- Error while writing data to BM IF
+    state           : std_logic_vector(4 downto 0);  -- Current operating state of Injector 
+    ongoing         : std_ulogic;       -- Ongoing Injector operation
+    desc_comp       : std_ulogic;       -- Descriptor completed flag
+    kick            : std_ulogic;       -- Kick flag
+    rd_nxt_ptr_err  : std_ulogic;       -- Error during re-reading des.nxt_ptr field on a kick request
+    comp            : std_ulogic;       -- all desc are completed
+    count           : std_logic_vector(6 downto 0);       -- Current transaction repetition count value
+    
+  end record;
+
+   -- reset value for status out type
+  constant STATUS_OUT_RST : status_out_type := (
+    err             => '0',
+    decode_desc_err => '0',
+    rd_desc_err     => '0',
+    rd_data_err     => '0',
+    wr_data_err     => '0',
+    state           => (others => '0'),
+    ongoing         => '0',
+    desc_comp       => '0',
+    kick            => '0',
+    rd_nxt_ptr_err  => '0',
+    comp            => '0',
+    count           => (others => '0')
+    );
+
+  -- Data execution status out type 
+  type d_ex_sts_out_type is record
+    read_if_err   : std_ulogic;                    -- Error while reading data from BM IF
+    write_if_err  : std_ulogic;                    -- Error while writing data to BM IF
+    delay_if_err  : std_ulogic;                    -- Error while executing delay IF
+    state         : std_logic_vector(4 downto 0);  -- Current state of data execution in READ_IF/WRITE_IF  
+    operation     : std_ulogic;                    -- Ongoing execution
+    comp          : std_ulogic;                    -- read_if operation completed
+  end record;
+
+   -- reset value for status out type
+  constant D_EX_STS_RST : d_ex_sts_out_type := (
+    read_if_err   => '0',
+    write_if_err  => '0',
+    delay_if_err  => '0',
+    state         => (others => '0'),
+    operation     => '0',
+    comp          => '0'
+    );  
+
+  -- Current descriptor out type
+  type curr_des_out_type is record
+    dbg_ctrl     : std_logic_vector (31 downto 0);  -- Current descriptor ctrl field
+    dbg_nxt      : std_logic_vector (31 downto 0);  -- Next_desc pointer of current descriptor
+    dbg_dst_addr : std_logic_vector (31 downto 0);  -- dest_addr
+    dbg_src_addr : std_logic_vector (31 downto 0);  -- src_addr
+    dbg_sts      : std_logic_vector (31 downto 0);  -- status
+  end record;
+
+  -- Reset value for read_if/WRITE_IF current descriptor out type
+  constant CUR_DES_OUT_RST : curr_des_out_type := (
+    dbg_ctrl     => (others => '0'),
+    dbg_nxt      => (others => '0'),
+    dbg_dst_addr => (others => '0'),
+    dbg_src_addr => (others => '0'),
+    dbg_sts      => (others => '0')
+    );
+
+  -----------------------------------------------------------------------------
+  -- Injector descriptor types
+  -----------------------------------------------------------------------------
+
+   -- Next descriptor structure
+  type nxt_des_type is record
+    ptr  : std_logic_vector(31 downto 0);  -- Next descriptor pointer 
+    last : std_ulogic;                     -- Last descriptor
+  end record;
+
+  -- Reset value for next descriptor structure
+  constant NXT_DES_RST : nxt_des_type := (
+    ptr  => (others => '0'),
+    last => '0'
+    );  
+
+  -- Data descriptor control 
+  type data_dsc_ctrl_type is record
+    en           : std_ulogic;                    -- Enable descriptor 
+    desc_type    : std_logic_vector(2 downto 0);  -- Type of descriptor. 0 for data 
+    irq_en       : std_ulogic;                    -- Interrupt enable on descriptor completion 
+    src_fix_adr  : std_ulogic;                    -- Fetch data from fixed address
+    dest_fix_adr : std_ulogic;                    -- Write data to fixed address
+    count_size   : std_logic_vector(5 downto 0);  -- Transaction repetition counter size (bits resolution)
+    size         : std_logic_vector(18 downto 0); -- Size of data to be transfered
+  end record;
+
+  -- Reset value for data descriptor control
+  constant DATA_DSC_CTRL_RST : data_dsc_ctrl_type := (
+    en           => '0',
+    desc_type    => (others => '0'),
+    irq_en       => '0',
+    src_fix_adr  => '0',
+    dest_fix_adr => '0',
+    count_size   => (others => '0'),
+    size         => (others => '0')
+    );
+
+  -- Data descriptor structure 
+  type data_dsc_strct_type is record
+    ctrl      : data_dsc_ctrl_type;             -- Data descriptor control
+    nxt_des   : nxt_des_type;                   -- Next descriptor pointer
+    dest_addr : std_logic_vector(31 downto 0);  -- Address where data is to be written
+    src_addr  : std_logic_vector(31 downto 0);  -- Address from where data is to be fetched    
+  end record;
+
+  -- Reset value for data descriptor structure
+  constant DATA_DSC_STRCT_RST : data_dsc_strct_type := (
+    ctrl      => DATA_DSC_CTRL_RST,
+    nxt_des   => NXT_DES_RST,
+    dest_addr => (others => '0'),
+    src_addr  => (others => '0')
+    );
+
+  -----------------------------------------------------------------------------
+  -- Injector register types
+  -----------------------------------------------------------------------------
+
+  -- Injector control register
+  type injector_ctrl_reg_type is record
+    en      : std_ulogic;  -- Injector core enable
+    rst     : std_ulogic;  -- Injector core reset
+    kick    : std_ulogic;  -- Kick
+    qmode   : std_ulogic;  -- Queue mode   
+    irq_en  : std_ulogic;  -- Global Interrupt enable
+    irq_err : std_ulogic;  -- Enable interrupt on errors  
+  end record;
+
+  -- Reset value for Injector control register
+  constant INJECTOR_CTRL_REG_RST : injector_ctrl_reg_type := (
+    en      => '0',
+    rst     => '0',
+    kick    => '0',
+    qmode   => '0',
+    irq_en  => '0',
+    irq_err => '0'
+    );
+
+  -- Injector status register : 
+  type injector_sts_reg_type is record
+    comp                 : std_ulogic;                    -- Completed all descriptors successfully
+    err                  : std_ulogic;                    -- Error on channel    
+    ongoing              : std_ulogic;                    -- Ongoing transaction operation
+    irq_flag             : std_ulogic;                    -- Interrupt flag            
+    decode_err           : std_ulogic;                    -- read_if error during desc decoding
+    rd_desc_err          : std_ulogic;                    -- Error from read_if BMI during desc reading
+    state                : std_logic_vector(4 downto 0);  -- M2b state in which error captured
+    read_if_rd_data_err  : std_ulogic;                    -- Error from read_if BMI during data fetching         
+    write_if_wr_data_err : std_ulogic;                    -- Error from write_if BMI during data writing
+    kick_pend            : std_ulogic;                    -- Pending Kick request flag
+    rd_nxt_ptr_err       : std_ulogic;                    -- Error during re-reading des.nxt_ptr field on a kick request
+    count                : std_ulogic_vector(9 downto 0); -- Counter value of current transaction repetition
+    active               : std_ulogic;                    -- Core enabled after reset
+  end record;
+
+  -- Reset value for Injector status register
+  constant INJECTOR_STS_REG_RST : injector_sts_reg_type := (
+    comp                    => '0',
+    err                     => '0',
+    ongoing                 => '0',
+    irq_flag                => '0',
+    decode_err              => '0',
+    rd_desc_err             => '0',
+    state                   => (others => '0'),
+    count		    => (others => '0'), 
+    read_if_rd_data_err     => '0',
+    write_if_wr_data_err    => '0',
+    kick_pend               => '0',
+    rd_nxt_ptr_err          => '0',
+    active                  => '0'
+    );
+
+  -- INJECTOR capability register (read only)
+
+  -- INJECTOR descriptor pointer register
+  -- This register points to the first descriptor. 
+  type injector_desc_ptr_type is record
+    ptr : std_logic_vector(31 downto 0);  -- Descriptor pointer  
+  end record;
+
+  -- Reset value for INJECTOR descriptor pointer register
+  constant INJECTOR_DESC_PTR_RST : injector_desc_ptr_type := (
+    ptr => (others => '0')
+    );
+
+  -- Current descriptor control field for debug. 
+  type cur_desc_ctrl_type is record
+    ctrl : std_logic_vector(31 downto 0);
+  end record;
+
+  -- Reset value for current descriptor control field
+  constant CUR_DESC_CTRL_RST : cur_desc_ctrl_type := (
+    ctrl => (others => '0')
+    );
+
+  -- Current descriptor's nxt_des_ptr field for debug. 
+  type cur_nxt_des_type is record
+    ptr : std_logic_vector(31 downto 0);
+  end record;
+
+  -- Reset value for current descriptor's nxt_des_ptr field 
+  constant CUR_NXT_DES_RST : cur_nxt_des_type := (
+    ptr => (others => '0')
+    );
+
+  -- Current descriptor's d_des:dest_addr
+  type cur_des_dst_addr_trype is record
+    ptr : std_logic_vector(31 downto 0);
+  end record;
+
+  -- Reset value for current descriptor's f_nxt_des_ptr field 
+  constant CUR_FNXT_DES_RST : cur_des_dst_addr_trype := (
+    ptr => (others => '0')
+    );  
+
+  -- Current descriptor's conditional address field for debug. 
+  -- c_des:cond_addr, d_des:src_addr
+  type cur_des_src_addr is record
+    addr : std_logic_vector(31 downto 0);
+  end record;
+
+  -- Reset value for current descriptor's address field 
+  constant CUR_COND_ADR_RST : cur_des_src_addr := (
+    addr => (others => '0')
+    );
+
+  -- Current descriptor's status field for debug. 
+  type cur_desc_sts_type is record
+    sts : std_logic_vector(31 downto 0);
+  end record;
+
+  -- Reset value for current descriptor's sts field 
+  constant CUR_DESC_STS_RST : cur_desc_sts_type := (
+    sts => (others => '0')
+    );   
+
+  -- Current descriptor pointer for debug.
+  type cur_desc_ptr_type is record
+    ptr : std_logic_vector(31 downto 0);
+  end record;
+
+  -- Reset value for current descriptor's sts field 
+  constant CUR_DESC_PTR_RST : cur_desc_ptr_type := (
+    ptr => (others => '0')
+    ); 
+
+  -- Injector combined register type
+  type injector_reg_type is record
+    ctrl     : injector_ctrl_reg_type;   -- Control register
+    sts      : injector_sts_reg_type;    -- Status register
+    desc_ptr : injector_desc_ptr_type;   -- Descriptor pointer
+  end record;
+
+  -- Reset value for reg_type
+  constant INJECTOR_REG_RST : injector_reg_type := (
+    ctrl     => INJECTOR_CTRL_REG_RST,
+    sts      => INJECTOR_STS_REG_RST,
+    desc_ptr => INJECTOR_DESC_PTR_RST
+    );
+
+  -------------------------------------------------------------------------------
+  -- Subprograms
+  -------------------------------------------------------------------------------
+  function find_burst_size(src_fixed_addr  : std_ulogic;
+                           dest_fixed_addr : std_ulogic;
+                           max_bsize       : integer;
+                           total_size      : std_logic_vector(18 downto 0)
+                           )
+  return std_logic_vector;
+
+  -------------------------------------------------------------------------------
+  -- Components
+  -------------------------------------------------------------------------------
+  -- INJECTOR APB interface
+  component injector_apb is
+    generic (
+      pindex   : integer                 := 0;
+      paddr    : integer                 := 0;
+      pmask    : integer                 := 16#FF8#;
+      pirq     : integer                 := 0;
+      dbits    : integer range 32 to 128 := 32
+      );
+    port (
+      rstn          : in  std_ulogic;
+      clk           : in  std_ulogic;
+      apbi          : in  apb_slv_in_type;
+      apbo          : out apb_slv_out_type;
+      ctrl_out      : out injector_ctrl_reg_type;
+      desc_ptr_out  : out injector_desc_ptr_type;
+      active        : out std_ulogic;
+      err_status    : out std_ulogic;
+      irq_flag_sts  : in  std_ulogic;
+      curr_desc_in  : in  curr_des_out_type;
+      curr_desc_ptr : in  std_logic_vector(31 downto 0);
+      sts_in        : in  status_out_type
+          );
+  end component;
+
+  -- Control Module
+  component injector_ctrl is
+    generic (
+      dbits : integer range 32 to 128 := 32;
+      fifo_size : integer range 1 to 16 := 8);
+    port (
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      ctrl              : in  injector_ctrl_reg_type;
+      des_ptr           : in  injector_desc_ptr_type;
+      active            : in  std_ulogic;
+      err_status        : in  std_ulogic;
+      curr_desc_out     : out curr_des_out_type;
+      curr_desc_ptr     : out std_logic_vector(31 downto 0);
+      status            : out status_out_type;
+      irq_flag_sts      : out std_ulogic;
+      bm_in             : in  bm_out_type;
+      bm_out            : out bm_in_type;
+      read_if_bm_in     : in  bm_ctrl_reg_type;
+      read_if_bm_out    : out bm_out_type;
+      write_if_bm_in    : in  bm_ctrl_reg_type;
+      write_if_bm_out   : out bm_out_type;
+      d_desc_out        : out data_dsc_strct_type;
+      ctrl_rst          : out std_ulogic;
+      err_sts_out       : out std_ulogic;
+      read_if_start     : out std_ulogic;
+      read_if_sts_in    : in  d_ex_sts_out_type;
+      write_if_sts_in   : in  d_ex_sts_out_type;
+      write_if_start    : out std_logic;
+      delay_if_sts_in   : in  d_ex_sts_out_type;
+      delay_if_start    : out std_logic
+      );
+  end component;
+
+  -- WRITE_IF
+  component injector_write_if is
+    generic (
+      dbits      : integer range 32 to 128  := 32;
+      bm_bytes   : integer range 4 to 16    := 4
+      );
+    port (
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      ctrl_rst          : in  std_ulogic;
+      err_sts_in        : in  std_ulogic;
+      write_if_start    : in  std_ulogic;
+      d_des_in          : in  data_dsc_strct_type;
+      status_out        : out d_ex_sts_out_type;
+      write_if_bmi      : in  bm_out_type;
+      write_if_bmo      : out bm_ctrl_reg_type
+      );
+   end component;
+
+   -- READ_IF
+  component injector_read_if is
+    generic (
+      dbits      : integer range 32 to 128  := 32;
+      bm_bytes   : integer range 4 to 16    := 4
+      );
+    port (
+      rstn          : in  std_ulogic;
+      clk           : in  std_ulogic;
+      ctrl_rst      : in  std_ulogic;
+      err_sts_in    : in  std_ulogic;
+      read_if_start : in  std_ulogic;
+      d_des_in      : in  data_dsc_strct_type;
+      status_out    : out d_ex_sts_out_type;
+      read_if_bmi   : in  bm_out_type;
+      read_if_bmo   : out bm_ctrl_reg_type
+      );
+  end component;
+
+  -- DELAY_IF
+  component injector_delay_if is
+    port (
+      rstn            : in  std_ulogic;
+      clk             : in  std_ulogic;
+      ctrl_rst        : in  std_ulogic;
+      err_sts_in      : in  std_ulogic;
+      delay_if_start  : in  std_ulogic;
+      d_des_in        : in  data_dsc_strct_type;
+      status_out      : out d_ex_sts_out_type
+      );
+  end component;
+
+  component fifo is
+    generic (
+        RAM_LENGTH : integer := 8;
+        BUS_LENGTH : integer := 160
+    );
+    port(
+        clk            : in  std_logic;
+        rstn           : in  std_logic;
+        write_i        : in  std_logic;
+        read_i         : in  std_logic;
+        read_rst_i     : in  std_logic;
+        full_o         : out std_logic;
+        comp_o         : out std_logic;
+        wdata_i        : in  std_logic_vector(BUS_LENGTH-1 downto 0);
+        rdata_o        : out std_logic_vector(BUS_LENGTH-1 downto 0)
+    );
+  end component fifo;
+
+
+  --Injector core
+  component injector is
+    generic (
+      tech     : integer range 0 to NTECH     := inferred;
+      pindex   : integer                      := 0;
+      paddr    : integer                      := 0;
+      pmask    : integer                      := 16#FF8#;
+      pirq     : integer range 0 to NAHBIRQ-1 := 0;
+      dbits    : integer range 32 to 128      := 32
+      );
+    port (
+      rstn    : in  std_ulogic;
+      clk     : in  std_ulogic;
+      apbi    : in  apb_slv_in_type;
+      apbo    : out apb_slv_out_type;
+      bm0_in  : out bm_in_type;
+      bm0_out : in  bm_out_type
+      );
+  end component;
+
+  -- injector_ahb top level interface
+  component injector_ahb is
+    generic (
+      tech             : integer range 0 to NTECH     := inferred;
+      pindex           : integer                      := 0;
+      paddr            : integer                      := 0;
+      pmask            : integer                      := 16#FF8#;
+      pirq             : integer range 0 to NAHBIRQ-1 := 0;
+      dbits            : integer range 32 to 128      := 32;
+      hindex           : integer                      := 0;
+      max_burst_length : integer range 2 to 256       := 128
+      );
+    port (
+      rstn    : in  std_ulogic;
+      clk     : in  std_ulogic;
+      apbi    : in  apb_slv_in_type;
+      apbo    : out apb_slv_out_type;
+      ahbmi  : in  ahb_mst_in_type;
+      ahbmo  : out ahb_mst_out_type
+      );
+  end component;
+
+  -------------------------------------------------------------------------------
+  -- Procedures
+  -------------------------------------------------------------------------------
+  -- pragma translate_off
+  constant vmode	: boolean := false;	-- Extra print-out
+
+  procedure run_injector_tests(
+    signal atmi		: out at_ahb_mst_in_type;
+    signal atmo		: in  at_ahb_mst_out_type);  
+	
+  -- pragma translate_on
+
+
+end package injector_pkg;
+
+package body injector_pkg is
+
+  -- Function to determine the burst size based on maximum burst limit
+  function find_burst_size (
+    src_fixed_addr  : std_ulogic;
+    dest_fixed_addr : std_ulogic;
+    max_bsize       : integer;
+    total_size      : std_logic_vector(18 downto 0)
+    )
+    return std_logic_vector is
+    variable temp       : integer;
+    variable burst_size : std_logic_vector(10 downto 0);
+    variable total_int  : integer;
+  begin
+    total_int := conv_integer(total_size);
+    -- Limit the burst burst size by maximum burst length
+    if (src_fixed_addr or dest_fixed_addr) = '1' then
+      if total_int < 4 then             -- less than 4 bytes
+        temp := total_int;
+      else
+        temp := 4;
+      end if;
+    elsif (total_int > max_bsize) then
+      temp := max_bsize;
+    else
+      temp := total_int;
+    end if;
+   
+    burst_size := conv_std_logic_vector(temp,11);
+
+    return burst_size;
+  end find_burst_size;
+   
+-- pragma translate_off
+    -- Injector Testbench Testing Procedures
+    procedure run_injector_tests(
+        signal   atmi:  out   at_ahb_mst_in_type;
+        signal   atmo:  in    at_ahb_mst_out_type ) is
+        variable w32        : std_logic_vector(31 downto 0);
+        variable r32        : std_logic_vector(31 downto 0);
+    begin
+
+        print("[INJ] Writing descriptors to memory");
+
+        -- DESCRIPTOR #1 (0x00100000)
+        w32 := X"00200011"; -- Control
+        at_write_32(X"00100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00101000"; -- Next Descriptor
+        at_write_32(X"00100004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00B00000"; -- Destination Address
+        at_write_32(X"00100008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00A00000"; -- Source Address
+        at_write_32(X"0010000C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        -- DESCRIPTOR #2 (0x00101000)
+        w32 := X"00200013"; -- Control
+        at_write_32(X"00101000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00100001"; -- Next Descriptor
+        at_write_32(X"00101004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00B00000"; -- Destination Address
+        at_write_32(X"00101008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00A00000"; -- Source Address
+        at_write_32(X"0010100C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        -- ENABLE PMU
+        print("[PMU] Enabling SafePMU");
+        -- Reset RDC
+        w32 := X"00000010";
+        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00000000";
+        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        -- Reset Counters
+        w32 := X"00000002";
+        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00000000";
+        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        -- Enable RDC
+        w32 := X"00000040";
+        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        -- Enable RDC
+        w32 := X"00000001";
+        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        --enable_counters
+
+        wait for 5 us;
+
+        print("[INJ] Enabling SafeTI");
+
+        w32 := X"00100000"; -- First Descriptor Pointer
+        at_write_32(X"fc085008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        w32 := X"00000019"; -- Control Register
+        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        wait for 50 us; -- Short run: simulate generic run
+
+        -- DISABLE INJECTOR
+        w32 := X"0000001b"; -- Control Register
+        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        wait for 5 us;
+
+        -- DISABLE PMU
+        w32 := X"00000000";
+        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+
+        wait for 5 us;
+
+        report "End of INJ Tests";
+        wait for 30 us;
+
+        assert false report "Injector Test OK" severity failure;
+    end;
+
+-- pragma translate_on
+end package body injector_pkg;

@@ -1,0 +1,13 @@
+\section{Error Handling}
+The module provides a very detailed way to detect and debug errors while enabled. Status register of the APB I/F has a general error flag that is raised if a misbehavior has been detected.
+
+\begin{itemize}
+ 	\item \textbf{DE}: Decode Error can occur during the decoding of a descriptor if the type of descriptor is not valid.
+  	\item \textbf{RE}: Read descriptor Error will be flagged in case when the Master Bus I/F receives an error response during a descriptor read burst.
+	\item \textbf{RDE}: If the Bus Master receives an error during any part of the read access performed as part of the Memory to Controller, RDE will be flagged.
+	\item \textbf{WDE}: If the Bus Master receives an error during any part of the write access performed as part of the Controller to Memory transaction, WDE will be flagged.
+	\item \textbf{NPE}: Defines the Next Pointer Error when the Bus Master receives an error while switching to the next descriptor address.
+\end{itemize}
+
+In case of an error, or if the Injector has completed the execution of the entire queue, it will stay on an Idle state and clear the ONG bit. 
+CMP will be set to one if no errors occurred and the descriptors queue is done. 

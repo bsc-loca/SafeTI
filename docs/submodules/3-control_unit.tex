@@ -1,0 +1,67 @@
+\newpage
+\subsubsection{Control Unit}
+The control unit is in charge of decoding descriptors and routes the transaction requests to the respective sub-modules (either take control of the \textbf{Read Interface}, \textbf{Write Interface} or \textbf{Delay Interface}). Also, it is used to monitor the status and errors of these transactions and report them back to the APB Interface. 
+A finite state machine is implemented in order to achieve this functionality.\\
+\begin{figure}[ht]
+	\centering
+	\begin{tikzpicture}
+		\node[state, accepting] (1) {$1$};
+		\node[state, below right of=1, xshift=1cm] (2) {$2$};
+		\node[state, right of=2] (3) {$3$};
+		\node[state, below of=2, yshift=-1cm] (4) {$4$};
+		\node[state, below of=1] (5) {$5$};
+		\node[state, below of=5] (6) {$6$};
+	
+		\draw	(1) edge[loop above] node{$err$} (1)
+				(1) edge[right, bend left, right=0.3] node{$next\_desc$} (2)
+				(2) edge[loop right] node{$wait$} (2)
+				(2) edge[below, bend left, above=0.3] node{$req\_grant$} (3)
+				(3) edge[right, bend right, right=0.3] node{$err$} (1)
+				(3) edge[below, bend left, right=0.3] node{$ok$} (4)
+				(4) edge[above, bend right, above=0.3] node{$read\_type$} (5)
+				(4) edge[left, bend right, left=0.3] node{$err$} (1)
+				(4) edge[below, bend left, right=0.3] node{$write\_type$} (6)
+				(5) edge[left, left=0.3] node{$q\_mode$} (4)
+				(5) edge[left, bend left, left=0.3] node{$ok$} (1)
+				(6) edge[left, above=0.3] node{$q\_mode$} (4)
+				(6) edge[left, bend left, left=0.3] node{$ok$} (1);
+	\end{tikzpicture}
+	\caption{Control unit FSM diagram}
+	\label{fig:control_states}
+\end{figure}
+
+\paragraph{Description}
+\subparagraph{1. Idle}
+Execution starts from Idle state and comes back after completion of each descriptor write to FIFO and on FIFO completion. The core processes a descriptor only if no errors have been encountered and if the core is enabled. If the execution is ongoing and is not the last descriptor, the core proceeds with the next descriptor fetch. Else if the whole queue is completed, execution is paused, and the core stays idle. If the core is disabled or an error occurred, the Injector goes into a disabled state and shows the corresponding error flag.
+
+\subparagraph{2. Fetch Descriptor}
+Initiates a 20 Byte long burst read through the Bus Master Interface to read the descriptor fields.
+
+\subparagraph{3. Read Descriptor}
+Once they are read, we save the descriptor fields to the corresponding FIFO position to be executed later on.
+
+\subparagraph{4. Read FIFO}
+When all descriptors are loaded into the FIFO or the FIFO is full, the first position is read and stored in internal descriptor registers for decoding. Once all the descriptors are executed, execution goes back to Idle state and marks the completion flags.
+
+\subparagraph{5. Decode Descriptor}
+Checks if the descriptor is enabled. Disabled descriptors are skipped and core jumps to read FIFO to proceed with the next descriptor in the queue.\\
+If the descriptor is enabled, based on the \code{desc\_type} field value, it decodes the type of the descriptor and jumps to respective states:
+\begin{itemize}
+ 	\item \textbf{Read descriptor type}: It sends \code{read\_if\_start} signal to the \code{injector\_read\_if} sub-module.
+  	\item \textbf{Write descriptor type}: It sends a \code{write\_if\_start} signal to the \code{injector\_write\_if} sub-module.
+	\item \textbf{Delay descriptor type}: It sends a \code{delay\_if\_start} signal to the \code{injector\_delay\_if} sub-module.
+\end{itemize}
+
+\subparagraph{6. Read I/F}
+Always monitors for any errors and status from \code{injector\_read\_if} sub-module. If an error is reported from the read interface sub-module, it handles the error. When a \code{read\_if\_comp} status is received, the core checks for the \textbf{Repetition count value}, it jumps to state five and starts the same descriptor again. If not, the core jumps to read FIFO state and sends a completed signal..
+
+\subparagraph{7. Write I/F}
+Always monitors for any errors and status from \code{injector\_write\_if} module. If an error is reported from its interface sub-module, it handles the error. When a \code{write\_if\_comp} status is received, the core checks for the \textbf{Repetition count value}, it jumps to state five and starts the same descriptor again. If not, the core jumps to read FIFO state and sends a completed signal.\\
+
+\subparagraph{7. Delay I/F}
+Always monitors for any errors and status from \code{injector\_delay\_if} module. If an error is reported from its interface sub-module, it handles the error. When a \code{delay\_if\_comp} status is received, the core checks for the \textbf{Repetition count value}, it jumps to state five and starts the same descriptor again. If not, the core jumps to read FIFO state and sends a completed signal.\\
+\vspace{1cm}
+
+
+
+
