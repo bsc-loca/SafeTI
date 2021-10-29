@@ -171,11 +171,11 @@ architecture rtl of injector_ctrl is
     err_state           : std_logic_vector(4 downto 0);    -- FSM state in which error occured
     desc_ptr            : std_logic_vector(31 downto 0);   -- Current descriptor pointer
     i                   : integer range 0 to 7;            -- Register for index increment
-    rep_count           : integer range 0 to 127;	   -- Register for Repetition Count increment
+    rep_count           : integer range 0 to 127;	         -- Register for Repetition Count increment
     rd_desc             : std_logic_vector(159 downto 0);  -- Register for descriptor read from BM (5 Registers * 32 bits)
     read_if_start       : std_ulogic;                      -- READ_IF start signal
     write_if_start      : std_ulogic;                      -- WRITE_IF start signal
-    delay_if_start      : std_ulogic;			   -- DELAY_IF start signal
+    delay_if_start      : std_ulogic;			                 -- DELAY_IF start signal
     desc_skip           : std_ulogic;                      -- descriptor skip flag
     err_flag            : std_ulogic;                      -- Error flag
     dcomp_flg           : std_ulogic;                      -- Descriptor completed flag
@@ -186,7 +186,7 @@ architecture rtl of injector_ctrl is
     err_status          : std_ulogic;                      -- register to find the falling edge of err_status input signal
     sts                 : status_out_type;                 -- Status register   
     fifo_wen            : std_ulogic;			   -- FIFO write enable signal
-    fifo_ren		: std_ulogic;			   -- FIFO read enable signal
+    fifo_ren		        : std_ulogic;			   -- FIFO read enable signal
     fifo_finished       : std_ulogic;			   -- FIFO is fully read flag
     fifo_rd_rst         : std_ulogic;			   -- FIFO read address reset signal 
   end record;
@@ -224,13 +224,14 @@ architecture rtl of injector_ctrl is
   signal d_des  : data_dsc_strct_type;  -- Data descriptor
   signal bmst   : bm_ctrl_reg_type;     -- Bus master control signals
   
-  signal fifo_wen_o : std_logic;			-- Write enable (to FIFO)
-  signal fifo_ren_o : std_logic;			-- Read enable  (to FIFO)
-  signal fifo_wdata : std_logic_vector(159 downto 0);	-- FIFO Write data bus
-  signal fifo_rdata : std_logic_vector(159 downto 0);	-- FIFO Read data bus
-  signal fifo_full  : std_logic;			-- FIFO is full (from FIFO)
-  signal fifo_completed : std_logic;			-- FIFO completely read (from FIFO)
-  signal fifo_read_rst  : std_logic;			-- FIFO Read Address Reset output
+  signal fifo_wen_o     : std_logic;			                -- Write enable (to FIFO)
+  signal fifo_ren_o     : std_logic;			                -- Read enable  (to FIFO)
+  signal fifo_wdata     : std_logic_vector(159 downto 0);	-- FIFO Write data bus
+  signal fifo_rdata     : std_logic_vector(159 downto 0);	-- FIFO Read data bus
+  signal fifo_full      : std_logic;			                -- FIFO is full (from FIFO)
+  signal fifo_completed : std_logic;			                -- FIFO completely read (from FIFO)
+  signal fifo_read_rst  : std_logic;			                -- FIFO Read Address Reset output
+  signal test           : std_logic;                      -- TEST I/O SIGNAL
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
@@ -456,16 +457,16 @@ begin  -- rtl
 	    if r.fifo_ren = '0' then -- Single clock Read enable signal
 	       v.fifo_ren := '1';
 	    else
-	       v.fifo_ren := '0'; -- Ready to read from FIFO
-	       v.dcomp_flg := '0';
-	       v.sts.desc_comp := '0';
-	       v.rd_desc  := fifo_rdata;
-	       v.state    := decode_desc;
+	       v.fifo_ren       := '0'; -- Ready to read from FIFO
+	       v.dcomp_flg      := '0';
+	       v.sts.desc_comp  := '0';
+	       v.rd_desc        := fifo_rdata;
+	       v.state          := decode_desc;
 
 	       -- Check if FIFO is fully read
 	       if orv(fifo_rdata) = '0' or fifo_completed = '1' then 
-		  v.fifo_rd_rst   := '1';
-		  v.fifo_finished := '1';
+		  v.fifo_rd_rst       := '1';
+		  v.fifo_finished     := '1';
 	       end if;
 	    end if;
 	 else
@@ -518,16 +519,17 @@ begin  -- rtl
               v.rep_count     := r.rep_count + 1;
               v.state         := decode_desc;
            else          
-	      v.sts.desc_comp := '1';
+	            v.sts.desc_comp := '1';
               v.dcomp_flg     := '1';
+              v.rep_count     := 0;
               v.state         := read_fifo;
            end if;
         elsif read_if_sts_in.read_if_err = '1' then  -- READ_IF error
-          v.sts.err         := '1';
-          v.err_flag        := '1';
-          v.err_state       := read_if_sts_in.state;
-          v.sts.rd_data_err := '1';
-          v.state	    := idle;
+          v.sts.err           := '1';
+          v.err_flag          := '1';
+          v.err_state         := read_if_sts_in.state;
+          v.sts.rd_data_err   := '1';
+          v.state	            := idle;
 
         end if;
         -----------
@@ -536,41 +538,42 @@ begin  -- rtl
         -- Check whether the transaction was successfull or not
         if (r.write_if_start = '0' and write_if_sts_in.comp = '1') then
            -- Check the descriptor repetition count parameter
-	   if ( r.rep_count < to_integer(unsigned(r.rd_desc(140 downto 135))) and orv(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+	      if ( r.rep_count < to_integer(unsigned(r.rd_desc(140 downto 135))) and orv(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := r.rep_count + 1;
-	      v.state         := decode_desc;
+	            v.state         := decode_desc;
            else
-	      v.sts.desc_comp := '1';
+	            v.sts.desc_comp := '1';
               v.dcomp_flg     := '1';
-	      v.rep_count     := 0;
-              v.state	      := read_fifo;
+	            v.rep_count     := 0;
+              v.state	        := read_fifo;
 	   end if;
         elsif write_if_sts_in.write_if_err = '1' then
-          v.sts.err         := '1';
-          v.err_flag        := '1';
-          v.err_state       := write_if_sts_in.state;
-          v.sts.wr_data_err := '1';
-          v.state 	    := idle;
+          v.sts.err           := '1';
+          v.err_flag          := '1';
+          v.err_state         := write_if_sts_in.state;
+          v.sts.wr_data_err   := '1';
+          v.state 	          := idle;
         end if;
         -----------
 
       when delay_if =>
         -- Check whether the transaction was successfull or not
         if (r.delay_if_start = '0' and delay_if_sts_in.comp = '1') then
-           if ( r.rep_count < to_integer(unsigned(r.rd_desc(140 downto 135))) and orv(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
-              v.rep_count     := r.rep_count + 1;
-              v.state         := decode_desc;
-           else
-	      v.sts.desc_comp   := '1';
-              v.dcomp_flg       := '1';
-              v.state	    := read_fifo;
-	   end if;
+          if ( r.rep_count < to_integer(unsigned(r.rd_desc(140 downto 135))) and orv(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+            v.rep_count       := r.rep_count + 1;
+            v.state           := decode_desc;
+          else
+	          v.sts.desc_comp   := '1';
+            v.dcomp_flg       := '1';
+            v.rep_count       := 0;
+            v.state	          := read_fifo;
+	        end if;
         elsif delay_if_sts_in.delay_if_err = '1' then
-          v.sts.err         := '1';
-          v.err_flag        := '1';
-          v.err_state       := delay_if_sts_in.state;
-          v.sts.wr_data_err := '1';
-          v.state 	    := idle;
+          v.sts.err           := '1';
+          v.err_flag          := '1';
+          v.err_state         := delay_if_sts_in.state;
+          v.sts.wr_data_err   := '1';
+          v.state 	          := idle;
         end if;
  
       when others =>
@@ -590,12 +593,14 @@ begin  -- rtl
     d_des.ctrl.count_size   <= r.rd_desc(140 downto 135);
     d_des.ctrl.size         <= r.rd_desc(159 downto 141);    
     -- Next Descriptor Pointer
-    d_des.nxt_des.ptr        <= (r.rd_desc(127 downto 97) & "0");
-    d_des.nxt_des.last       <= r.rd_desc(96);
+    d_des.nxt_des.ptr       <= (r.rd_desc(127 downto 97) & "0");
+    d_des.nxt_des.last      <= r.rd_desc(96);
     -- Destination base address where data is to be written
-    d_des.dest_addr          <= r.rd_desc(95 downto 64);
+    d_des.dest_addr         <= r.rd_desc(95 downto 64);
     -- Source base address from where data is to be fetched
-    d_des.src_addr           <= r.rd_desc(63 downto 32);
+    d_des.src_addr          <= r.rd_desc(63 downto 32);
+
+    --test                   <= (r.rep_count < to_integer(unsigned(r.rd_desc(140 downto 135))) and orv(r.rd_desc(140 downto 135)) = '1');
 
     -- Demultiplex Bus Master signals and drive READ_IF or WRITE_IF 
     if r.state = read_if then           --READ_IF
@@ -639,17 +644,18 @@ begin  -- rtl
       irq_flag_sts <= '0';
     end if;
 
-    rin                    <= v;
-    status.err             <= r.sts.err;
-    status.decode_desc_err <= r.sts.decode_desc_err;
-    status.rd_desc_err     <= r.sts.rd_desc_err;
-    status.rd_data_err     <= r.sts.rd_data_err;
-    status.wr_data_err     <= r.sts.wr_data_err;
-    status.ongoing         <= r.sts.ongoing;
-    status.desc_comp       <= r.sts.desc_comp;
-    status.kick            <= r.sts.kick;
-    status.rd_nxt_ptr_err  <= r.sts.rd_nxt_ptr_err;
-    status.comp            <= r.sts.comp;
+    rin                     <= v;
+    status.err              <= r.sts.err;
+    status.decode_desc_err  <= r.sts.decode_desc_err;
+    status.rd_desc_err      <= r.sts.rd_desc_err;
+    status.rd_data_err      <= r.sts.rd_data_err;
+    status.wr_data_err      <= r.sts.wr_data_err;
+    status.ongoing          <= r.sts.ongoing;
+    status.desc_comp        <= r.sts.desc_comp;
+    status.kick             <= r.sts.kick;
+    status.rd_nxt_ptr_err   <= r.sts.rd_nxt_ptr_err;
+    status.comp             <= r.sts.comp;
+    status.count            <= std_logic_vector(TO_UNSIGNED(r.rep_count, status.count'length));
 
     -- Current descriptor fields for debug display
     curr_desc_out.dbg_ctrl     <= r.rd_desc(159 downto 128);
