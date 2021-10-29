@@ -17,6 +17,8 @@ use grlib.at_util.all;
 use grlib.at_ahb_mst_pkg.all;
 use grlib.testlib.check;
 -- pragma translate_on
+library bsc;
+use bsc.injector_settings.all;
 library techmap;
 use techmap.gencomp.all;
 
@@ -103,6 +105,77 @@ package injector_pkg is
     wr_req  => '0',
     wr_data => (others => '0')
     );
+
+  -- AXI4 interface bus output
+  type axi4_out_type is record
+    -- Write address channel
+    aw_id           : std_logic_vector( AXI4_ID_WIDTH-1     downto 0 );
+    aw_addr         : std_logic_vector( 31 downto 0 );
+    aw_len          : std_logic_vector(  7 downto 0 );
+    aw_burst        : std_logic_vector(  1 downto 0 );
+    aw_lock         : std_logic;
+    aw_cache        : std_logic_vector(  3 downto 0 );
+    aw_size         : std_logic_vector(  2 downto 0 );
+    aw_prot         : std_logic_vector(  2 downto 0 );
+    aw_qos          : std_logic_vector(  3 downto 0 );
+    aw_region       : std_logic_vector(  3 downto 0 );
+    aw_valid        : std_logic;
+    -- Write data channel
+    w_data          : std_logic_vector( AXI4_DATA_WIDTH-1   downto 0 );
+    w_strb          : std_logic_vector( AXI4_DATA_WIDTH/8-1 downto 0 );
+    w_last          : std_logic;
+    w_valid         : std_logic;
+    -- Write response channel
+    b_ready         : std_logic;
+    -- Read address channel
+    ar_id           : std_logic_vector( AXI4_ID_WIDTH-1     downto 0 );
+    ar_addr         : std_logic_vector( 31 downto 0 );
+    ar_len          : std_logic_vector(  7 downto 0 );
+    ar_size         : std_logic_vector(  2 downto 0 );
+    ar_burst        : std_logic_vector(  1 downto 0 );
+    ar_lock         : std_logic;
+    ar_cache        : std_logic_vector(  3 downto 0 );
+    ar_prot         : std_logic_vector(  2 downto 0 );
+    ar_qos          : std_logic_vector(  3 downto 0 );
+    ar_region       : std_logic_vector(  3 downto 0 );
+    ar_valid        : std_logic;
+    -- Read data channel
+    r_ready         : std_logic;
+  end record;
+
+  -- AXI4 interface bus input
+  type axi4_in_type is record
+    -- Write address channel
+    aw_ready        : std_logic;
+    -- Write data channel
+    w_ready         : std_logic;
+    -- Write response channel
+    b_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
+    b_resp          : std_logic_vector (  1 downto 0 );
+    b_valid         : std_logic;
+    -- Read address channel
+    ar_ready        : std_logic;
+    -- Read data channel
+    r_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
+    r_data          : std_logic_vector ( AXI4_DATA_WIDTH-1   downto 0 );
+    r_resp          : std_logic_vector (  1 downto 0 );
+    r_last          : std_logic;
+    r_valid         : std_logic;
+  end record;
+
+  type apb_slv_in_type is record
+    sel             : std_logic_vector (  15 downto 0 ); -- 
+    en              : std_logic;
+    addr            : std_logic_vector (  31 downto 0 );
+    write           : std_logic;
+    data            : std_logic_vector (  31 downto 0 );
+    irq             : std_logic_vector ( 319 downto 0 );
+    ten             : std_logic;
+    trst            : std_logic;
+    scnen           : std_logic;
+    touten          : std_logic;
+    tinen           : std_logic;
+  end record;
   
   -- status out type 
   type status_out_type is record
