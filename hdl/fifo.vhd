@@ -2,15 +2,16 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.math_real.all;
-library grlib;
-use grlib.config_types.all;
-use grlib.config.all;
+--library grlib;
+--use grlib.config_types.all;
+--use grlib.config.all;
 --use grlib.stdlib.all;
 
 entity fifo is
     generic (
         RAM_LENGTH : integer := 16;     
         BUS_LENGTH : integer := 128
+        --ASYNC_RST  : boolean := FALSE
     );
     port(
         clk            : in  std_logic;
@@ -19,7 +20,7 @@ entity fifo is
         read_i         : in  std_logic;
         read_rst_i     : in  std_logic;
         full_o         : out std_logic;
-        comp_o	       : out std_logic;
+        comp_o	        : out std_logic;
         wdata_i        : in  std_logic_vector(BUS_LENGTH-1 downto 0);
         rdata_o        : out std_logic_vector(BUS_LENGTH-1 downto 0)
     );  
@@ -35,7 +36,7 @@ architecture rtl of fifo is
     -----------------------------------------------------------------------------
 
     -- Reset configuration
-    constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
+    --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
     constant RAM_INDEX : integer := integer(ceil(log2(real(RAM_LENGTH))));
     
     type ram_type is array (RAM_LENGTH-1 downto 0) of std_logic_vector(BUS_LENGTH-1 downto 0);

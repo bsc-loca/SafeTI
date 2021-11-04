@@ -7,10 +7,11 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library grlib;
-use grlib.config_types.all;
-use grlib.config.all;
-use grlib.stdlib.all;
+use ieee.std_logic_misc.or_reduce;
+--library grlib;
+--use grlib.config_types.all;
+--use grlib.config.all;
+--use grlib.stdlib.all;
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -23,6 +24,9 @@ use bsc.injector_pkg.all;
 ------------------------------------------------------------------------------------------
 
 entity injector_delay_if is
+  generic (
+    ASYNC_RST       : boolean := FALSE          -- Allow asynchronous reset flag
+    );
   port (
     rstn            : in  std_ulogic;           -- Active low reset
     clk             : in  std_ulogic;           -- Clock
@@ -47,7 +51,7 @@ architecture rtl of injector_delay_if is
   -----------------------------------------------------------------------------
 
   -- Reset configuration
-  constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
+  --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   -- Constants for read_if present state
   constant DELAY_IF_IDLE    	: std_logic_vector(4 downto 0) := "01100"; -- 0x0C
@@ -122,7 +126,7 @@ begin
           v.sts.operation  := '1';
           v.sts.comp       := '0';
           v.tot_size       := d_des_in.ctrl.size;
-          if orv(d_des_in.ctrl.size) = '0' then
+          if or_reduce(d_des_in.ctrl.size) = '0' then
             v.sts.comp := '1';
           end if;
           v.delay_if_state := exec_data_desc;

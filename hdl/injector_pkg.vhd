@@ -9,21 +9,38 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library grlib;
-use grlib.amba.all;
-use grlib.stdlib.all;
+--use grlib.amba.all;
+--use grlib.stdlib.all;
 -- pragma translate_off
 use grlib.at_pkg.all;
 use grlib.at_util.all;
 use grlib.at_ahb_mst_pkg.all;
 use grlib.testlib.check;
 -- pragma translate_on
-library bsc;
-use bsc.injector_settings.all;
-library techmap;
-use techmap.gencomp.all;
+--library techmap;
+--use techmap.gencomp.all;
 
 
 package injector_pkg is
+  --generic (
+    -- APB bus generics
+    constant APB_SLAVE_NMAX		: integer := 16;    -- Max number of slaves at APB bus
+    constant APB_IRQ_NMAX			: integer := 32;    -- Max number of interrupts at APB bus
+    constant APB_TEST_WIDTH		: integer :=  4;    -- apb_slave_in test in enable (tinen)
+    -- AHB bus generics
+    constant AHB_MASTER_NMAX	: integer := 16;    -- Max number of masters at AHB bus
+    constant AHB_IRQ_NMAX			: integer := 32;    -- Max number of interrupts at APB bus
+    constant AHB_DATA_WIDTH	  : integer := 32;    -- Data's width at AHB bus
+    constant AHB_TEST_WIDTH		: integer :=  4;    -- ahb_master_in testin
+    -- AXI bus generics
+    constant AXI4_ID_WIDTH	  : integer	:=  4;    -- Max number of IDs at AXI bus
+    constant AXI4_DATA_WIDTH	: integer	:= 32;    -- Data's width at AXI bus
+    -- Common generics
+    constant numTech          : integer := 67;    -- Target technology
+    constant typeTech         : integer :=  0;
+    --constant VENDOR_BSC       : integer := 14;    -- BSC vendor code
+    --constant ASYNC_RST        : boolean := FALSE; -- Allow synchronous reset flag. Not sure if it's even used.
+  --);
 
 -------------------------------------------------------------------------------
 -- Types and records
@@ -163,20 +180,57 @@ package injector_pkg is
     r_valid         : std_logic;
   end record;
 
-  type apb_slv_in_type is record
-    sel             : std_logic_vector (  15 downto 0 ); -- 
+  type apb_slave_in_type is record
+    sel             : std_logic_vector ( 0 to APB_SLAVE_NMAX-1 );
     en              : std_logic;
-    addr            : std_logic_vector (  31 downto 0 );
+    addr            : std_logic_vector ( 31 downto 0 );
     write           : std_logic;
-    data            : std_logic_vector (  31 downto 0 );
-    irq             : std_logic_vector ( 319 downto 0 );
+    wdata           : std_logic_vector ( 31 downto 0 );
+    irq             : std_logic_vector ( APB_IRQ_NMAX-1   downto 0 );
     ten             : std_logic;
     trst            : std_logic;
     scnen           : std_logic;
     touten          : std_logic;
-    tinen           : std_logic;
+    tinen           : std_logic_vector ( APB_TEST_WIDTH-1 downto 0 );
+  end record;
+
+  type apb_slave_out_type is record
+    rdata           : std_logic_vector( 31 downto 0 );
+    irq             : std_logic_vector( 31 downto 0 );
+    config          : std_logic_vector( 31 downto 0 );
+    index           : integer range 0 to 15;
   end record;
   
+  type ahb_master_in_type is record
+    grant           : std_logic_vector(  0 to AHB_MASTER_NMAX-1 );
+    ready           : std_ulogic;
+    resp            : std_logic_vector(  1 downto 0 );
+    rdata           : std_logic_vector( AHB_DATA_WIDTH-1 downto 0 );
+    irq             : std_logic_vector( AHB_IRQ_NMAX-1   downto 0 );
+    testen          : std_ulogic;
+    testrst         : std_ulogic;
+    scanen          : std_ulogic;
+    testoen         : std_ulogic;
+    testin          : std_logic_vector( AHB_TEST_WIDTH-1 downto 0 );
+    endian          : std_ulogic;
+  end record;
+
+  type ahb_master_out_type is record
+    busreq          : std_ulogic;
+    lock            : std_ulogic;
+    trans           : std_logic_vector(  1 downto 0 );
+    addr            : std_logic_vector( 31 downto 0 );
+    write           : std_ulogic;
+    size            : std_logic_vector(  2 downto 0 );
+    burst           : std_logic_vector(  2 downto 0 );
+    prot            : std_logic_vector(  3 downto 0 );
+    wdata           : std_logic_vector( AHB_DATA_WIDTH-1 downto 0 );
+    irq             : std_logic_vector( AHB_IRQ_NMAX-1 downto 0 );
+    config          : std_logic_vector( 31 downto 0 );
+    index           : integer range 0 to AHB_MASTER_NMAX-1;
+  end record;
+
+ 
   -- status out type 
   type status_out_type is record
     err             : std_ulogic;       -- General error status. Asserted along with other errors
@@ -352,7 +406,7 @@ package injector_pkg is
     decode_err              => '0',
     rd_desc_err             => '0',
     state                   => (others => '0'),
-    count		    => (others => '0'), 
+    count		                => (others => '0'), 
     read_if_rd_data_err     => '0',
     write_if_wr_data_err    => '0',
     kick_pend               => '0',
@@ -451,46 +505,55 @@ package injector_pkg is
   -------------------------------------------------------------------------------
   -- Subprograms
   -------------------------------------------------------------------------------
-  function find_burst_size(src_fixed_addr  : std_ulogic;
-                           dest_fixed_addr : std_ulogic;
-                           max_bsize       : integer;
-                           total_size      : std_logic_vector(18 downto 0)
+  function find_burst_size(src_fixed_addr   : std_ulogic;
+                           dest_fixed_addr  : std_ulogic;
+                           max_bsize        : integer;
+                           total_size       : std_logic_vector(18 downto 0)
                            )
   return std_logic_vector;
 
+  -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
+  function add_vector(A, B : std_logic_vector; len : natural) return std_logic_vector;
+  function sub_vector(A, B : std_logic_vector; len : natural) return std_logic_vector;
+  function add_vector(A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  function sub_vector(A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  
   -------------------------------------------------------------------------------
   -- Components
   -------------------------------------------------------------------------------
   -- INJECTOR APB interface
   component injector_apb is
     generic (
-      pindex   : integer                 := 0;
-      paddr    : integer                 := 0;
-      pmask    : integer                 := 16#FF8#;
-      pirq     : integer                 := 0;
-      dbits    : integer range 32 to 128 := 32
+      pindex            : integer                 := 0;
+      paddr             : integer                 := 0;
+      pmask             : integer                 := 16#FF8#;
+      pirq              : integer                 := 0;
+      dbits             : integer range 32 to 128 := 32;
+      ASYNC_RST         : boolean                 := FALSE
       );
     port (
-      rstn          : in  std_ulogic;
-      clk           : in  std_ulogic;
-      apbi          : in  apb_slv_in_type;
-      apbo          : out apb_slv_out_type;
-      ctrl_out      : out injector_ctrl_reg_type;
-      desc_ptr_out  : out injector_desc_ptr_type;
-      active        : out std_ulogic;
-      err_status    : out std_ulogic;
-      irq_flag_sts  : in  std_ulogic;
-      curr_desc_in  : in  curr_des_out_type;
-      curr_desc_ptr : in  std_logic_vector(31 downto 0);
-      sts_in        : in  status_out_type
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      apbi              : in  apb_slave_in_type;
+      apbo              : out apb_slave_out_type;
+      ctrl_out          : out injector_ctrl_reg_type;
+      desc_ptr_out      : out injector_desc_ptr_type;
+      active            : out std_ulogic;
+      err_status        : out std_ulogic;
+      irq_flag_sts      : in  std_ulogic;
+      curr_desc_in      : in  curr_des_out_type;
+      curr_desc_ptr     : in  std_logic_vector(31 downto 0);
+      sts_in            : in  status_out_type
           );
-  end component;
+  end component injector_apb;
 
   -- Control Module
   component injector_ctrl is
     generic (
-      dbits : integer range 32 to 128 := 32;
-      fifo_size : integer range 1 to 16 := 8);
+      dbits             : integer range 32 to 128 := 32;
+      fifo_size         : integer range 1 to 16   := 8;
+      ASYNC_RST         : boolean                 := FALSE
+      );
     port (
       rstn              : in  std_ulogic;
       clk               : in  std_ulogic;
@@ -518,13 +581,14 @@ package injector_pkg is
       delay_if_sts_in   : in  d_ex_sts_out_type;
       delay_if_start    : out std_logic
       );
-  end component;
+  end component injector_ctrl;
 
   -- WRITE_IF
   component injector_write_if is
     generic (
-      dbits      : integer range 32 to 128  := 32;
-      bm_bytes   : integer range 4 to 16    := 4
+      dbits             : integer range 32 to 128 := 32;
+      bm_bytes          : integer range 4 to 16   := 4;
+      ASYNC_RST         : boolean                 := FALSE
       );
     port (
       rstn              : in  std_ulogic;
@@ -537,100 +601,132 @@ package injector_pkg is
       write_if_bmi      : in  bm_out_type;
       write_if_bmo      : out bm_ctrl_reg_type
       );
-   end component;
+   end component injector_write_if;
 
    -- READ_IF
   component injector_read_if is
     generic (
-      dbits      : integer range 32 to 128  := 32;
-      bm_bytes   : integer range 4 to 16    := 4
+      dbits             : integer range 32 to 128 := 32;
+      bm_bytes          : integer range 4 to 16   := 4;
+      ASYNC_RST         : boolean                 := FALSE
       );
     port (
-      rstn          : in  std_ulogic;
-      clk           : in  std_ulogic;
-      ctrl_rst      : in  std_ulogic;
-      err_sts_in    : in  std_ulogic;
-      read_if_start : in  std_ulogic;
-      d_des_in      : in  data_dsc_strct_type;
-      status_out    : out d_ex_sts_out_type;
-      read_if_bmi   : in  bm_out_type;
-      read_if_bmo   : out bm_ctrl_reg_type
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      ctrl_rst          : in  std_ulogic;
+      err_sts_in        : in  std_ulogic;
+      read_if_start     : in  std_ulogic;
+      d_des_in          : in  data_dsc_strct_type;
+      status_out        : out d_ex_sts_out_type;
+      read_if_bmi       : in  bm_out_type;
+      read_if_bmo       : out bm_ctrl_reg_type
       );
-  end component;
+  end component injector_read_if;
 
   -- DELAY_IF
   component injector_delay_if is
+    generic (
+      ASYNC_RST         : boolean                 := FALSE
+    );
     port (
-      rstn            : in  std_ulogic;
-      clk             : in  std_ulogic;
-      ctrl_rst        : in  std_ulogic;
-      err_sts_in      : in  std_ulogic;
-      delay_if_start  : in  std_ulogic;
-      d_des_in        : in  data_dsc_strct_type;
-      status_out      : out d_ex_sts_out_type
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      ctrl_rst          : in  std_ulogic;
+      err_sts_in        : in  std_ulogic;
+      delay_if_start    : in  std_ulogic;
+      d_des_in          : in  data_dsc_strct_type;
+      status_out        : out d_ex_sts_out_type
       );
-  end component;
+  end component injector_delay_if;
 
   component fifo is
     generic (
-        RAM_LENGTH : integer := 8;
-        BUS_LENGTH : integer := 160
+        RAM_LENGTH      : integer := 8;
+        BUS_LENGTH      : integer := 160
     );
     port(
-        clk            : in  std_logic;
-        rstn           : in  std_logic;
-        write_i        : in  std_logic;
-        read_i         : in  std_logic;
-        read_rst_i     : in  std_logic;
-        full_o         : out std_logic;
-        comp_o         : out std_logic;
-        wdata_i        : in  std_logic_vector(BUS_LENGTH-1 downto 0);
-        rdata_o        : out std_logic_vector(BUS_LENGTH-1 downto 0)
+        clk             : in  std_logic;
+        rstn            : in  std_logic;
+        write_i         : in  std_logic;
+        read_i          : in  std_logic;
+        read_rst_i      : in  std_logic;
+        full_o          : out std_logic;
+        comp_o          : out std_logic;
+        wdata_i         : in  std_logic_vector(BUS_LENGTH-1 downto 0);
+        rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0)
     );
   end component fifo;
 
 
-  --Injector core
+  -- Injector core
   component injector is
     generic (
-      tech     : integer range 0 to NTECH     := inferred;
-      pindex   : integer                      := 0;
-      paddr    : integer                      := 0;
-      pmask    : integer                      := 16#FF8#;
-      pirq     : integer range 0 to NAHBIRQ-1 := 0;
-      dbits    : integer range 32 to 128      := 32
+      tech              : integer range 0 to numTech        := typeTech;
+      pindex            : integer                           := 0;
+      paddr             : integer                           := 0;
+      pmask             : integer                           := 16#FF8#;
+      pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
+      dbits             : integer range 32 to 128           := 32;
+      ASYNC_RST         : boolean                           := FALSE
       );
     port (
-      rstn    : in  std_ulogic;
-      clk     : in  std_ulogic;
-      apbi    : in  apb_slv_in_type;
-      apbo    : out apb_slv_out_type;
-      bm0_in  : out bm_in_type;
-      bm0_out : in  bm_out_type
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      apbi              : in  apb_slave_in_type;
+      apbo              : out apb_slave_out_type;
+      bm0_in            : out bm_in_type;
+      bm0_out           : in  bm_out_type
       );
-  end component;
+  end component injector;
 
-  -- injector_ahb top level interface
+  -- INJECTOR AHB top level interface
   component injector_ahb is
     generic (
-      tech             : integer range 0 to NTECH     := inferred;
-      pindex           : integer                      := 0;
-      paddr            : integer                      := 0;
-      pmask            : integer                      := 16#FF8#;
-      pirq             : integer range 0 to NAHBIRQ-1 := 0;
-      dbits            : integer range 32 to 128      := 32;
-      hindex           : integer                      := 0;
-      max_burst_length : integer range 2 to 256       := 128
+      tech              : integer range 0 to numTech        := typeTech;
+      pindex            : integer                           := 0;
+      paddr             : integer                           := 0;
+      pmask             : integer                           := 16#FF8#;
+      pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
+      dbits             : integer range 32 to 128           := 32;
+      hindex            : integer                           := 0;
+      max_burst_length  : integer range 2 to 256            := 128;
+      ASYNC_RST         : boolean                           := FALSE
       );
     port (
-      rstn    : in  std_ulogic;
-      clk     : in  std_ulogic;
-      apbi    : in  apb_slv_in_type;
-      apbo    : out apb_slv_out_type;
-      ahbmi  : in  ahb_mst_in_type;
-      ahbmo  : out ahb_mst_out_type
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
+      apbi              : in  apb_slave_in_type;
+      apbo              : out apb_slave_out_type;
+      bm_in             : out bm_in_type;
+      bm_out            : in  bm_out_type
       );
-  end component;
+  end component injector_ahb;
+
+  -- AHB interface wrapper for SELENE platform
+  --component injector_ahb_SELENE is
+  --  generic (
+  --    tech              : integer range 0 to numTech        := typeTech;
+  --    -- APB configuration  
+  --    pindex            : integer                           := 0;
+  --    paddr             : integer                           := 0;
+  --    pmask             : integer                           := 16#FF8#;
+  --    pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
+  --    -- Bus master configuration
+  --    dbits             : integer range 32 to 128           := 32;
+  --    hindex            : integer                           := 0;
+  --    max_burst_length  : integer range 2 to 256            := 128
+  --    );
+  --  port (
+  --    rstn              : in  std_ulogic;
+  --    clk               : in  std_ulogic;
+  --    -- APB interface signals
+  --    apbi              : in  apb_slv_in_type;
+  --    apbo              : out apb_slv_out_type;
+  --    -- AHB interface signals
+  --    ahbmi             : in  ahb_master_in_type;
+  --    ahbmo             : out ahb_master_out_type
+  --    );
+  --end component injector_ahb_SELENE;
 
   -------------------------------------------------------------------------------
   -- Procedures
@@ -650,7 +746,7 @@ end package injector_pkg;
 package body injector_pkg is
 
   -- Function to determine the burst size based on maximum burst limit
-  function find_burst_size (
+  function find_burst_size(
     src_fixed_addr  : std_ulogic;
     dest_fixed_addr : std_ulogic;
     max_bsize       : integer;
@@ -661,7 +757,7 @@ package body injector_pkg is
     variable burst_size : std_logic_vector(10 downto 0);
     variable total_int  : integer;
   begin
-    total_int := conv_integer(total_size);
+    total_int := to_integer(unsigned(total_size));
     -- Limit the burst burst size by maximum burst length
     if (src_fixed_addr or dest_fixed_addr) = '1' then
       if total_int < 4 then             -- less than 4 bytes
@@ -675,10 +771,54 @@ package body injector_pkg is
       temp := total_int;
     end if;
    
-    burst_size := conv_std_logic_vector(temp,11);
+    burst_size := std_logic_vector(to_unsigned(temp,11));
 
     return burst_size;
   end find_burst_size;
+
+  function add_vector(
+    A, B : std_logic_vector;
+    len : natural) 
+  return std_logic_vector is
+    variable res : std_logic_vector(len - 1 downto 0);
+  begin
+    res := std_logic_vector(unsigned(A) + unsigned(B));
+    return res;
+  end add_vector;
+
+  function add_vector(
+    A : std_logic_vector;
+    B : integer;
+    len : natural) 
+  return std_logic_vector is
+    variable res : std_logic_vector(len - 1 downto 0);
+  begin
+    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, len-1), len));
+    return res;
+  end add_vector;
+
+  function sub_vector(
+    A, B : std_logic_vector;
+    len : natural) 
+  return std_logic_vector is
+    variable res : std_logic_vector(len - 1 downto 0);
+  begin
+    res := std_logic_vector(unsigned(A) - unsigned(B));
+    return res;
+  end sub_vector;
+
+  function sub_vector(
+    A : std_logic_vector;
+    B : integer;
+    len : natural) 
+  return std_logic_vector is
+    variable res : std_logic_vector(len - 1 downto 0);
+  begin
+    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, len-1), len));
+    return res;
+  end sub_vector;
+
+
    
 -- pragma translate_off
     -- Injector Testbench Testing Procedures
@@ -689,7 +829,7 @@ package body injector_pkg is
         variable r32        : std_logic_vector(31 downto 0);
     begin
 
-        print("[INJ] Writing descriptors to memory");
+        report "[INJ] Writing descriptors to memory";
 
         -- DESCRIPTOR #1 (0x00100000)
         w32 := X"00200011"; -- Control
@@ -712,7 +852,7 @@ package body injector_pkg is
         at_write_32(X"0010100C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
 
         -- ENABLE PMU
-        print("[PMU] Enabling SafePMU");
+        report "[PMU] Enabling SafePMU";
         -- Reset RDC
         w32 := X"00000010";
         at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
@@ -736,7 +876,7 @@ package body injector_pkg is
 
         wait for 5 us;
 
-        print("[INJ] Enabling SafeTI");
+        report "[INJ] Enabling SafeTI";
 
         w32 := X"00100000"; -- First Descriptor Pointer
         at_write_32(X"fc085008",  w32, 0, false, "0011", true, vmode, atmi, atmo);

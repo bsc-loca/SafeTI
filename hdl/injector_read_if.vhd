@@ -8,10 +8,11 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library grlib;
-use grlib.config_types.all;
-use grlib.config.all;
-use grlib.stdlib.all;
+use ieee.std_logic_misc.or_reduce;
+--library grlib;
+--use grlib.config_types.all;
+--use grlib.config.all;
+--use grlib.stdlib.all;
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -29,21 +30,22 @@ use bsc.injector_pkg.all;
 
 entity injector_read_if is
   generic (
-    dbits      : integer range 32 to 128  := 32;  -- Bus master front end data
-    bm_bytes   : integer range 4 to 16    := 4    -- bus master data width in bytes
+    dbits           : integer range 32 to 128 := 32;    -- Bus master front end data
+    bm_bytes        : integer range  4 to  16 := 4;     -- bus master data width in bytes
+    ASYNC_RST       : boolean                 := FALSE  -- Allow asynchronous reset flag
     );
   port (
-    rstn            : in  std_ulogic;           -- Active low reset
-    clk             : in  std_ulogic;           -- Clock
+    rstn            : in  std_ulogic;                   -- Active low reset
+    clk             : in  std_ulogic;                   -- Clock
     -- Signals to and from injector_ctrl
-    ctrl_rst        : in  std_ulogic;           -- Reset signal from APB interface through grdmac_ctrl
-    err_sts_in      : in  std_ulogic;           -- Core error status from APB status register 
-    read_if_start   : in  std_ulogic;           -- Start control signal
-    d_des_in        : in  data_dsc_strct_type;  -- Data descriptor needs to executed
-    status_out      : out d_ex_sts_out_type;    -- M2b status out signals 
+    ctrl_rst        : in  std_ulogic;                   -- Reset signal from APB interface through grdmac_ctrl
+    err_sts_in      : in  std_ulogic;                   -- Core error status from APB status register 
+    read_if_start   : in  std_ulogic;                   -- Start control signal
+    d_des_in        : in  data_dsc_strct_type;          -- Data descriptor needs to executed
+    status_out      : out d_ex_sts_out_type;            -- M2b status out signals 
     -- Generic bus master interface
-    read_if_bmi     : in  bm_out_type;          -- BM interface signals to READ_IF,through crontrol module
-    read_if_bmo     : out bm_ctrl_reg_type      -- Signals from READ_IF to BM IF through control module
+    read_if_bmi     : in  bm_out_type;                  -- BM interface signals to READ_IF,through crontrol module
+    read_if_bmo     : out bm_ctrl_reg_type              -- Signals from READ_IF to BM IF through control module
     );
 end entity injector_read_if;
 
@@ -59,11 +61,11 @@ architecture rtl of injector_read_if is
   -----------------------------------------------------------------------------
 
   -- Reset configuration
-  constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
+  --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   -- Constants for read_if present state
   constant READ_IF_IDLE      	: std_logic_vector(4 downto 0) := "00101"; -- 0x05
-  constant READ_IF_EXEC    	: std_logic_vector(4 downto 0) := "00110"; -- 0x06
+  constant READ_IF_EXEC    	  : std_logic_vector(4 downto 0) := "00110"; -- 0x06
   constant READ_IF_DATA_READ	: std_logic_vector(4 downto 0) := "00111"; -- 0x07
 
   -- Bus master interface front end width in bytes := dbits/8
@@ -94,7 +96,7 @@ architecture rtl of injector_read_if is
     sts                 : d_ex_sts_out_type;              -- M2b status signals 
     tot_size            : std_logic_vector(18 downto 0);  -- Total size of data to read
     curr_size           : std_logic_vector(10 downto 0);  -- Remaining size in the burst, to be read
-    inc                 : integer range 0 to 2097152;     -- Index register for source address increment
+    inc                 : std_logic_vector(21 downto 0);  -- For data destination address increment (22 bits)
     bmst_rd_busy        : std_ulogic;                     -- bus master read busy
     bmst_rd_err         : std_ulogic;                     -- bus master read error
     err_state           : std_logic_vector(4 downto 0);   -- Error state
@@ -106,7 +108,7 @@ architecture rtl of injector_read_if is
     sts                 => D_EX_STS_RST,
     tot_size            => (others => '0'),
     curr_size           => (others => '0'),
-    inc                 => 0,
+    inc                 => (others => '0'),
     bmst_rd_busy        => '0',
     bmst_rd_err         => '0',
     err_state           => (others => '0')
@@ -156,9 +158,9 @@ begin
           v.sts.operation  := '1';
           v.sts.comp       := '0';
           v.tot_size       := d_des_in.ctrl.size;
-          v.inc            := 0;
+          v.inc            := (others => '0');
           v.bmst_rd_err    := '0';
-          if orv(d_des_in.ctrl.size) = '0' then
+          if or_reduce(d_des_in.ctrl.size) = '0' then
             v.sts.comp := '1';
           end if;
           v.curr_size := find_burst_size(src_fixed_addr         => d_des_in.ctrl.src_fix_adr,
@@ -172,20 +174,20 @@ begin
         
       when exec_data_desc =>
         
-        if orv(r.curr_size) /= '0' then  -- More data remaining to be fetched
+        if or_reduce(r.curr_size) /= '0' then  -- More data remaining to be fetched
           if r.bmst_rd_busy = '0' then
             if d_des_in.ctrl.src_fix_adr = '1' then
               -- If souce address is fixed, data is read in a looped manner from same source address. Single access. No burst              
               read_if_bmo.rd_addr <= d_des_in.src_addr;
             else
              -- If souce address is not fixed, data is read as a burst. source address is incremented between bursts.
-              read_if_bmo.rd_addr <= d_des_in.src_addr + r.inc;
+              read_if_bmo.rd_addr <= add_vector(d_des_in.src_addr, r.inc, read_if_bmo.rd_addr'length);
             end if;
-            read_if_bmo.rd_size <= conv_std_logic_vector(conv_integer(r.curr_size)-1, 10);
-            bmst_rd_req     := '1';
+            read_if_bmo.rd_size <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length);
+            bmst_rd_req := '1';
             if bmst_rd_req = '1' and read_if_bmi.rd_req_grant = '1' then
-              v.bmst_rd_busy := '1';
-              v.read_if_state    := read_data;
+              v.bmst_rd_busy  := '1';
+              v.read_if_state := read_data;
             end if;
           end if;
         else                             -- Data fetch completed
@@ -202,15 +204,15 @@ begin
           if read_if_bmi.rd_err = '1' then
             v.bmst_rd_err := '1';
           elsif r.bmst_rd_err = '0' then
-            if conv_integer(r.curr_size) >= bm_bytes then
-              v.curr_size    := r.curr_size - bm_bytes;
-              v.inc          := r.inc + bm_bytes;
-              remaining      := r.tot_size - bm_bytes;
+            if to_integer(unsigned(r.curr_size)) >= bm_bytes then
+              v.curr_size    := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);
+              v.inc          := add_vector(r.inc, bm_bytes, v.inc'length);
+              remaining      := sub_vector(r.tot_size, bm_bytes, remaining'length);
               v.tot_size     := remaining;
             else                        --curr_size is less than bm_bytes
               v.curr_size    := (others => '0');
-              v.inc          := r.inc + conv_integer(r.curr_size);
-              remaining      := r.tot_size - r.curr_size;
+              v.inc          := add_vector(r.inc, r.curr_size, v.inc'length);
+              remaining      := sub_vector(r.tot_size, r.curr_size, remaining'length);
               v.tot_size     := remaining;
             end if;
           end if;
@@ -218,7 +220,7 @@ begin
           -- Check if read burst is done
           if read_if_bmi.rd_done = '1' then
             if v.bmst_rd_err = '0' then  -- no bus master error                    
-              if orv(remaining) /= '0' then
+              if or_reduce(remaining) /= '0' then
                 v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
                                                 max_bsize       => MAX_BSIZE,

@@ -9,7 +9,6 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library bsc;
 use bsc.injector_pkg.all;
-use bsc.injector_settings.all;
 
 -----------------------------------------------------------------------------
 -- Top level entity for injector.
@@ -19,15 +18,15 @@ use bsc.injector_settings.all;
 
 entity injector_axi is
   generic (
-    tech             : integer range 0 to 67        := 0;         -- Target technology
+    tech             : integer range 0 to NTECH     := inferred;  -- Target technology
     -- APB configuration  
     pindex           : integer                      := 0;         -- APB configuartion slave index
     paddr            : integer                      := 0;         -- APB configuartion slave address
     pmask            : integer                      := 16#FF8#;   -- APB configuartion slave mask
-    pirq             : integer range 0 to 320       := 0;         -- APB configuartion slave irq
+    pirq             : integer range 0 to NAHBIRQ-1 := 0;         -- APB configuartion slave irq
     -- Bus master configuration
     dbits            : integer range 32 to 128      := 32;        -- Data width of BM and FIFO    
-    max_burst_length : integer range 2 to 256       := 128        -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
+    max_burst_length : integer range 2 to 256       := 128       -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
     );
   port (
     rstn     : in  std_ulogic;                    -- Reset
