@@ -45,7 +45,7 @@ entity injector_write_if is
     status_out      : out d_ex_sts_out_type;              -- Write_if status out signals 
     -- Generic bus master interface
     write_if_bmi    : in  bm_out_type;                    -- BM interface signals to write_if,through control module 
-    write_if_bmo    : out bm_ctrl_reg_type                -- Signals from Write_IF to BM_IF through control module
+    write_if_bmo    : out bm_in_type                      -- Signals from Write_IF to BM_IF through control module
   );
 end entity injector_write_if;
 
@@ -71,9 +71,8 @@ architecture rtl of injector_write_if is
   constant WRITE_IF_CHECK   	: std_logic_vector(4 downto 0) := "01011"; -- 0x0B
 
   -- Constant for bit - byte manipulation
-  constant SHIFT_BIT          : natural := 3;
-  constant MAX_BSIZE          : integer := MAX_SIZE_BEAT;         -- Maximum BM interface data size
-  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;-- in single burst is 1024 bytes
+  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;  -- Maximum BM interface data size
+  constant SHIFT_BIT          : natural := 3;                       -- in single burst is 1024 bytes
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -159,7 +158,7 @@ begin
           end if;
           v.curr_size := find_burst_size(src_fixed_addr       => d_des_in.ctrl.src_fix_adr,
                                               dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                              max_bsize       => MAX_BSIZE,
+                                              max_bsize       => MAX_SIZE_BEAT,
                                               total_size      => d_des_in.ctrl.size
                                               );
           v.write_if_state := first_word;
@@ -234,7 +233,7 @@ begin
             if or_reduce(r.tot_size) /= '0' then --Start again if there are remaining bytes
               v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                              dest_fixed_addr  => d_des_in.ctrl.dest_fix_adr,
-                                             max_bsize        => MAX_BSIZE,
+                                             max_bsize        => MAX_SIZE_BEAT,
                                              total_size       => r.tot_size
                                              );
               v.write_if_state  := first_word;

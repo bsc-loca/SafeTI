@@ -46,7 +46,7 @@ entity injector_read_if is
     status_out      : out d_ex_sts_out_type;              -- M2b status out signals 
     -- Generic bus master interface
     read_if_bmi     : in  bm_out_type;                    -- BM interface signals to READ_IF,through crontrol module
-    read_if_bmo     : out bm_ctrl_reg_type                -- Signals from READ_IF to BM IF through control module
+    read_if_bmo     : out bm_in_type                      -- Signals from READ_IF to BM IF through control module
     );
 end entity injector_read_if;
 
@@ -70,8 +70,8 @@ architecture rtl of injector_read_if is
   constant READ_IF_DATA_READ	: std_logic_vector(4 downto 0) := "00111"; -- 0x07
 
   -- Bus master interface front end width in bytes := dbits/8
-  constant MAX_BSIZE        : integer := MAX_SIZE_BEAT;     -- Maximum BM interface data size
-  constant BURST_BUS_WIDTH  : integer := log_2(MAX_BSIZE)+1;-- in single burst is 1024 bytes
+  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;-- Maximum BM interface data size
+                                                                  -- in single burst is 1024 bytes
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -166,7 +166,7 @@ begin
           end if;
           v.curr_size := find_burst_size(src_fixed_addr         => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                                max_bsize       => MAX_BSIZE,
+                                                max_bsize       => MAX_SIZE_BEAT,
                                                 total_size      => d_des_in.ctrl.size
                                                 );
           v.read_if_state := exec_data_desc;
@@ -223,7 +223,7 @@ begin
               if or_reduce(remaining) /= '0' then
                 v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                                max_bsize       => MAX_BSIZE,
+                                                max_bsize       => MAX_SIZE_BEAT,
                                                 total_size      => remaining
                                                 );
 		            v.bmst_rd_busy	:= '0';

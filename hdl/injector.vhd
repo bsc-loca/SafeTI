@@ -79,11 +79,11 @@ architecture rtl of injector is
   signal read_if_status     : d_ex_sts_out_type;
   signal read_if_start      : std_ulogic;
   signal read_if_bmo        : bm_out_type;
-  signal read_if_bmi        : bm_ctrl_reg_type;
+  signal read_if_bmi        : bm_in_type;
   -- WRITE_IF
   signal write_if_status    : d_ex_sts_out_type;
   signal write_if_start     : std_ulogic;
-  signal write_if_bmi       : bm_ctrl_reg_type;
+  signal write_if_bmi       : bm_in_type;
   signal write_if_bmo       : bm_out_type;
   -- DELAY_IF
   signal delay_if_status    : d_ex_sts_out_type;

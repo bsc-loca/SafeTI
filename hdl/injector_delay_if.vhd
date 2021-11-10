@@ -104,13 +104,11 @@ begin
   -----------------------------------------------------------------------------
   
   comb : process (r, d_des_in, delay_if_start, err_sts_in)
-
-    variable v             : delay_if_reg_type;
+    variable v : delay_if_reg_type;
   
   begin
-
     -- Default values 
-    v                := r;
+    v := r;
 
     -- DELAY_IF state machine
     case r.delay_if_state is
@@ -135,8 +133,8 @@ begin
         
       when exec_data_desc =>
         
-        if (to_integer(unsigned(r.curr_size)) < to_integer(unsigned(r.tot_size)) ) then  
-          v.curr_size := std_logic_vector(to_unsigned(to_integer(unsigned(r.curr_size)) + 1, 19));
+        if ( to_integer(unsigned(r.curr_size)) < to_integer(unsigned(r.tot_size)) ) then  
+          v.curr_size := add_vector(r.curr_size, 1, v.curr_size'length);
         else                           
           v.sts.comp       := '1';
           v.sts.operation  := '0';

@@ -53,10 +53,10 @@ entity injector_ctrl is
     bm_in             : in  bm_out_type;                    -- BM signals from Bus master to control module
     bm_out            : out bm_in_type;                     -- BM signals to BusMaster interface from control module
     -- READ_IF BM signals
-    read_if_bm_in     : in  bm_ctrl_reg_type;               -- BM signals from READ_IF through control module  
+    read_if_bm_in     : in  bm_in_type;                     -- BM signals from READ_IF through control module  
     read_if_bm_out    : out bm_out_type;                    -- BM signals to READ_IF through control module  
     -- WRITE_IF BM signals
-    write_if_bm_in    : in  bm_ctrl_reg_type;               -- BM signals from WRITE_IF through control module
+    write_if_bm_in    : in  bm_in_type;                     -- BM signals from WRITE_IF through control module
     write_if_bm_out   : out bm_out_type;                    -- BM signals to WRITE_IF through control module
     -- data descriptor out for READ_IF, WRITE_IF and DELAY
     d_desc_out        : out data_dsc_strct_type;            -- Data descriptor passed to READ_IF and WRITE_IF
@@ -224,7 +224,7 @@ architecture rtl of injector_ctrl is
 
   signal r, rin : ctrl_reg_type;
   signal d_des  : data_dsc_strct_type;  -- Data descriptor
-  signal bmst   : bm_ctrl_reg_type;     -- Bus master control signals
+  signal bmst   : bm_in_type;           -- Bus master control signals
   
   signal fifo_wen_o     : std_logic;			                -- Write enable (to FIFO)
   signal fifo_ren_o     : std_logic;			                -- Read enable  (to FIFO)
@@ -270,11 +270,11 @@ begin  -- rtl
 
 bm_out.rd_addr <= read_if_bm_in.rd_addr  when ( r.state = read_if  ) else bmst.rd_addr;
 bm_out.rd_req  <= read_if_bm_in.rd_req   when ( r.state = read_if  ) else bmst.rd_req;
-bm_out.rd_size <= read_if_bm_in.rd_size(bm_out.wr_size'length-1 downto 0)  when ( r.state = read_if  ) else bmst.rd_size(bm_out.wr_size'length-1 downto 0);
+bm_out.rd_size <= read_if_bm_in.rd_size  when ( r.state = read_if  ) else bmst.rd_size;
   
 bm_out.wr_addr <= write_if_bm_in.wr_addr when ( r.state = write_if ) else bmst.wr_addr;
 bm_out.wr_req  <= write_if_bm_in.wr_req  when ( r.state = write_if ) else bmst.wr_req;
-bm_out.wr_size <= write_if_bm_in.wr_size(bm_out.wr_size'length-1 downto 0) when ( r.state = write_if ) else bmst.wr_size(bm_out.wr_size'length-1 downto 0);
+bm_out.wr_size <= write_if_bm_in.wr_size when ( r.state = write_if ) else bmst.wr_size;
 bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.wr_data;
 
 

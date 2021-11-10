@@ -8,17 +8,13 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
---library grlib;
---use grlib.amba.all;
---use grlib.stdlib.all;
 -- pragma translate_off
+--library grlib;
 --use grlib.at_pkg.all;
 --use grlib.at_util.all;
 --use grlib.at_ahb_mst_pkg.all;
 --use grlib.testlib.check;
 -- pragma translate_on
---library techmap;
---use techmap.gencomp.all;
 
 
 package injector_pkg is
@@ -102,21 +98,8 @@ package injector_pkg is
     wr_data => (others => '0')
     );  
 
-  -- Bus master control registers
-  type bm_ctrl_reg_type is record
-    -- Read access
-    rd_addr : std_logic_vector(31 downto 0);
-    rd_size : std_logic_vector(INT_BURST_WIDTH-1 downto 0);
-    rd_req  : std_logic;
-    -- Write channel
-    wr_addr : std_logic_vector(31 downto 0);
-    wr_size : std_logic_vector(INT_BURST_WIDTH-1 downto 0);
-    wr_req  : std_logic;
-    wr_data : std_logic_vector(127 downto 0);
-  end record;
-
   -- Reset value for Bus Master control registers
-  constant BM_CTRL_REG_RST : bm_ctrl_reg_type := (
+  constant BM_CTRL_REG_RST : bm_in_type := (
     rd_addr => (others => '0'),
     rd_size => (others => '0'),
     rd_req  => '0',
@@ -573,9 +556,9 @@ package injector_pkg is
       irq_flag_sts      : out std_ulogic;
       bm_in             : in  bm_out_type;
       bm_out            : out bm_in_type;
-      read_if_bm_in     : in  bm_ctrl_reg_type;
+      read_if_bm_in     : in  bm_in_type;
       read_if_bm_out    : out bm_out_type;
-      write_if_bm_in    : in  bm_ctrl_reg_type;
+      write_if_bm_in    : in  bm_in_type;
       write_if_bm_out   : out bm_out_type;
       d_desc_out        : out data_dsc_strct_type;
       ctrl_rst          : out std_ulogic;
@@ -606,7 +589,7 @@ package injector_pkg is
       d_des_in          : in  data_dsc_strct_type;
       status_out        : out d_ex_sts_out_type;
       write_if_bmi      : in  bm_out_type;
-      write_if_bmo      : out bm_ctrl_reg_type
+      write_if_bmo      : out bm_in_type
       );
    end component injector_write_if;
 
@@ -627,7 +610,7 @@ package injector_pkg is
       d_des_in          : in  data_dsc_strct_type;
       status_out        : out d_ex_sts_out_type;
       read_if_bmi       : in  bm_out_type;
-      read_if_bmo       : out bm_ctrl_reg_type
+      read_if_bmo       : out bm_in_type
       );
   end component injector_read_if;
 
@@ -711,32 +694,6 @@ package injector_pkg is
       );
   end component injector_ahb;
 
-  -- AHB interface wrapper for SELENE platform
-  --component injector_ahb_SELENE is
-  --  generic (
-  --    tech              : integer range 0 to numTech        := typeTech;
-  --    -- APB configuration  
-  --    pindex            : integer                           := 0;
-  --    paddr             : integer                           := 0;
-  --    pmask             : integer                           := 16#FF8#;
-  --    pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
-  --    -- Bus master configuration
-  --    dbits             : integer range 32 to 128           := 32;
-  --    hindex            : integer                           := 0;
-  --    max_burst_length  : integer range 2 to 256            := 128
-  --    );
-  --  port (
-  --    rstn              : in  std_ulogic;
-  --    clk               : in  std_ulogic;
-  --    -- APB interface signals
-  --    apbi              : in  apb_slv_in_type;
-  --    apbo              : out apb_slv_out_type;
-  --    -- AHB interface signals
-  --    ahbmi             : in  ahb_master_in_type;
-  --    ahbmo             : out ahb_master_out_type
-  --    );
-  --end component injector_ahb_SELENE;
-
   -------------------------------------------------------------------------------
   -- Procedures
   -------------------------------------------------------------------------------
@@ -784,6 +741,7 @@ package body injector_pkg is
     return burst_size;
   end find_burst_size;
 
+  -- Addition function between std_logic_vectors, outputs with length assigned
   function add_vector(
     A, B : std_logic_vector;
     len : natural) 
@@ -794,6 +752,7 @@ package body injector_pkg is
     return res;
   end add_vector;
 
+  -- Addition function between std_logic_vector and integer, outputs with length assigned
   function add_vector(
     A : std_logic_vector;
     B : integer;
@@ -805,6 +764,7 @@ package body injector_pkg is
     return res;
   end add_vector;
 
+  -- Subtract function between std_logic_vectors, outputs with length assigned
   function sub_vector(
     A, B : std_logic_vector;
     len : natural) 
@@ -815,6 +775,7 @@ package body injector_pkg is
     return res;
   end sub_vector;
 
+  -- Subtract function between std_logic_vector and integer, outputs with length assigned
   function sub_vector(
     A : std_logic_vector;
     B : integer;
