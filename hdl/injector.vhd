@@ -25,16 +25,17 @@ use bsc.injector_pkg.all;
 
 entity injector is
   generic (
-    tech      : integer range 0 to numTech        := typeTech;  -- Target technology
+    tech          : integer range 0 to numTech        := typeTech;  -- Target technology
     -- APB configuration  
-    pindex    : integer                           := 0;         -- APB configuartion slave index
-    paddr     : integer                           := 0;         -- APB configuartion slave address
-    pmask     : integer                           := 16#FF8#;   -- APB configuartion slave mask
-    pirq      : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
+    pindex        : integer                           := 0;         -- APB configuartion slave index
+    paddr         : integer                           := 0;         -- APB configuartion slave address
+    pmask         : integer                           := 16#FF8#;   -- APB configuartion slave mask
+    pirq          : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
     -- Bus master configuration
-    dbits     : integer range 32 to 128           := 32;        -- Data width of BM and FIFO        
+    dbits         : integer range 32 to 128           := 32;        -- Data width of BM and FIFO
+    MAX_SIZE_BEAT : integer range 32 to 1024          := 1024;      -- Maximum size of a beat at a burst transaction.     
     -- Injector configuration
-    ASYNC_RST : boolean                           := FALSE      -- Allow asynchronous reset
+    ASYNC_RST     : boolean                           := FALSE      -- Allow asynchronous reset
     );
   port (
     rstn      : in  std_ulogic;                    -- Reset
@@ -145,6 +146,7 @@ begin  -- rtl
     generic map (
       dbits           => dbits,
       bm_bytes        => bm_bytes,
+      MAX_SIZE_BEAT   => MAX_SIZE_BEAT,
       ASYNC_RST       => ASYNC_RST
       )
     port map (
@@ -164,6 +166,7 @@ begin  -- rtl
     generic map (
       dbits           => dbits,
       bm_bytes        => bm_bytes,
+      MAX_SIZE_BEAT   => MAX_SIZE_BEAT,
       ASYNC_RST       => ASYNC_RST
       )
     port map (

@@ -173,7 +173,7 @@ architecture rtl of injector_ctrl is
     err_state           : std_logic_vector(4 downto 0);    -- FSM state in which error occured
     desc_ptr            : std_logic_vector(31 downto 0);   -- Current descriptor pointer
     i                   : integer range 0 to 7;            -- Register for index increment
-    rep_count           : std_logic_vector(6 downto 0);	   -- Register for Repetition Count increment
+    rep_count           : std_logic_vector(5 downto 0);	   -- Register for Repetition Count increment
     rd_desc             : std_logic_vector(159 downto 0);  -- Register for descriptor read from BM (5 Registers * 32 bits)
     read_if_start       : std_ulogic;                      -- READ_IF start signal
     write_if_start      : std_ulogic;                      -- WRITE_IF start signal
@@ -246,27 +246,39 @@ begin  -- rtl
   -- Bus master signal assignment switch logic. Based on the current state bus
   -- master signals are driven by READ_IF or WRITE_IF or control unit.
 
-  bm_out.rd_addr <= read_if_bm_in.rd_addr when r.state = read_if else
-                    write_if_bm_in.rd_addr when r.state = write_if else
-                    bmst.rd_addr;
-  bm_out.rd_size <= read_if_bm_in.rd_size when r.state = read_if else
-                    write_if_bm_in.rd_size when r.state = write_if else
-                    bmst.rd_size;
-  bm_out.rd_req <= read_if_bm_in.rd_req when r.state = read_if else
-                    write_if_bm_in.rd_req when r.state = write_if else
-                    bmst.rd_req;
-  bm_out.wr_addr <= read_if_bm_in.wr_addr when r.state = read_if else
-                    write_if_bm_in.wr_addr when r.state = write_if else
-                    bmst.wr_addr;
-  bm_out.wr_size <= read_if_bm_in.wr_size when r.state = read_if else
-                    write_if_bm_in.wr_size when r.state = write_if else
-                    bmst.wr_size;
-  bm_out.wr_req <= read_if_bm_in.wr_req when r.state = read_if else
-                    write_if_bm_in.wr_req when r.state = write_if else
-                    bmst.wr_req;
-  bm_out.wr_data <= read_if_bm_in.wr_data when r.state = read_if else
-                    write_if_bm_in.wr_data when r.state = write_if else
-                    bmst.wr_data;
+  --bm_out.rd_addr <= read_if_bm_in.rd_addr when r.state = read_if else
+  --                  write_if_bm_in.rd_addr when r.state = write_if else
+  --                  bmst.rd_addr;
+  --bm_out.rd_size <= sub_vector(read_if_bm_in.rd_size, 1, bm_out.rd_size'length) when r.state = read_if else
+  --                  sub_vector(write_if_bm_in.rd_size, 1, bm_out.rd_size'length) when r.state = write_if else
+  --                  sub_vector(bmst.rd_size, 1, bm_out.rd_size'length); -- Because the AHB interface understands '0' as a single byte transaction
+  --bm_out.rd_req  <= read_if_bm_in.rd_req when r.state = read_if else
+  --                  write_if_bm_in.rd_req when r.state = write_if else
+  --                  bmst.rd_req;
+  --bm_out.wr_addr <= read_if_bm_in.wr_addr when r.state = read_if else
+  --                  write_if_bm_in.wr_addr when r.state = write_if else
+  --                  bmst.wr_addr;
+  --bm_out.wr_size <= sub_vector(read_if_bm_in.wr_size, 1, bm_out.rd_size'length) when r.state = read_if else
+  --                  sub_vector(write_if_bm_in.wr_size, 1, bm_out.rd_size'length) when r.state = write_if else
+  --                  sub_vector(bmst.wr_size, 1, bm_out.wr_size'length); -- Because the AHB interface understands '0' as a single byte transaction
+  --bm_out.wr_req  <= read_if_bm_in.wr_req when r.state = read_if else
+  --                  write_if_bm_in.wr_req when r.state = write_if else
+  --                  bmst.wr_req;
+  --bm_out.wr_data <= read_if_bm_in.wr_data when r.state = read_if else
+  --                  write_if_bm_in.wr_data when r.state = write_if else
+  --                  bmst.wr_data;
+
+bm_out.rd_addr <= read_if_bm_in.rd_addr  when ( r.state = read_if  ) else bmst.rd_addr;
+bm_out.rd_req  <= read_if_bm_in.rd_req   when ( r.state = read_if  ) else bmst.rd_req;
+bm_out.rd_size <= read_if_bm_in.rd_size(bm_out.wr_size'length-1 downto 0)  when ( r.state = read_if  ) else bmst.rd_size(bm_out.wr_size'length-1 downto 0);
+  
+bm_out.wr_addr <= write_if_bm_in.wr_addr when ( r.state = write_if ) else bmst.wr_addr;
+bm_out.wr_req  <= write_if_bm_in.wr_req  when ( r.state = write_if ) else bmst.wr_req;
+bm_out.wr_size <= write_if_bm_in.wr_size(bm_out.wr_size'length-1 downto 0) when ( r.state = write_if ) else bmst.wr_size(bm_out.wr_size'length-1 downto 0);
+bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.wr_data;
+
+
+
 
   -- Deassert the start signal when the READ_IF, WRITE_IF, DELAY_IF operation has started.
   read_if_start   <= '0' when read_if_sts_in.operation  = '1' else r.read_if_start;
@@ -276,12 +288,13 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Combinational logic
   ----------------------------------------------------------------------------- 
-  comb : process (r, ctrl, des_ptr, active, read_if_sts_in, write_if_sts_in, delay_if_sts_in, read_if_bm_in, write_if_bm_in, err_status, bm_in, d_des, bmst) --deleted c_des
-
+  comb : process (r, ctrl, des_ptr, active, read_if_sts_in, write_if_sts_in, delay_if_sts_in, 
+    read_if_bm_in, write_if_bm_in, err_status, bm_in, d_des, bmst, fifo_full, fifo_rdata, fifo_completed) --deleted c_des
     variable v           : ctrl_reg_type; 
     variable remainder   : integer range 0 to 96;          -- Variable for BM read_data handling
     variable bmst_rd_req : std_ulogic;                     -- Bus master read request variable
     variable bmst_wr_req : std_ulogic;                     -- Bus master write request variable
+
   begin
     --Variable initialization
     v           := r;
@@ -532,7 +545,6 @@ begin  -- rtl
           v.err_state         := read_if_sts_in.state;
           v.sts.rd_data_err   := '1';
           v.state	            := idle;
-
         end if;
         -----------
 
@@ -604,11 +616,14 @@ begin  -- rtl
 
     -- Demultiplex Bus Master signals and drive READ_IF or WRITE_IF 
     if r.state = read_if then           --READ_IF
-       read_if_bm_out <= bm_in;
-       write_if_bm_out <= BM_OUT_RST;
+      read_if_bm_out <= bm_in;
+      write_if_bm_out <= BM_OUT_RST;
     elsif r.state = write_if then       --WRITE_IF
-       write_if_bm_out <= bm_in;
-       read_if_bm_out <= BM_OUT_RST;
+      write_if_bm_out <= bm_in;
+      read_if_bm_out <= BM_OUT_RST;
+    else                                --to not infeer in latch when neither
+      write_if_bm_out <= BM_OUT_RST;
+      read_if_bm_out <= BM_OUT_RST;
     end if;
 
     -- state decoding for status display

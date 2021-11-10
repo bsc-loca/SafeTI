@@ -29,7 +29,8 @@ entity injector_axi4_SELENE is
         pmask            : integer                            := 16#FF8#;   -- APB configuartion slave mask
         pirq             : integer range 0 to APB_IRQ_NMAX-1  := 0;         -- APB configuartion slave irq
         -- Bus master configuration
-        dbits            : integer range 32 to 128            := 32;        -- Data width of BM and FIFO    
+        dbits            : integer range 32 to 128            := 32;        -- Data width of BM and FIFO
+        
         max_burst_length : integer range 2 to 256             := 128        -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
     );
     port (

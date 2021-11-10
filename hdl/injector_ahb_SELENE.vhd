@@ -36,7 +36,8 @@ entity injector_ahb_SELENE is
     -- Bus master configuration
     dbits             : integer range 32 to 128       := 32;        -- Data width of BM and FIFO    
     hindex            : integer                       := 0;         -- AHB master index 0
-    max_burst_length  : integer range 2 to 256        := 128        -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
+    max_burst_length  : integer range 2 to 256        := 128;       -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
+    MAX_SIZE_BEAT     : integer range 32 to 1024      := 1024       -- Maximum size of bytes in a beat at a burst transaction.
     );
   port (
     rstn              : in  std_ulogic;                   -- Reset
@@ -143,6 +144,28 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Component instantiation
   -----------------------------------------------------------------------------
+  -- injector_pkg (WIP, try to call pkg to transfer same generics from platform)
+  --inj_pkg : injector_pkg
+  --  generic map(
+  --    APB_SLAVE_NMAX	  => 0,
+  --    APB_IRQ_NMAX	    => 0,
+  --    APB_TEST_WIDTH	  => 0,
+  --    
+  --    AHB_MASTER_NMAX   => 0,
+  --    AHB_IRQ_NMAX		  => 0,	
+  --    AHB_DATA_WIDTH	  => 0,
+  --    AHB_TEST_WIDTH	  => 0,
+  --
+  --    BM_BURST_WIDTH    => 0,
+  --    INT_BURST_WIDTH   => 0,
+  --
+  --    AXI4_ID_WIDTH	    => 4,
+  --    AXI4_DATA_WIDTH   => 32,
+  --
+  --    numTech           => NTECH,
+  --    typeTech          => inferred
+  --  );
+
 
   -- injector_ahb
   ahb : injector_ahb
@@ -156,7 +179,7 @@ begin  -- rtl
       -- Bus master configuration
       dbits             => dbits,             -- Data width of BM and FIFO    
       hindex            => hindex,            -- AHB master index 0
-      max_burst_length  => max_burst_length,  -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
+      MAX_SIZE_BEAT     => MAX_SIZE_BEAT,     -- Maximum size of a beat at a burst transaction.
       -- Injector configuration
       ASYNC_RST         => ASYNC_RST          -- Allow asynchronous reset flag
       )
@@ -179,7 +202,7 @@ begin  -- rtl
       bm_dw            => dbits,
       be_dw            => AHBDW,
       be_rd_pipe       => 0,
-      max_size         => 1024,
+      max_size         => MAX_SIZE_BEAT,
       max_burst_length => max_burst_length,
       burst_chop_mask  => burst_chop_mask,
       bm_info_print    => 1,
@@ -193,7 +216,7 @@ begin  -- rtl
       hrdata           => ahbmi.hrdata,
       hwdata           => ahbmo.hwdata,
       bmrd_addr        => bm_in.rd_addr,
-      bmrd_size        => bm_in.rd_size,
+      bmrd_size        => bm_in.rd_size(9 downto 0),
       bmrd_req         => bm_in.rd_req,
       bmrd_req_granted => bm_out.rd_req_grant,
       bmrd_data        => bm_out.rd_data(127 downto 128-dbits),
@@ -201,7 +224,7 @@ begin  -- rtl
       bmrd_done        => bm_out.rd_done,
       bmrd_error       => bm_out.rd_err,
       bmwr_addr        => bm_in.wr_addr,
-      bmwr_size        => bm_in.wr_size,
+      bmwr_size        => bm_in.wr_size(9 downto 0),
       bmwr_req         => bm_in.wr_req,
       bmwr_req_granted => bm_out.wr_req_grant,
       bmwr_data        => bm_in.wr_data(127 downto 128-dbits),

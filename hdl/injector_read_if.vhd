@@ -30,22 +30,23 @@ use bsc.injector_pkg.all;
 
 entity injector_read_if is
   generic (
-    dbits           : integer range 32 to 128 := 32;    -- Bus master front end data
-    bm_bytes        : integer range  4 to  16 := 4;     -- bus master data width in bytes
-    ASYNC_RST       : boolean                 := FALSE  -- Allow asynchronous reset flag
+    dbits           : integer range 32 to  128  := 32;    -- Bus master front end data
+    bm_bytes        : integer range  4 to   16  := 4;     -- bus master data width in bytes
+    MAX_SIZE_BEAT   : integer range 32 to 1024  := 1024;  -- Maximum size of a beat at a burst transaction.
+    ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
     );
   port (
-    rstn            : in  std_ulogic;                   -- Active low reset
-    clk             : in  std_ulogic;                   -- Clock
+    rstn            : in  std_ulogic;                     -- Active low reset
+    clk             : in  std_ulogic;                     -- Clock
     -- Signals to and from injector_ctrl
-    ctrl_rst        : in  std_ulogic;                   -- Reset signal from APB interface through grdmac_ctrl
-    err_sts_in      : in  std_ulogic;                   -- Core error status from APB status register 
-    read_if_start   : in  std_ulogic;                   -- Start control signal
-    d_des_in        : in  data_dsc_strct_type;          -- Data descriptor needs to executed
-    status_out      : out d_ex_sts_out_type;            -- M2b status out signals 
+    ctrl_rst        : in  std_ulogic;                     -- Reset signal from APB interface through grdmac_ctrl
+    err_sts_in      : in  std_ulogic;                     -- Core error status from APB status register 
+    read_if_start   : in  std_ulogic;                     -- Start control signal
+    d_des_in        : in  data_dsc_strct_type;            -- Data descriptor needs to executed
+    status_out      : out d_ex_sts_out_type;              -- M2b status out signals 
     -- Generic bus master interface
-    read_if_bmi     : in  bm_out_type;                  -- BM interface signals to READ_IF,through crontrol module
-    read_if_bmo     : out bm_ctrl_reg_type              -- Signals from READ_IF to BM IF through control module
+    read_if_bmi     : in  bm_out_type;                    -- BM interface signals to READ_IF,through crontrol module
+    read_if_bmo     : out bm_ctrl_reg_type                -- Signals from READ_IF to BM IF through control module
     );
 end entity injector_read_if;
 
@@ -69,8 +70,8 @@ architecture rtl of injector_read_if is
   constant READ_IF_DATA_READ	: std_logic_vector(4 downto 0) := "00111"; -- 0x07
 
   -- Bus master interface front end width in bytes := dbits/8
-  constant MAX_BSIZE : integer := 1024;  -- Maximum BM fe interface data size
-                                         -- in single burst is 1024 bytes
+  constant MAX_BSIZE        : integer := MAX_SIZE_BEAT;     -- Maximum BM interface data size
+  constant BURST_BUS_WIDTH  : integer := log_2(MAX_BSIZE)+1;-- in single burst is 1024 bytes
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -92,14 +93,14 @@ architecture rtl of injector_read_if is
 
   --READ_IF reg type
   type read_if_reg_type is record
-    read_if_state       : read_if_state_type;             -- READ_IF states
-    sts                 : d_ex_sts_out_type;              -- M2b status signals 
-    tot_size            : std_logic_vector(18 downto 0);  -- Total size of data to read
-    curr_size           : std_logic_vector(10 downto 0);  -- Remaining size in the burst, to be read
-    inc                 : std_logic_vector(21 downto 0);  -- For data destination address increment (22 bits)
-    bmst_rd_busy        : std_ulogic;                     -- bus master read busy
-    bmst_rd_err         : std_ulogic;                     -- bus master read error
-    err_state           : std_logic_vector(4 downto 0);   -- Error state
+    read_if_state       : read_if_state_type;                     -- READ_IF states
+    sts                 : d_ex_sts_out_type;                      -- M2b status signals 
+    tot_size            : std_logic_vector(18 downto 0);          -- Total size of data to read
+    curr_size           : std_logic_vector(BURST_BUS_WIDTH-1 downto 0); -- Remaining size in the burst, to be read
+    inc                 : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
+    bmst_rd_busy        : std_ulogic;                             -- bus master read busy
+    bmst_rd_err         : std_ulogic;                             -- bus master read error
+    err_state           : std_logic_vector(4 downto 0);           -- Error state
   end record;
 
   -- Reset value for READ_IF reg type
@@ -170,10 +171,9 @@ begin
                                                 );
           v.read_if_state := exec_data_desc;
         end if; -- No Restart (or resume) bit for the moment
-        ----------     
+      ----------     
         
       when exec_data_desc =>
-        
         if or_reduce(r.curr_size) /= '0' then  -- More data remaining to be fetched
           if r.bmst_rd_busy = '0' then
             if d_des_in.ctrl.src_fix_adr = '1' then
@@ -183,7 +183,7 @@ begin
              -- If souce address is not fixed, data is read as a burst. source address is incremented between bursts.
               read_if_bmo.rd_addr <= add_vector(d_des_in.src_addr, r.inc, read_if_bmo.rd_addr'length);
             end if;
-            read_if_bmo.rd_size <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length);
+            read_if_bmo.rd_size <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length); -- AHB interface understands value 0 as 1 byte
             bmst_rd_req := '1';
             if bmst_rd_req = '1' and read_if_bmi.rd_req_grant = '1' then
               v.bmst_rd_busy  := '1';
@@ -226,10 +226,10 @@ begin
                                                 max_bsize       => MAX_BSIZE,
                                                 total_size      => remaining
                                                 );
-		v.bmst_rd_busy	    := '0';
-		v.read_if_state	    := exec_data_desc;		
+		            v.bmst_rd_busy	:= '0';
+		            v.read_if_state	:= exec_data_desc;		
               else                      -- Data fetch completed
-                v.read_if_state     := idle;
+                v.read_if_state := idle;
                 v.sts.operation := '0';
                 v.bmst_rd_busy  := '0';
                 v.sts.comp      := '1';
@@ -243,10 +243,10 @@ begin
             v.bmst_rd_busy := '0';
           end if;
         end if;
-        ----------
+      ----------
       when others =>
         v.read_if_state := idle;
-        ----------         
+      ----------         
     end case;  --READ_IF state machine
     ----------------------
     -- Signal update --

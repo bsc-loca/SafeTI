@@ -7,8 +7,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_arith.all;
-use IEEE.math_real.log2;
 --library grlib;
 --use grlib.config_types.all;
 --use grlib.config.all;
@@ -29,7 +27,7 @@ use bsc.injector_pkg.all;
 
 entity injector_ahb is
   generic (
-    tech              : integer range  0 to NUMtECH         := typeTech;  -- Target technology
+    tech              : integer range  0 to numTech         := typeTech;  -- Target technology
     -- APB configuration  
     pindex            : integer                             := 0;         -- APB configuartion slave index
     paddr             : integer                             := 0;         -- APB configuartion slave address
@@ -37,8 +35,8 @@ entity injector_ahb is
     pirq              : integer range  0 to APB_IRQ_NMAX-1  := 0;         -- APB configuartion slave irq
     -- Bus master configuration
     dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO    
-    hindex            : integer                             := 0;         -- AHB master index 0
-    max_burst_length  : integer range  2 to 256             := 128;       -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
+    hindex            : integer                             := 0;         -- AHB master index
+    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction.
     -- Injector configuration
     ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag
     );
@@ -90,12 +88,13 @@ begin  -- rtl
   -- injector core
   core : injector
     generic map (
-      tech     => tech,
-      pindex   => pindex,
-      paddr    => paddr,
-      pmask    => pmask,
-      pirq     => pirq,
-      dbits    => dbits
+      tech          => tech,
+      pindex        => pindex,
+      paddr         => paddr,
+      pmask         => pmask,
+      pirq          => pirq,
+      dbits         => dbits,
+      MAX_SIZE_BEAT => MAX_SIZE_BEAT
       )
     port map (
       rstn    => rstn,

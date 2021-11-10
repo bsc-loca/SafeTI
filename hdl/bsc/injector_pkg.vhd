@@ -8,14 +8,14 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library grlib;
+--library grlib;
 --use grlib.amba.all;
 --use grlib.stdlib.all;
 -- pragma translate_off
-use grlib.at_pkg.all;
-use grlib.at_util.all;
-use grlib.at_ahb_mst_pkg.all;
-use grlib.testlib.check;
+--use grlib.at_pkg.all;
+--use grlib.at_util.all;
+--use grlib.at_ahb_mst_pkg.all;
+--use grlib.testlib.check;
 -- pragma translate_on
 --library techmap;
 --use techmap.gencomp.all;
@@ -24,22 +24,25 @@ use grlib.testlib.check;
 package injector_pkg is
   --generic (
     -- APB bus generics
-    constant APB_SLAVE_NMAX		: integer := 16;    -- Max number of slaves at APB bus
-    constant APB_IRQ_NMAX			: integer := 32;    -- Max number of interrupts at APB bus
-    constant APB_TEST_WIDTH		: integer :=  4;    -- apb_slave_in test in enable (tinen)
+    constant APB_SLAVE_NMAX		  : integer := 16;    -- Max number of slaves at APB bus
+    constant APB_IRQ_NMAX			  : integer := 32;    -- Max number of interrupts at APB bus
+    constant APB_TEST_WIDTH		  : integer :=  4;    -- apb_slave_in test in enable (tinen)
     -- AHB bus generics
-    constant AHB_MASTER_NMAX	: integer := 16;    -- Max number of masters at AHB bus
-    constant AHB_IRQ_NMAX			: integer := 32;    -- Max number of interrupts at APB bus
-    constant AHB_DATA_WIDTH	  : integer := 32;    -- Data's width at AHB bus
-    constant AHB_TEST_WIDTH		: integer :=  4;    -- ahb_master_in testin
+    constant AHB_MASTER_NMAX	  : integer := 16;    -- Max number of masters at AHB bus
+    constant AHB_IRQ_NMAX			  : integer := 32;    -- Max number of interrupts at APB bus
+    constant AHB_DATA_WIDTH	    : integer := 32;    -- Data's width at AHB bus
+    constant AHB_TEST_WIDTH		  : integer :=  4;    -- ahb_master_in testin
+    -- BM bus and internal generics
+    constant BM_BURST_WIDTH     : integer range 3 to 10 := 10;    -- Bus width for bursts
+    constant INT_BURST_WIDTH    : integer range 2 to 11 := BM_BURST_WIDTH+1;  -- For internal count of the bytes left to send in the burst
     -- AXI bus generics
-    constant AXI4_ID_WIDTH	  : integer	:=  4;    -- Max number of IDs at AXI bus
-    constant AXI4_DATA_WIDTH	: integer	:= 32;    -- Data's width at AXI bus
+    constant AXI4_ID_WIDTH	    : integer	:=  4;    -- Max number of IDs at AXI bus
+    constant AXI4_DATA_WIDTH	  : integer	:= 32;    -- Data's width at AXI bus
     -- Common generics
-    constant numTech          : integer := 67;    -- Target technology
-    constant typeTech         : integer :=  0;
-    --constant VENDOR_BSC       : integer := 14;    -- BSC vendor code
-    --constant ASYNC_RST        : boolean := FALSE; -- Allow synchronous reset flag. Not sure if it's even used.
+    constant numTech            : integer := 67;    -- Target technology
+    constant typeTech           : integer :=  0;
+    --constant VENDOR_BSC         : integer := 14;    -- BSC vendor code
+    --constant ASYNC_RST          : boolean := FALSE; -- Allow synchronous reset flag.
   --);
 
 -------------------------------------------------------------------------------
@@ -64,11 +67,11 @@ package injector_pkg is
   type bm_in_type is record  --Output from injector_ctrl to bus master interface input
     -- Read channel
     rd_addr : std_logic_vector(31 downto 0);
-    rd_size : std_logic_vector(9 downto 0);
+    rd_size : std_logic_vector(BM_BURST_WIDTH-1 downto 0);
     rd_req  : std_logic;
     -- Write channel
     wr_addr : std_logic_vector(31 downto 0);
-    wr_size : std_logic_vector(9 downto 0);
+    wr_size : std_logic_vector(BM_BURST_WIDTH-1 downto 0);
     wr_req  : std_logic;
     wr_data : std_logic_vector(127 downto 0);
   end record;
@@ -103,11 +106,11 @@ package injector_pkg is
   type bm_ctrl_reg_type is record
     -- Read access
     rd_addr : std_logic_vector(31 downto 0);
-    rd_size : std_logic_vector(9 downto 0);
+    rd_size : std_logic_vector(INT_BURST_WIDTH-1 downto 0);
     rd_req  : std_logic;
     -- Write channel
     wr_addr : std_logic_vector(31 downto 0);
-    wr_size : std_logic_vector(9 downto 0);
+    wr_size : std_logic_vector(INT_BURST_WIDTH-1 downto 0);
     wr_req  : std_logic;
     wr_data : std_logic_vector(127 downto 0);
   end record;
@@ -244,7 +247,7 @@ package injector_pkg is
     kick            : std_ulogic;       -- Kick flag
     rd_nxt_ptr_err  : std_ulogic;       -- Error during re-reading des.nxt_ptr field on a kick request
     comp            : std_ulogic;       -- all desc are completed
-    count           : std_logic_vector(6 downto 0);       -- Current transaction repetition count value
+    count           : std_logic_vector(5 downto 0);       -- Current transaction repetition count value
     
   end record;
 
@@ -393,7 +396,7 @@ package injector_pkg is
     write_if_wr_data_err : std_ulogic;                    -- Error from write_if BMI during data writing
     kick_pend            : std_ulogic;                    -- Pending Kick request flag
     rd_nxt_ptr_err       : std_ulogic;                    -- Error during re-reading des.nxt_ptr field on a kick request
-    count                : std_ulogic_vector(9 downto 0); -- Counter value of current transaction repetition
+    count                : std_ulogic_vector(5 downto 0); -- Counter value of current transaction repetition
     active               : std_ulogic;                    -- Core enabled after reset
   end record;
 
@@ -512,6 +515,9 @@ package injector_pkg is
                            )
   return std_logic_vector;
 
+  function log_2           (max_size         : integer)
+  return integer;
+
   -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
   function add_vector(A, B : std_logic_vector; len : natural) return std_logic_vector;
   function sub_vector(A, B : std_logic_vector; len : natural) return std_logic_vector;
@@ -586,9 +592,10 @@ package injector_pkg is
   -- WRITE_IF
   component injector_write_if is
     generic (
-      dbits             : integer range 32 to 128 := 32;
-      bm_bytes          : integer range 4 to 16   := 4;
-      ASYNC_RST         : boolean                 := FALSE
+      dbits             : integer range 32 to  128  := 32;
+      bm_bytes          : integer range  4 to   16  := 4;
+      MAX_SIZE_BEAT     : integer range 32 to 1024  := 1024;
+      ASYNC_RST         : boolean                   := FALSE
       );
     port (
       rstn              : in  std_ulogic;
@@ -606,9 +613,10 @@ package injector_pkg is
    -- READ_IF
   component injector_read_if is
     generic (
-      dbits             : integer range 32 to 128 := 32;
-      bm_bytes          : integer range 4 to 16   := 4;
-      ASYNC_RST         : boolean                 := FALSE
+      dbits             : integer range 32 to  128  := 32;
+      bm_bytes          : integer range  4 to   16  := 4;
+      MAX_SIZE_BEAT     : integer range 32 to 1024  := 1024;
+      ASYNC_RST         : boolean                   := FALSE
       );
     port (
       rstn              : in  std_ulogic;
@@ -666,7 +674,8 @@ package injector_pkg is
       paddr             : integer                           := 0;
       pmask             : integer                           := 16#FF8#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
-      dbits             : integer range 32 to 128           := 32;
+      dbits             : integer range 32 to  128          := 32;
+      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024;
       ASYNC_RST         : boolean                           := FALSE
       );
     port (
@@ -689,7 +698,7 @@ package injector_pkg is
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
       dbits             : integer range 32 to 128           := 32;
       hindex            : integer                           := 0;
-      max_burst_length  : integer range 2 to 256            := 128;
+      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024;
       ASYNC_RST         : boolean                           := FALSE
       );
     port (
@@ -734,9 +743,9 @@ package injector_pkg is
   -- pragma translate_off
   constant vmode	: boolean := false;	-- Extra print-out
 
-  procedure run_injector_tests(
-    signal atmi		: out at_ahb_mst_in_type;
-    signal atmo		: in  at_ahb_mst_out_type);  
+--  procedure run_injector_tests(
+--    signal atmi		: out at_ahb_mst_in_type;
+--    signal atmo		: in  at_ahb_mst_out_type);  
 	
   -- pragma translate_on
 
@@ -754,7 +763,7 @@ package body injector_pkg is
     )
     return std_logic_vector is
     variable temp       : integer;
-    variable burst_size : std_logic_vector(10 downto 0);
+    variable burst_size : std_logic_vector(INT_BURST_WIDTH-1 downto 0);
     variable total_int  : integer;
   begin
     total_int := to_integer(unsigned(total_size));
@@ -770,8 +779,7 @@ package body injector_pkg is
     else
       temp := total_int;
     end if;
-   
-    burst_size := std_logic_vector(to_unsigned(temp,11));
+    burst_size := std_logic_vector(to_unsigned(temp, burst_size'length)); 
 
     return burst_size;
   end find_burst_size;
@@ -818,91 +826,103 @@ package body injector_pkg is
     return res;
   end sub_vector;
 
+  -- Function used to compute bus lengths. DO NOT attempt to use it as 
+  -- combinational logic, just to compute values pre-synthesis.
+  function log_2(max_size : integer) return integer is
+    variable res : integer;
+  begin
+    res := 0;  
+    while (2**res < max_size) and res < 31 loop
+       res := res + 1;
+    end loop;
+    return res;
+  end log_2;
+
 
    
 -- pragma translate_off
-    -- Injector Testbench Testing Procedures
-    procedure run_injector_tests(
-        signal   atmi:  out   at_ahb_mst_in_type;
-        signal   atmo:  in    at_ahb_mst_out_type ) is
-        variable w32        : std_logic_vector(31 downto 0);
-        variable r32        : std_logic_vector(31 downto 0);
-    begin
-
-        report "[INJ] Writing descriptors to memory";
-
-        -- DESCRIPTOR #1 (0x00100000)
-        w32 := X"00200011"; -- Control
-        at_write_32(X"00100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00101000"; -- Next Descriptor
-        at_write_32(X"00100004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00B00000"; -- Destination Address
-        at_write_32(X"00100008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00A00000"; -- Source Address
-        at_write_32(X"0010000C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        -- DESCRIPTOR #2 (0x00101000)
-        w32 := X"00200013"; -- Control
-        at_write_32(X"00101000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00100001"; -- Next Descriptor
-        at_write_32(X"00101004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00B00000"; -- Destination Address
-        at_write_32(X"00101008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00A00000"; -- Source Address
-        at_write_32(X"0010100C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        -- ENABLE PMU
-        report "[PMU] Enabling SafePMU";
-        -- Reset RDC
-        w32 := X"00000010";
-        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00000000";
-        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        -- Reset Counters
-        w32 := X"00000002";
-        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00000000";
-        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        -- Enable RDC
-        w32 := X"00000040";
-        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        -- Enable RDC
-        w32 := X"00000001";
-        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        --enable_counters
-
-        wait for 5 us;
-
-        report "[INJ] Enabling SafeTI";
-
-        w32 := X"00100000"; -- First Descriptor Pointer
-        at_write_32(X"fc085008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        w32 := X"00000019"; -- Control Register
-        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        wait for 50 us; -- Short run: simulate generic run
-
-        -- DISABLE INJECTOR
-        w32 := X"0000001b"; -- Control Register
-        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        wait for 5 us;
-
-        -- DISABLE PMU
-        w32 := X"00000000";
-        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
-
-        wait for 5 us;
-
-        report "End of INJ Tests";
-        wait for 30 us;
-
-        assert false report "Injector Test OK" severity failure;
-    end;
+--    -- Injector Testbench Testing Procedures
+--    procedure run_injector_tests(
+--        signal   atmi:  out   at_ahb_mst_in_type;
+--        signal   atmo:  in    at_ahb_mst_out_type ) is
+--        variable w32        : std_logic_vector(31 downto 0);
+--        variable r32        : std_logic_vector(31 downto 0);
+--    begin
+--
+--        report "[INJ] Writing descriptors to memory";
+--
+--        -- DESCRIPTOR #1 (0x00100000)
+--        w32 := X"00200011"; -- Control
+--        at_write_32(X"00100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00101000"; -- Next Descriptor
+--        at_write_32(X"00100004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00B00000"; -- Destination Address
+--        at_write_32(X"00100008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00A00000"; -- Source Address
+--        at_write_32(X"0010000C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        -- DESCRIPTOR #2 (0x00101000)
+--        w32 := X"00200013"; -- Control
+--        at_write_32(X"00101000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00100001"; -- Next Descriptor
+--        at_write_32(X"00101004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00B00000"; -- Destination Address
+--        at_write_32(X"00101008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00A00000"; -- Source Address
+--        at_write_32(X"0010100C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        -- ENABLE PMU
+--        report "[PMU] Enabling SafePMU";
+--        -- Reset RDC
+--        w32 := X"00000010";
+--        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00000000";
+--        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        -- Reset Counters
+--        w32 := X"00000002";
+--        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00000000";
+--        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        -- Enable RDC
+--        w32 := X"00000040";
+--        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        -- Enable RDC
+--        w32 := X"00000001";
+--        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        --enable_counters
+--
+--        wait for 5 us;
+--
+--        report "[INJ] Enabling SafeTI";
+--
+--        w32 := X"00100000"; -- First Descriptor Pointer
+--        at_write_32(X"fc085008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        w32 := X"00000019"; -- Control Register
+--        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        wait for 50 us; -- Short run: simulate generic run
+--
+--        -- DISABLE INJECTOR
+--        w32 := X"0000001b"; -- Control Register
+--        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        wait for 5 us;
+--
+--        -- DISABLE PMU
+--        w32 := X"00000000";
+--        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
+--
+--        wait for 5 us;
+--
+--        report "End of INJ Tests";
+--        wait for 30 us;
+--
+--        assert false report "Injector Test OK" severity failure;
+--    end;
 
 -- pragma translate_on
 end package body injector_pkg;
