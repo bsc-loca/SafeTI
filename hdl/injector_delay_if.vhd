@@ -8,10 +8,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.std_logic_misc.or_reduce;
---library grlib;
---use grlib.config_types.all;
---use grlib.config.all;
---use grlib.stdlib.all;
 library bsc;
 use bsc.injector_pkg.all;
 

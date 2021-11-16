@@ -7,16 +7,8 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
---library grlib;
---use grlib.stdlib.all;
---use grlib.amba.all;
---use grlib.config_types.all;
---use grlib.config.all;
---use grlib.generic_bm_pkg.log_2;
 library bsc;
 use bsc.injector_pkg.all;
---library techmap;
---use techmap.gencomp.all;
 
 -----------------------------------------------------------------------------
 -- Injector core
@@ -29,8 +21,8 @@ entity injector is
     -- APB configuration  
     pindex        : integer                           := 0;         -- APB configuartion slave index
     paddr         : integer                           := 0;         -- APB configuartion slave address
-    pmask         : integer                           := 16#FF8#;   -- APB configuartion slave mask
-    pirq          : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
+    pmask         : integer                           := 16#FFF#;   -- APB configuartion slave mask
+    pirq          : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
     -- Bus master configuration
     dbits         : integer range 32 to 128           := 32;        -- Data width of BM and FIFO
     MAX_SIZE_BEAT : integer range 32 to 1024          := 1024;      -- Maximum size of a beat at a burst transaction.     

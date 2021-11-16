@@ -8,16 +8,8 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.std_logic_misc.or_reduce;
---library grlib;
---use grlib.config_types.all;
---use grlib.config.all;
---use grlib.stdlib.all;
---use grlib.amba.all;
---use grlib.devices.all;
 library bsc;
 use bsc.injector_pkg.all;
---library techmap;
---use techmap.gencomp.all;
 
 -----------------------------------------------------------------------------
 -- Control module with main state machine for data execution
@@ -116,9 +108,6 @@ architecture rtl of injector_ctrl is
   -- Constant for bit-byte manipulation
   constant SHIFT_BIT  : natural := 3;
   constant sz_bits    : integer := to_integer(shift_left(unsigned(DESC_BYTES), SHIFT_BIT));
-
-  -- Reset configuration
-  --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   ----------------------------------------------------------------------------- 
   -----------------------------------------------------------------------------
@@ -246,36 +235,14 @@ begin  -- rtl
   -- Bus master signal assignment switch logic. Based on the current state bus
   -- master signals are driven by READ_IF or WRITE_IF or control unit.
 
-  --bm_out.rd_addr <= read_if_bm_in.rd_addr when r.state = read_if else
-  --                  write_if_bm_in.rd_addr when r.state = write_if else
-  --                  bmst.rd_addr;
-  --bm_out.rd_size <= sub_vector(read_if_bm_in.rd_size, 1, bm_out.rd_size'length) when r.state = read_if else
-  --                  sub_vector(write_if_bm_in.rd_size, 1, bm_out.rd_size'length) when r.state = write_if else
-  --                  sub_vector(bmst.rd_size, 1, bm_out.rd_size'length); -- Because the AHB interface understands '0' as a single byte transaction
-  --bm_out.rd_req  <= read_if_bm_in.rd_req when r.state = read_if else
-  --                  write_if_bm_in.rd_req when r.state = write_if else
-  --                  bmst.rd_req;
-  --bm_out.wr_addr <= read_if_bm_in.wr_addr when r.state = read_if else
-  --                  write_if_bm_in.wr_addr when r.state = write_if else
-  --                  bmst.wr_addr;
-  --bm_out.wr_size <= sub_vector(read_if_bm_in.wr_size, 1, bm_out.rd_size'length) when r.state = read_if else
-  --                  sub_vector(write_if_bm_in.wr_size, 1, bm_out.rd_size'length) when r.state = write_if else
-  --                  sub_vector(bmst.wr_size, 1, bm_out.wr_size'length); -- Because the AHB interface understands '0' as a single byte transaction
-  --bm_out.wr_req  <= read_if_bm_in.wr_req when r.state = read_if else
-  --                  write_if_bm_in.wr_req when r.state = write_if else
-  --                  bmst.wr_req;
-  --bm_out.wr_data <= read_if_bm_in.wr_data when r.state = read_if else
-  --                  write_if_bm_in.wr_data when r.state = write_if else
-  --                  bmst.wr_data;
-
-bm_out.rd_addr <= read_if_bm_in.rd_addr  when ( r.state = read_if  ) else bmst.rd_addr;
-bm_out.rd_req  <= read_if_bm_in.rd_req   when ( r.state = read_if  ) else bmst.rd_req;
-bm_out.rd_size <= read_if_bm_in.rd_size  when ( r.state = read_if  ) else bmst.rd_size;
-  
-bm_out.wr_addr <= write_if_bm_in.wr_addr when ( r.state = write_if ) else bmst.wr_addr;
-bm_out.wr_req  <= write_if_bm_in.wr_req  when ( r.state = write_if ) else bmst.wr_req;
-bm_out.wr_size <= write_if_bm_in.wr_size when ( r.state = write_if ) else bmst.wr_size;
-bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.wr_data;
+  bm_out.rd_addr <= read_if_bm_in.rd_addr  when ( r.state = read_if  ) else bmst.rd_addr;
+  bm_out.rd_req  <= read_if_bm_in.rd_req   when ( r.state = read_if  ) else bmst.rd_req;
+  bm_out.rd_size <= read_if_bm_in.rd_size  when ( r.state = read_if  ) else bmst.rd_size;
+    
+  bm_out.wr_addr <= write_if_bm_in.wr_addr when ( r.state = write_if ) else bmst.wr_addr;
+  bm_out.wr_req  <= write_if_bm_in.wr_req  when ( r.state = write_if ) else bmst.wr_req;
+  bm_out.wr_size <= write_if_bm_in.wr_size when ( r.state = write_if ) else bmst.wr_size;
+  bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.wr_data;
 
 
 
@@ -520,10 +487,10 @@ bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.w
           when others =>
             -- desc_type field should have a value in the range 0 to 3 
             v.sts.decode_desc_err := '1';
-            v.sts.err             := '1';
-            v.err_flag            := '1';
-            v.err_state           := DECODE;
-            v.state 		  := idle;
+            v.sts.err   := '1';
+            v.err_flag  := '1';
+            v.err_state := DECODE;
+            v.state 	  := idle;
         end case;  --Decoding completed
         -----------
 

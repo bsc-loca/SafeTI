@@ -31,8 +31,8 @@ entity injector_ahb_SELENE is
     -- APB configuration  
     pindex            : integer                       := 0;         -- APB configuartion slave index
     paddr             : integer                       := 0;         -- APB configuartion slave address
-    pmask             : integer                       := 16#FF8#;   -- APB configuartion slave mask
-    pirq              : integer range 0 to NAHBIRQ-1  := 0;         -- APB configuartion slave irq
+    pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
+    pirq              : integer range 0 to NAHBIRQ-1  := 1;         -- APB configuartion slave irq
     -- Bus master configuration
     dbits             : integer range 32 to 128       := 32;        -- Data width of BM and FIFO    
     hindex            : integer                       := 0;         -- AHB master index 0
@@ -50,10 +50,6 @@ entity injector_ahb_SELENE is
     ahbmo             : out ahb_mst_out_type              -- AHB master 0 output to bus
     );
 end entity injector_ahb_SELENE;
-
-------------------------------------------------------------------------------
--- Architecture of grdmac2
-------------------------------------------------------------------------------
 
 architecture rtl of injector_ahb_SELENE is
   -----------------------------------------------------------------------------
