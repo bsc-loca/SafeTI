@@ -1,11 +1,13 @@
-injector_ahb.vhd    
-injector.vhd
-injector_apb.vhd
-injector_ctrl.vhd
-fifo.vhd
-injector_delay_if.vhd
-injector_read_if.vhd
-injector_write_if.vhd
+# Project files to test with SpyGlass
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_ahb.vhd    
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_apb.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_ctrl.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/fifo.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_delay_if.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_read_if.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_write_if.vhd
 
+# BSC library files
 bsc
-bsc/injector_pkg.vhd
+/home/ffuentes/GitHub/bsc_safeti/hdl/injector_pkg.vhd
