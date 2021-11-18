@@ -75,7 +75,6 @@ begin  -- rtl
   -- injector core
   core : injector
     generic map (
-      tech          => tech,
       pindex        => pindex,
       paddr         => paddr,
       pmask         => pmask,

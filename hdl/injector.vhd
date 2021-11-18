@@ -17,7 +17,6 @@ use bsc.injector_pkg.all;
 
 entity injector is
   generic (
-    tech          : integer range 0 to numTech        := typeTech;  -- Target technology
     -- APB configuration  
     pindex        : integer                           := 0;         -- APB configuartion slave index
     paddr         : integer                           := 0;         -- APB configuartion slave address

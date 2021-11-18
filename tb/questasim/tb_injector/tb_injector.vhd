@@ -21,19 +21,36 @@ use bsc.tb_injector_pkg.all;
 --  Injector reset (end of test 1 and to change between read and write vectors on test 2),
 --  Transaction size on fixed/unfixed address (test 2) on both read and writes.
 -- 
+-- Testbench specification:
+-- The testbench simulates the behaviour from the SELENE's AHB interface when the injector
+-- is in action (writes and reads only). Thus, the transfers are managed from the BM bus.
+--
+-- For each test (descriptor bank batch), the injector is initialized as if it were at the
+-- SELENE platform by sending the equivalent APB signals. However, the testbench tries to
+-- be as dynamic as possible, allowing different timing on the injector response, making it
+-- suitable for future modifications.
+--
+-- This testbench specifically tests the behaviour when reading and writing by checking on
+-- the right moment if the address being acted on is the expected, having in accordance the
+-- "fixed address" and "bursts" features. Furthermore, the tests checks if the transfers are
+-- completed from the injector view.
+-- The tests use descriptors enabled and with interrupt flags, so related features to these
+-- flags being desasserted are not tested at this testbench (skip disabled descriptors 
+-- and transfer errors).
+--
+-- Some generics may not work for different values from the default ones. 
+-- 
 -----------------------------------------------------------------------------
 
 entity tb_injector is
   generic (
-    tech              : integer range  0 to numTech         := 65;  -- Target technology
     -- APB configuration  
     pindex            : integer                             := 6;         -- APB configuartion slave index
     paddr             : integer                             := 16#850#;   -- APB configuartion slave address
     pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask
     pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq
     -- Bus master configuration
-    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO    
-    hindex            : integer                             := 5;         -- AHB master index
+    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO
     MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction.
     -- Injector configuration
     ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag
@@ -197,7 +214,6 @@ begin  -- rtl
   -- injector core
   core : injector
     generic map (
-      tech          => tech,
       pindex        => pindex,
       paddr         => paddr,
       pmask         => pmask,

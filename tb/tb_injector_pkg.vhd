@@ -69,7 +69,7 @@ package tb_injector_pkg is
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
 
-  -- Function used to generate descriptors to be loaded into the injector
+  -- Function used to generate a descriptor. They're created with the enable and interrupt flags asserted.
   function write_descriptor(size      : integer range 0 to 524287;      -- Total size of a transfer
                             count     : integer range 0 to 63;          -- Number of repeats of the transfer
                             action    : std_logic_vector(2 downto 0);   -- Transaction type (read, write, delay)
@@ -79,7 +79,7 @@ package tb_injector_pkg is
                             last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words;
 
-  -- Procedure used to simulate a memory fetch to load descriptors for a test
+  -- Procedure used to simulate a memory fetch to load descriptors for a test.
   procedure read_descr(
     constant descriptor_bank  : in  descriptor_bank;
     signal   rdata            : out std_logic_vector(127 downto 0);
@@ -89,7 +89,7 @@ package tb_injector_pkg is
     signal   req_grant        : out std_logic
   );
 
-  -- Procedure used to execute read/write transactions
+  -- Procedure used to execute read/write transactions.
   procedure test_descriptor_batch(
     signal   bmin   : in  bm_in_type;
     signal   bmout  : out bm_out_type;
@@ -194,29 +194,32 @@ package body tb_injector_pkg is
 
 
   procedure test_descriptor_batch(
-    signal   bmin      : in  bm_in_type;
-    signal   bmout     : out bm_out_type;
-    constant descr     : in  descriptor_bank;
-    constant MAX_BEAT  : in  integer
+    signal   bmin       : in  bm_in_type;
+    signal   bmout      : out bm_out_type;
+    constant descr_bnk  : in  descriptor_bank;
+    constant MAX_BEAT   : in  integer
   ) is
-    variable tot_size  :     integer := 0; -- Remaining bytes to read/write from total transfer
-    variable beat_size :     integer := 0; -- Remaining bytes to read/write from beat transfer
-    signal   addr_off  :     integer := 0; -- Address offset where to execute the transfer beat
+    variable descr_wrd  :     descriptor_words; -- Descriptor being executed
+    variable tot_size   :     integer := 0; -- Remaining bytes to read/write from total transfer
+    variable beat_size  :     integer := 0; -- Remaining bytes to read/write from beat transfer
+    variable addr_off   :     integer := 0; -- Address offset where to execute the transfer beat
+    variable addr_act   :     std_logic_vector(31 downto 0); -- Source/destination address
 
   begin
     -- Wait for transaction request
     wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req);
 
     -- Loop for every descriptor transaction
-    for descr_num in descr'range loop
+    for descr_num in descr_bnk'range loop
+      descr_wrd := descr_bnk(descr_num);
       -- Loop descriptor transaction for number of repetitions
-      for repet_count in to_unsigned(descr(descr_num)(0)(12 downto 7)) to 0 loop
-        addr_off <= 0;
+      for repet_count in to_integer(unsigned(descr_wrd(0)(12 downto 7))) to 0 loop
+        addr_off := 0;
 
 
         -- Read transaction
-        if(bmin.rd_req) then
-          tot_size := to_integer(bmin.rd_size) + 1;
+        if(bmin.rd_req = '1') then
+          tot_size := to_integer(unsigned(bmin.rd_size)) + 1;
 
           -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats.
           while (tot_size > 0) loop 
@@ -231,11 +234,12 @@ package body tb_injector_pkg is
             end if;
 
             -- Compute address offset if the transfer is not address fixed
-            if(not descr(descr_num)(0)(5)) then addr_off <= to_integer(bmin.rd_size) + 1 - tot_size; end if;
+            if(descr_wrd(0)(5) = '0') then addr_off := to_integer(unsigned(bmin.rd_size)) + 1 - tot_size; end if;
 
             -- Check if injector is reading on the correct address
-            assert (bmin.rd_addr = descr(descr_num)(3) + addr_off) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
-                                      & to_hstring(descr(descr_num)(3) + addr_off) & " address, but injector fetched at 0x" 
+            addr_act := add_vector(descr_wrd(3), addr_off, addr_act'length);
+            assert (bmin.rd_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
+                                      & to_hstring(addr_act) & " address, but injector fetched at 0x" 
                                       & to_hstring(bmin.rd_addr) & "." severity failure;
                                       
             -- Start reading beat
@@ -260,8 +264,8 @@ package body tb_injector_pkg is
 
 
         -- Write transaction
-        if(bmin.wr_req) then
-          tot_size := to_integer(bmin.wr_size) + 1;
+        if(bmin.wr_req = '1') then
+          tot_size := to_integer(unsigned(bmin.wr_size)) + 1;
 
           -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats.
           while (tot_size > 0) loop 
@@ -276,11 +280,12 @@ package body tb_injector_pkg is
             end if;
 
             -- Compute address offset if the transfer is not address fixed
-            if(not descr(descr_num)(0)(6)) then addr_off <= to_integer(bmin.wr_size) + 1 - tot_size; end if;
+            if(descr_wrd(0)(6) = '0') then addr_off := to_integer(unsigned(bmin.wr_size)) + 1 - tot_size; end if;
 
             -- Check if injector is writing on the correct address
-            assert (bmin.wr_addr = descr(descr_num)(2) + addr_off) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
-                                      & to_hstring(descr(descr_num)(2) + addr_off) & " address, but injector fetched at 0x" 
+            addr_act := add_vector(descr_wrd(2), addr_off, addr_act'length);
+            assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
+                                      & to_hstring(addr_act) & " address, but injector fetched at 0x" 
                                       & to_hstring(bmin.wr_addr) & "." severity failure;
             
             -- Start writting beat

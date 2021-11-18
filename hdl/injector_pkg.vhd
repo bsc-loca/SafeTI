@@ -652,7 +652,6 @@ package injector_pkg is
   -- Injector core
   component injector is
     generic (
-      tech              : integer range 0 to numTech        := typeTech;
       pindex            : integer                           := 0;
       paddr             : integer                           := 0;
       pmask             : integer                           := 16#FF8#;
