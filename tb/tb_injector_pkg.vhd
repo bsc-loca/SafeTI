@@ -47,11 +47,11 @@ package tb_injector_pkg is
   -- BM output (injector input) default state
   constant DEF_INJ_BM : bm_out_type := (
     rd_data   => (others => '0'),
-    rd_req_grant => '1',
+    rd_req_grant => '0',
     rd_valid  => '0',
     rd_done   => '0',
     rd_err    => '0',
-    wr_req_grant => '1',
+    wr_req_grant => '0',
     wr_full   => '1',
     wr_done   => '0',
     wr_err    => '0'
@@ -79,21 +79,33 @@ package tb_injector_pkg is
                             last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words;
 
+  -- Procedure used to configure and start injector through the APB bus (injector is APB slave, which requires the psel to be set)
+  procedure configure_injector(
+    signal   clk              : in  std_ulogic;
+    constant apb_inj_addr     : in  std_logic_vector(31 downto 0);
+    constant descr_addr       : in  std_logic_vector(31 downto 0);
+    constant inj_config       : in  std_logic_vector(31 downto 0);
+    signal   apbo             : in  apb_slave_out_type;
+    signal   apbi             : out apb_slave_in_type
+  );
+
   -- Procedure used to simulate a memory fetch to load descriptors for a test.
-  procedure read_descr(
-    constant descriptor_bank  : in  descriptor_bank;
-    signal   rdata            : out std_logic_vector(127 downto 0);
-    signal   valid            : out std_logic;
-    signal   done             : out std_logic;
-    signal   req              : in  std_logic;
-    signal   req_grant        : out std_logic
+  procedure load_descriptors(
+    signal   clk              : in  std_ulogic;
+    constant descriptor_bank  : in  descriptor_bank;  -- Descriptor batch to offer at rdata
+    constant descriptor_addr  : in  std_logic_vector(31 downto 0); -- 1st descriptor address
+    signal   bm_in            : in  bm_in_type;       -- BM bus set by injector
+    signal   bm_out           : out bm_out_type       -- BM bus set by testbench
   );
 
   -- Procedure used to execute read/write transactions.
   procedure test_descriptor_batch(
-    signal   bmin   : in  bm_in_type;
-    signal   bmout  : out bm_out_type;
-    constant descr  : in  descriptor_bank
+    signal   clk              : in  std_ulogic;
+    signal   bmin             : in  bm_in_type;       -- BM bus set by injector
+    signal   bmout            : out bm_out_type;      -- BM bus set by testbench
+    constant descr_bnk        : in  descriptor_bank;  -- Descriptor batch to be executed
+    constant MAX_BEAT         : in  integer;          -- Maximum length in bytes for a beat in burst
+    signal   irq              : in  std_logic         -- Descriptor completion flag
   );
 
 end package tb_injector_pkg;
@@ -156,108 +168,170 @@ package body tb_injector_pkg is
   end function write_descriptor;
 
 
-  procedure read_descr(
+  procedure configure_injector(
+    signal   clk              : in  std_ulogic;
+    constant apb_inj_addr     : in  std_logic_vector(31 downto 0);
+    constant descr_addr       : in  std_logic_vector(31 downto 0);
+    constant inj_config       : in  std_logic_vector(31 downto 0);
+    signal   apbo             : in  apb_slave_out_type;
+    signal   apbi             : out apb_slave_in_type
+  ) is
+  begin
+    apbi.en    <= '0';
+    apbi.addr  <= add_vector(apb_inj_addr, 8, apbi.addr'length); -- 1st descriptor pointer address
+    apbi.wdata <= descr_addr;   -- 1st descriptor pointer
+    wait until rising_edge(clk);
+    apbi.en    <= '1';
+    apbi.write <= '1';
+    wait until rising_edge(clk);
+    apbi.en    <= '0';
+    apbi.addr  <= apb_inj_addr; -- Configure and start injector
+    apbi.wdata <= inj_config;   -- Test 1 configuration
+    wait until rising_edge(clk);
+    report "Starting the injector!";
+    apbi.en    <= '1';
+    wait until rising_edge(clk);
+    apbi.en    <= '0';
+    apbi.write <= '0';
+    apbi.addr  <= (others => '0');
+    apbi.wdata <= (others => '0');
+  end procedure configure_injector;
+
+  procedure load_descriptors(
+    signal   clk              : in  std_ulogic;
     constant descriptor_bank  : in  descriptor_bank;
-    signal   rdata            : out std_logic_vector(127 downto 0);
-    signal   valid            : out std_logic;
-    signal   done             : out std_logic;
-    signal   req              : in  std_logic;
-    signal   req_grant        : out std_logic
+    constant descriptor_addr  : in  std_logic_vector(31 downto 0);
+    signal   bm_in            : in  bm_in_type;
+    signal   bm_out           : out bm_out_type
   ) is 
     variable descriptor       :     descriptor_words;
+    variable addr             :     std_logic_vector(31 downto 0);
 
   begin
-    for j in descriptor_bank'range loop -- Loop between descriptors
+    for j in descriptor_bank'range loop -- Loop for each descriptors
+      
       descriptor := descriptor_bank(j);
-      req_grant <= '1';
-      done  <= '0';
-      valid <= '0';
-      wait until falling_edge(req);
-      req_grant <= '0';
+      bm_out.rd_req_grant <= '1';
+      bm_out.rd_done  <= '0';
+      bm_out.rd_valid <= '0';
+      wait until rising_edge(bm_in.rd_req);
+      addr := add_vector(descriptor_addr, 20*j, bm_in.rd_addr'length);
+      assert (bm_in.rd_addr = addr) report "The injector is fetching at the wrong address for descriptor to load!"
+        & LF & "         It should be requesting the address 0x" & to_hstring(unsigned(addr))
+        & ", but it is fetching at 0x" & to_hstring(unsigned(bm_in.rd_addr)) & " instead." severity failure;
+      wait until falling_edge(bm_in.rd_req);
+      bm_out.rd_req_grant <= '0';
 
-      for i in descriptor'range loop -- Loop for a single descriptor
-        valid <= '0';
-        rdata <= descriptor(i) & X"00000000_00000000_00000000";
-        wait for T;
-        if (i = (descriptor'length - 1)) then done <= '1';
-        else done <= '0';
+      for i in descriptor'range loop -- Loop for each word of the descriptor
+
+        bm_out.rd_valid <= '0';
+        bm_out.rd_data <= descriptor(i) & X"00000000_00000000_00000000"; -- TODO: Adapt with dbits
+
+        wait until rising_edge(clk);
+        if (i = (descriptor'length - 1)) then bm_out.rd_done <= '1';
+        else bm_out.rd_done <= '0';
         end if;
-        valid <= '1';
-        wait for T;
+        bm_out.rd_valid <= '1';
+        wait until rising_edge(clk);
       end loop;
       
-      rdata <= (others => '0');
-      done  <= '0';
-      valid <= '0';
+      bm_out  <= DEF_INJ_BM;
+
     end loop;
-  end procedure read_descr;
+  end procedure load_descriptors;
 
 
   procedure test_descriptor_batch(
+    signal   clk        : in  std_ulogic;
     signal   bmin       : in  bm_in_type;
     signal   bmout      : out bm_out_type;
     constant descr_bnk  : in  descriptor_bank;
-    constant MAX_BEAT   : in  integer
+    constant MAX_BEAT   : in  integer;
+    signal   irq        : in  std_logic
   ) is
     variable descr_wrd  :     descriptor_words; -- Descriptor being executed
-    variable tot_size   :     integer := 0; -- Remaining bytes to read/write from total transfer
-    variable beat_size  :     integer := 0; -- Remaining bytes to read/write from beat transfer
-    variable addr_off   :     integer := 0; -- Address offset where to execute the transfer beat
+    variable descr_num  :     integer := 0;     -- Var to select the descriptor being executed from batch
+    variable tot_size   :     integer := 0;     -- Remaining bytes to read/write from total transfer
+    variable beat_size  :     integer := 0;     -- Remaining bytes to read/write from beat transfer
+    variable addr_off   :     integer := 0;     -- Address offset where to execute the transfer beat
     variable addr_act   :     std_logic_vector(31 downto 0); -- Source/destination address
+    variable first_beat :     std_logic;        -- First beat indicator to manage multi-bursts (non-fixed address)
 
   begin
-    -- Wait for transaction request
-    wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req);
+
+    bmout.rd_req_grant <= '1'; -- Allow to start first transaction not matter if is read or write
+    bmout.wr_req_grant <= '1'; -- Allow to start first transaction not matter if is read or write
 
     -- Loop for every descriptor transaction
     for descr_num in descr_bnk'range loop
       descr_wrd := descr_bnk(descr_num);
       -- Loop descriptor transaction for number of repetitions
-      for repet_count in to_integer(unsigned(descr_wrd(0)(12 downto 7))) to 0 loop
+      for repet_count in 0 to to_integer(unsigned(descr_wrd(0)(12 downto 7))) loop
         addr_off := 0;
+        first_beat := '1';
+
+        -- Wait for transaction request
+        wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req);
+        report "Descriptor number " & integer'image(descr_num) & " and repet_count = " & integer'image(repet_count); -- Debug line
 
 
         -- Read transaction
         if(bmin.rd_req = '1') then
-          tot_size := to_integer(unsigned(bmin.rd_size)) + 1;
+          tot_size := to_integer(unsigned(descr_wrd(0)(31 downto 13)));
 
-          -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats.
-          while (tot_size > 0) loop 
+          -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats,
+          while (tot_size > 0) loop -- or 4 byte beats if is a fixed address transaction.
+
+            -- Each beat requires a handshake request process. The first one is done on the main loop.
+            if(first_beat = '0') then wait until rising_edge(bmin.rd_req); end if;
 
             -- Size management
-            if(tot_size > MAX_BEAT) then 
-              beat_size := MAX_BEAT;
-              tot_size  := tot_size - MAX_BEAT;
-            else 
-              beat_size := tot_size;
-              tot_size  := 0;
+            if(descr_wrd(0)(5) = '0') then        -- In case of read without fixed address, the transfer is
+              if(tot_size > MAX_BEAT) then        -- executed in burst mode, which has a size maximum of
+                beat_size := MAX_BEAT;            -- MAX_BEAT bytes.
+                tot_size  := tot_size - MAX_BEAT;
+              else 
+                beat_size := tot_size;            -- Or total size if the remaining transaction is of lower
+                tot_size  := 0;                   -- size than the stablished MAX_BEAT size.
+              end if;
+            else                                  -- However, if the read transfer is address fixed, the
+              beat_size := 4;                     -- transfer is executed in beats of 4 bytes, or dbits.
+              tot_size  := tot_size - 4;
             end if;
 
+
             -- Compute address offset if the transfer is not address fixed
-            if(descr_wrd(0)(5) = '0') then addr_off := to_integer(unsigned(bmin.rd_size)) + 1 - tot_size; end if;
+            if(descr_wrd(0)(5) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
 
             -- Check if injector is reading on the correct address
             addr_act := add_vector(descr_wrd(3), addr_off, addr_act'length);
             assert (bmin.rd_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
-                                      & to_hstring(addr_act) & " address, but injector fetched at 0x" 
-                                      & to_hstring(bmin.rd_addr) & "." severity failure;
+                                      & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x" 
+                                      & to_hstring(unsigned(bmin.rd_addr)) & "." & LF & "This has happened at descriptor " 
+                                      & integer'image(descr_num) & " with a repetition count of " & integer'image(repet_count) 
+                                      & "." severity failure;
                                       
             -- Start reading beat
-            wait until falling_edge(bmin.rd_req); -- Putting this line here allows to manage beats
+            wait until falling_edge(bmin.rd_req); -- Waiting for request deassertion allows to manage beats
             bmout.rd_req_grant <= '0';
             
             while (beat_size > 4) loop -- This loop may be unnecessary for the injector, but simulates SELENE platform behaviour
               beat_size := beat_size - 4;
-              wait for T;       -- May change to random wait
-              bmout.rd_valid <= '1';
-              if(beat_size > 4) then bmout.rd_done <= '1'; end if; -- Last read must also have done asserted.
-              wait for T;
+              wait until rising_edge(clk);  -- May change to add random wait
+              bmout.rd_valid <= '1';        -- Make sure only for a single clock cycle is asserted by beat
+              wait until rising_edge(clk);
               bmout.rd_valid <= '0';
-              bmout.rd_done  <= '0';
             end loop;
 
-            -- Finished reading a beat
+            -- Finishing reading a beat
+            wait until rising_edge(clk);
+            bmout.rd_valid <= '1';
+            bmout.rd_done <= '1';
+            wait until rising_edge(clk);
+            bmout.rd_valid <= '0';
+            bmout.rd_done <= '0';            
             bmout.rd_req_grant <= '1'; -- Prepare for next reading beat
+            first_beat := '0';
 
           end loop; -- BURST loop
         end if;
@@ -265,31 +339,41 @@ package body tb_injector_pkg is
 
         -- Write transaction
         if(bmin.wr_req = '1') then
-          tot_size := to_integer(unsigned(bmin.wr_size)) + 1;
+          tot_size := to_integer(unsigned(descr_wrd(0)(31 downto 13)));
 
-          -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats.
-          while (tot_size > 0) loop 
+          -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats,
+          while (tot_size > 0) loop -- or 4 byte beats if is a fixed address transaction.
+
+            -- Each beat requires a handshake request process. The first one is done on the main loop.
+            if(first_beat = '0') then wait until rising_edge(bmin.wr_req) ; end if;
 
             -- Size management
-            if(tot_size > MAX_BEAT) then
-              beat_size := MAX_BEAT;
-              tot_size  := tot_size - MAX_BEAT;
-            else 
-              beat_size := tot_size;
-              tot_size  := 0;
+            if(descr_wrd(0)(6) = '0') then        -- In case of not fixed write address, the transfer is
+              if(tot_size > MAX_BEAT) then        -- executed in burst mode, which has a size maximum of
+                beat_size := MAX_BEAT;            -- MAX_BEAT bytes.
+                tot_size  := tot_size - MAX_BEAT;
+              else 
+                beat_size := tot_size;            -- Or total size if the remaining transaction is of lower
+                tot_size  := 0;                   -- size than the stablished MAX_BEAT size.
+              end if;
+            else                                  -- However, if the write transfer is address fixed, the
+              beat_size := 4;                     -- transfer is executed in beats of 4 bytes, or dbits.
+              tot_size  := tot_size - 4;
             end if;
 
             -- Compute address offset if the transfer is not address fixed
-            if(descr_wrd(0)(6) = '0') then addr_off := to_integer(unsigned(bmin.wr_size)) + 1 - tot_size; end if;
+            if(descr_wrd(0)(6) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
 
             -- Check if injector is writing on the correct address
             addr_act := add_vector(descr_wrd(2), addr_off, addr_act'length);
-            assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
-                                      & to_hstring(addr_act) & " address, but injector fetched at 0x" 
-                                      & to_hstring(bmin.wr_addr) & "." severity failure;
+            assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for write transaction!" & LF & "Expected 0x"
+                                      & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x" 
+                                      & to_hstring(unsigned(bmin.wr_addr)) & "." & LF & "This has happened at descriptor " 
+                                      & integer'image(descr_num) & " with a repetition count of " & integer'image(repet_count) 
+                                      & "." severity failure;
             
-            -- Start writting beat
-            wait until falling_edge(bmin.wr_req); -- Putting this line here allows to manage beats
+            -- Start writing beat
+            wait until falling_edge(bmin.wr_req); -- Waiting for request deassertion allows to manage beats
             bmout.wr_req_grant <= '0';
 
             while (beat_size > 4) loop 
@@ -298,19 +382,29 @@ package body tb_injector_pkg is
               wait for T;       -- May change to random wait
               bmout.wr_full <= '1';
               wait for T;
-              if(beat_size > 4) then bmout.wr_done <= '1'; end if; -- Last write must also have done raised.
             end loop;
             
-            -- Finished reading a beat
-            wait for T;
+            -- Finishing writing a beat
+            wait until rising_edge(clk);
+            bmout.wr_done <= '1';
+            wait until rising_edge(clk);
             bmout.wr_done <= '0';
             bmout.wr_req_grant <= '1'; -- Prepare for next writing beat
+            first_beat := '0';
 
           end loop; -- BURST loop
 
         end if;
       end loop; -- Loop for repetitions
+
+      -- Check if the injector reports descriptor completion
+      wait until rising_edge(clk); wait until rising_edge(clk);
+      assert (irq = '1') report "The testbench has finished descriptor " & integer'image(descr_num) & " but the injector has not (apbo.irq=0)." severity failure;
+        
     end loop; -- Loop for descriptors
+
+    -- Set BM bus to default state
+    bmout <= DEF_INJ_BM;
 
   end procedure test_descriptor_batch;
 

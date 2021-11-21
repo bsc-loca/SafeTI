@@ -697,7 +697,7 @@ package injector_pkg is
   -- Procedures
   -------------------------------------------------------------------------------
   -- pragma translate_off
-  constant vmode	: boolean := false;	-- Extra print-out
+  --constant vmode	: boolean := false;	-- Extra print-out
 
 --  procedure run_injector_tests(
 --    signal atmi		: out at_ahb_mst_in_type;
