@@ -15,11 +15,11 @@ use bsc.tb_injector_pkg.all;
 -----------------------------------------------------------------------------
 -- Top level testbench entity for injector.
 --
--- This testbench tests, previous to the AHB/AXI interface (on BM bus), the following:
+-- This testbench validates, previous to the AHB/AXI interface (on BM bus), the following:
 --  Load of the descriptors (tests 1 and 2),
 --  Transaction repetition (test 1),
 --  Queue mode (test 1),
---  Injector reset (end of test 1 and to change between read and write vectors on test 2),
+--  Injector reset (end of test 1),
 --  Transaction size on fixed/unfixed address (test 2) on both read and writes.
 -- 
 -- Testbench specification:
@@ -27,19 +27,17 @@ use bsc.tb_injector_pkg.all;
 -- is in action (writes and reads only). Thus, the transfers are managed from the BM bus.
 --
 -- For each test (descriptor bank batch), the injector is initialized as if it were at the
--- SELENE platform by sending the equivalent APB signals. However, the testbench tries to
--- be as dynamic as possible, allowing different timing on the injector response, making it
--- suitable for future modifications.
+-- SELENE platform by sending the equivalent APB signals. 
 --
 -- This testbench specifically tests the behaviour when reading and writing by checking on
--- the right moment if the address being acted on is the expected, having in accordance the
--- "fixed address" and "bursts" features. Furthermore, the tests checks if the transfers are
+-- the moment of the request if the address being acted on is the expected, having in accordance
+-- the "fixed address" and "bursts" features. Furthermore, the tests checks if the transfers are
 -- completed from the injector view.
--- The tests use descriptors enabled and with interrupt flags, so related features to these
--- flags being desasserted are not tested at this testbench (skip disabled descriptors 
+-- The tests use descriptors enabled and with interrupt flags, meaning related features to these
+-- flags being desasserted are not validated at this testbench (skip disabled descriptors 
 -- and transfer errors).
 --
--- Some generics may not work for different values from the default ones. 
+-- Some generics may not work for different values from the default ones, as transfer sizes of 0. 
 -- 
 -----------------------------------------------------------------------------
 
@@ -173,9 +171,9 @@ begin  -- rtl
     report "Test 1: Loading descriptor batch!";
     load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
 
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
     report "Test 1 descriptor batch has been completed succesfully once!";
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 for second time (queue test)
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 for second time (queue test)
     report "Test 1 descriptor batch has been completed succesfully twice!";
 
 
@@ -194,13 +192,18 @@ begin  -- rtl
     else           report "Test 1: Injector has been reset successfully!";
     end if;
     apbi.en     <= '0';
-    wait until rising_edge(clk);
+    wait for 1 us;
+
+    -- To reset loaded descriptors, it is required to use the reset low input
+    rstn        <= '0';
+    wait until rising_edge(clk);  wait until rising_edge(clk);
+    rstn        <= '1';
 
     ----------------------------------------
     --               TEST 2               --
     ----------------------------------------
 
-    -- Configure injector for test 2
+    -- Configure injector for test 2 write
     report "Test 2: Load write configuration and start injector!";
     configure_injector(clk, apb_inj_addr, descr_addr2w, inj_config2, apbo, apbi);
 
@@ -211,8 +214,46 @@ begin  -- rtl
     test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
     report "Test 2 descriptor write batch has been completed succesfully!";
 
+    -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
+    for i in 0 to 9 loop
+      wait until rising_edge(clk); 
+    end loop;
+    assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
+                                      & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
+                                      & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
+
+    -- To reset loaded descriptors, it is required to use the reset low input
+    rstn        <= '0';
+    wait until rising_edge(clk);  wait until rising_edge(clk);
+    rstn        <= '1';
+    
+
+    -- Configure injector for test 2 read
+    report "Test 2: Load read configuration and start injector!";
+    configure_injector(clk, apb_inj_addr, descr_addr2r, inj_config2, apbo, apbi);
+
+    -- Load descriptors for test 2 read
+    report "Test 2: Loading read descriptor batch!";
+    load_descriptors(clk, descriptors2r, descr_addr2r, bm_in, bm_out);
+
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
+    report "Test 2 descriptor read batch has been completed succesfully!";
+
+    -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
+    for i in 0 to 9 loop
+      wait until rising_edge(clk); 
+    end loop;
+    assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
+                                      & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
+                                      & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
+
+    -- To reset loaded descriptors, it is required to use the reset low input
+    rstn        <= '0';
+    wait until rising_edge(clk);  wait until rising_edge(clk);
+    rstn        <= '1';
 
 
+    wait for 1 us;
     assert FALSE report "TEST FINISHED" severity failure;
 
   end process test;

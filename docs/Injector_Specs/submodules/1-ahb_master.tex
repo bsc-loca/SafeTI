@@ -1,0 +1,5 @@
+\subsubsection{AHB Master Interface}
+The injector has an AHB master port interfacing between the system bus and the control unit signals.\\
+Bus master interface front end data width can be configured to 32, 64, or 128 bits based on the VHDL generic \code{dbits}. 
+Burst accesses are always limited by a 1KB boundary as specified in AMBA 2.0. Moreover, in De-RISC and SELENE, the Bus is configured for up to 512B bursts. 
+When a burst finishes, or if the descriptor is set up above the permitted burst limit, the burst will be interrupted at the specified memory boundary. An idle cycle will be inserted making re-arbitration on the AHB bus more frequent.

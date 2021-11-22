@@ -1,0 +1,76 @@
+\subsection{Top level module}\label{toplevel}
+\label{top_module}
+
+The top-level module implements an AMBA AHB wrapper with an APB and AHBM bus ports.
+The interface signals of the module are seen in Table \ref{port:ahb}. A future revision of the module will include more portability to other Bus Protocols.\\
+\vspace{0.3cm}
+\begin{table}[ht]
+	\scriptsize
+	\centering
+	\begin{tabular}{llll}
+		\hline
+		Signal Name & Type & Function & Active
+		\\
+		\hline
+		clk & INPUT & System clock signal & Low
+		\\
+		rstn & INPUT & Reset signal & Low
+		\\
+		APBI & INPUT & APB slave input port & - 
+		\\
+		APBO & OUTPUT & APB slave output port & -
+		\\
+		AHBMI & INPUT & AHB Master input port & -
+		\\
+		AHBMO & OUTPUT & AHB Master output port & -
+		\\
+		\hline
+	\end{tabular}
+	\caption{Injector top level signal ports}
+	\label{port:ahb}
+\end{table}
+
+The injector \emph{VHDL generics} configuration is shown in Table \ref{table:generics}. Note that most of these generics are configured following the GRLIB IP Cobham Gaisler Module. \\
+\begin{table}[ht]
+	\scriptsize
+	\centering
+	\begin{tabular}{llll}
+		\hline
+		Generic name & Function & Allowed range & Default
+		\\
+		\hline
+		hindex & AHB master index & 0 - NAHBMST-1& 0
+		\\
+		pindex & APB slave index & 0 - NAPBSLV - 1 & 0
+		\\
+		paddr & Address field of the APB interface & 0 - 16\#FFF\# & 0 
+		\\
+		pmask & Mask field of the APB  & 0 - 16\#FFF\# & 16\#FFF\#
+		\\
+		pirq & Interrupt line used by the Injector & 0 - NAHBIRQ-1& 1
+		\\
+		abits & Address bits for the descriptors queue & 0 - 10 & 4
+		\\
+	    dbits & Bus master front end data width & 32 - 128 & 32
+		\\
+		max\_burst\_length & Maximum burst length & 2 - 128 & 512
+		\\
+		fifo\_len & FIFO length & 2 - 16 & 8
+		\\
+		\hline
+	\end{tabular}
+	\caption{Injector top level configuration parameters}
+	\label{table:generics}
+\end{table}
+
+The next sections will describe how the module behaves internally. Figure \ref{figure:low_level} introduces the interconnection signals used between sub-modules as a graphical visualization of how the control signals propagate.
+
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=15cm]{img/injector_low_level.pdf}
+  \caption{Module internal block diagram and entity ports}
+  \label{figure:low_level}
+\end{figure}
+
+

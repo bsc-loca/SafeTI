@@ -2,6 +2,7 @@
 hdl/injector_ahb/*
 tb/questasim/tb_injector/tb_injector/*
 tb/questasim/tb_injector/bsc/*
+tb/questasim/tb_injector/work/*
 tb/questasim/tb_injector/modelsim.ini
 tb/questasim/tb_injector/transcript
 tb/questasim/tb_injector/.runtest.sh.swp

@@ -1,0 +1,10 @@
+\subsection{Operation}
+\label{operation}
+
+\subsubsection{Overview}
+When the injector execution is enabled by setting the \textbf{EN} bit in the \textbf{Control APB Register}, descriptor execution starts from the first descriptor, which is pointed by the \textbf{Descriptor Pointer APB Register}. 
+The injector decodes the descriptor configuration, identifies the type of transaction, and continues with the execution. On completion of each descriptor, an interrupt flag may be configured and then continues with the \textbf{next descriptor pointer} set by the current descriptor's next descriptor pointer field value. Any disabled descriptor (\textbf{EN} bit is zero in the d\textbf{escriptor control word}) will be skipped. \\
+The injector should be configured such that the last descriptor has the \textbf{next.last} bit set to 1 (inside the \textbf{next descriptor pointer APB register}). After completing the last descriptor on the queue, the injector will remain \textbf{idle}.\\
+All descriptors on the queue are read at startup and loaded into the internal FIFO. After that last descriptor read, the first descriptor in the FIFO will get executed and will follow the predefined order.\\
+In the case of configuring the Queue Mode bit (QMode in the Control APB Register), the \textbf{next.last} bit is ignored, the last descriptor in the queue will execute the first descriptor, in a loop manner. Once the  \textbf{EN} bit is cleared, the injector will stop its execution. \\
+

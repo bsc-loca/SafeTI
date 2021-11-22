@@ -1,0 +1,40 @@
+\subsection{Features}
+\label{features}
+
+\subsubsection{Interrupts}
+The module provides interrupt on error and interrupt on descriptor completion. The general interrupt flag is controlled via de \textbf{Control APB Register}. 
+The Error Interrupt can also be enabled from the same register. The On-Completion Interrupt is configured in the \textbf{Descriptor Control Word}.\\
+
+\subsubsection{Error handling}
+The module provides a very straightforward way to detect and debug errors while enabled. The \textbf{Status APB register} has a general error flag that is raised if a miss-behavior has been detected.
+
+\begin{itemize}
+ 	\item \textbf{DE}: \code{Decode Error} can occur during the decoding of a descriptor if the type of descriptor is not valid.
+  	\item \textbf{RE}: \code{Read Descriptor Error} will be flagged in the case when the Master Bus I/F receives an error response during a descriptor read transaction.
+	\item \textbf{RDE}: If the Bus Master I/F receives an error during any part of the read access performed as part of the \code{receiver to sender}, \code{RDE} will be flagged.
+	\item \textbf{WDE}: If the Bus Master I/F receives an error during any part of the write access performed as part of the \code{sender to receiver} transaction, \code{WDE} will be flagged.
+	\item \textbf{NPE}: Defines the \code{Next Pointer Error} when the Bus Master I/F receives an error while switching to the next descriptor address.
+\end{itemize}
+
+\newpage
+\subsubsection{Status monitoring}
+
+The injector provides a 5-bit Status (ST) field, which always displays the descriptor's current state. In case of an error, the \textbf{ST} field will freeze at the exact state where the error occurred, enabling the user to debug what happened.\\
+During a transaction, the \textbf{ONG} bit in the \textbf{Status APB Register} will be set to one. In case of an error, or if the injector has completed the execution of the entire queue, it will stay on an Idle state and clear the \textbf{ONG} bit. 
+The complete (\textbf{CMP}) bit will be set to one if no errors occurred and the descriptors queue is done. \\
+The \textbf{Descriptor pointer debug capability APB register} shows the base address where the current descriptor was read from.
+
+\subsubsection{Pause and resume}
+If the \textbf{EN} bit is cleared during execution, the injector (after it has completed the ongoing descriptor) will pause by setting the \textbf{PAU} bit and clearing the \textbf{ONG} bit. The module will stay idle until \textbf{EN} and \textbf{KICK} are set to ‘1’ in the \textbf{Control APB register}. \\
+This feature is not implemented in the current version of the injector. Instead of pausing, the user shall restart (\textbf{RST} bit) and disable the module (set the \textbf{EN} bit to '0') to stop the execution.
+
+\subsubsection{Descriptors}
+As described in the \textbf{Descriptor specifications}, this module provides a simple way of configuring bus transactions so that it is possible to customize the type of transaction, addresses, repetitions, etc. A descriptor is a set of configuration registers that encapsulates all this functionality. The module is capable of decoding descriptors and sequentially executing them.
+
+\subsubsection{Transaction repetition mode}
+One of the advanced functionalities is the use of transaction repetitions. This enables the execution of one type transaction bursts by configuring its size and number of repetitions.\\
+The module can also be configured with a circular queue behavior. The descriptors queue will be continuously executed until the \textbf{EN} bit is cleared from the APB Control Register. This circular behavior is accomplished with the \textbf{QMode} bit.
+
+\subsubsection{Transaction Queue}
+Inside the System's Platform Memory, the user should define a range of addresses reserved for instantiating all the descriptors. When the module is enabled, the first descriptor will be fetched into an internal FIFO. Once all the descriptors are read, the FIFO will be enabled and executed. The module will iteratively increment its address to fetch the next descriptor.\\
+As we have described earlier, the last descriptor on the queue has to include the \textbf{next.last} bit for a correct operation.\\

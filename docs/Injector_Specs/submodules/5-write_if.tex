@@ -1,0 +1,40 @@
+\subsubsection{Write interface module}
+The Write Interface module deals with data write transactions to AHB Addresses.\\
+Data descriptor fields are passed from the control sub-module, and \code{write\_if\_start} signal is asserted only for enabled descriptors.
+Once the dummy data (a 32-bit array of 1's) is completely transferred to memory according to the specified size in the descriptor control word field, execution stops the Write Interface operation. It goes back to the main control state machine in the injector control.\\
+
+\begin{figure}[ht]
+	\centering
+	\begin{tikzpicture}
+		\node[state, accepting] (1) {$1$};
+		\node[state, below of=1] (2) {$2$};
+		\node[state, below right of=2] (3) {$3$};
+		\node[state, below left of=2] (4) {$4$};
+		\draw	(1) edge[right,bend left,right=0.3] node{$write\_if\_start$} (2)
+				(1) edge[loop above] node{$wait$} (1)
+				(2) edge[left,bend left, left=0.3] node{$size=0$} (1)
+				(2) edge[below,bend left,right=0.3] node{$size>0$} (3)
+				(2) edge[below,bend left,right=0.3] node{$size\_left=0$} (4)
+				(3) edge[loop right] node{$more\_data$} (3)
+				(3) edge[left, bend left, below=0.3] node{$size=0$} (4)
+				(4) edge[left,bend left,below=0.3] node{$size\_left!=0$} (2)
+				(4) edge[left,bend left,pos=.3, left=0.3] node{$comp$} (1);
+	\end{tikzpicture}
+	\caption{Write Interface FSM diagram}
+	\label{fig:write_states}
+\end{figure}
+
+\paragraph{Description}
+\subparagraph{1. Idle}
+Starting state, waits for \code{write\_if\_start} signal from the control sub-module to proceed.
+
+\subparagraph{2. First Word}
+If there is data to be written, the FSM proceeds to fetch and compute the transfer's addresses and sizes and starts a normal 4 byte aligned or burst transfer.
+
+\subparagraph{3. Write Burst}
+If we still have data after a first 4-byte transfer, a burst transaction starts and loops until finished.
+
+\subparagraph{4. Write  Data Check}
+Once a normal transaction or burst transaction ends, we check if we need to start another burst (we have to keep in mind the upper bound on the permitted burst size) or the transaction has finished.\\[0.5cm]
+
+

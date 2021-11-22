@@ -197,6 +197,7 @@ package body tb_injector_pkg is
     apbi.wdata <= (others => '0');
   end procedure configure_injector;
 
+
   procedure load_descriptors(
     signal   clk              : in  std_ulogic;
     constant descriptor_bank  : in  descriptor_bank;
@@ -272,7 +273,7 @@ package body tb_injector_pkg is
 
         -- Wait for transaction request
         wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req);
-        report "Descriptor number " & integer'image(descr_num) & " and repet_count = " & integer'image(repet_count); -- Debug line
+        --report "Descriptor number " & integer'image(descr_num) & " and repet_count = " & integer'image(repet_count); -- Debug line
 
 
         -- Read transaction
@@ -284,6 +285,9 @@ package body tb_injector_pkg is
 
             -- Each beat requires a handshake request process. The first one is done on the main loop.
             if(first_beat = '0') then wait until rising_edge(bmin.rd_req); end if;
+
+            -- Compute address offset if the transfer is not address fixed
+            if(descr_wrd(0)(5) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
 
             -- Size management
             if(descr_wrd(0)(5) = '0') then        -- In case of read without fixed address, the transfer is
@@ -298,10 +302,6 @@ package body tb_injector_pkg is
               beat_size := 4;                     -- transfer is executed in beats of 4 bytes, or dbits.
               tot_size  := tot_size - 4;
             end if;
-
-
-            -- Compute address offset if the transfer is not address fixed
-            if(descr_wrd(0)(5) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
 
             -- Check if injector is reading on the correct address
             addr_act := add_vector(descr_wrd(3), addr_off, addr_act'length);
@@ -347,6 +347,9 @@ package body tb_injector_pkg is
             -- Each beat requires a handshake request process. The first one is done on the main loop.
             if(first_beat = '0') then wait until rising_edge(bmin.wr_req) ; end if;
 
+            -- Compute address offset if the transfer is not address fixed
+            if(descr_wrd(0)(6) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
+
             -- Size management
             if(descr_wrd(0)(6) = '0') then        -- In case of not fixed write address, the transfer is
               if(tot_size > MAX_BEAT) then        -- executed in burst mode, which has a size maximum of
@@ -360,10 +363,7 @@ package body tb_injector_pkg is
               beat_size := 4;                     -- transfer is executed in beats of 4 bytes, or dbits.
               tot_size  := tot_size - 4;
             end if;
-
-            -- Compute address offset if the transfer is not address fixed
-            if(descr_wrd(0)(6) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
-
+            
             -- Check if injector is writing on the correct address
             addr_act := add_vector(descr_wrd(2), addr_off, addr_act'length);
             assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for write transaction!" & LF & "Expected 0x"
@@ -407,6 +407,7 @@ package body tb_injector_pkg is
     bmout <= DEF_INJ_BM;
 
   end procedure test_descriptor_batch;
+
 
   -----------------------------------------------------------------------------
   -- Component instantiation
