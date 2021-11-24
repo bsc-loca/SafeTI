@@ -1,7 +1,8 @@
 # CI version of linting script.
 docker_spyglass:
-	spyglass -usage #placeholder for future recipe
+	cd ci/ && bash lint_CI.sh
 	exit 0
+# Runs a list of self checking questasim TB
 questa:
-	vsim -h #placeholder for future recipe
+	cd ci/ && bash questa.sh
 	exit 0

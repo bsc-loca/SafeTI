@@ -11,7 +11,7 @@ use ieee.numeric_std.all;
 library bsc;
 use bsc.injector_pkg.all;
 use bsc.tb_injector_pkg.all;
-
+use std.env.all;
 -----------------------------------------------------------------------------
 -- Top level testbench entity for injector.
 --
@@ -254,7 +254,7 @@ begin  -- rtl
 
 
     wait for 1 us;
-    assert FALSE report "TEST FINISHED" severity failure;
+    finish(1);
 
   end process test;
 
