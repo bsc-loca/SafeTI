@@ -1,9 +1,0 @@
-hdl/injector_pkg.vhd
-hdl/fifo.vhd
-hdl/injector_apb.vhd
-hdl/injector_read_if.vhd
-hdl/injector_write_if.vhd
-hdl/injector_delay_if.vhd
-hdl/injector_ctrl.vhd
-hdl/injector.vhd
-hdl/injector_ahb.vhd
