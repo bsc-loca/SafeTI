@@ -7,7 +7,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_misc.or_reduce; -- OR to a vector
+--use ieee.std_logic_misc.or_reduce; -- OR to a vector
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -149,7 +149,7 @@ begin
           v.sts.comp        := '0';
           v.tot_size        := d_des_in.ctrl.size;
           v.inc             := (others => '0');
-          if or_reduce(d_des_in.ctrl.size) = '0' then
+          if or_vector(d_des_in.ctrl.size) = '0' then
             v.sts.comp      := '1';
           end if;
           v.curr_size := find_burst_size(src_fixed_addr       => d_des_in.ctrl.src_fix_adr,
@@ -162,7 +162,7 @@ begin
       ----------
      
       when first_word =>  -- First data passed with write initiation
-        if or_reduce(r.curr_size) /= '0' then
+        if or_vector(r.curr_size) /= '0' then
 	        if d_des_in.ctrl.dest_fix_adr = '1' then
             write_if_bmo.wr_addr <= d_des_in.dest_addr;
           else
@@ -178,7 +178,7 @@ begin
                 v.curr_size   := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);  -- Size pending, after writing first data
                 v.inc         := add_vector(r.inc, bm_bytes, v.inc'length);
                 v.tot_size    := sub_vector(r.tot_size, bm_bytes, v.tot_size'length);
-                if or_reduce(sz_aftr_write) /= '0' then
+                if or_vector(sz_aftr_write) /= '0' then
                   v.write_if_state := write_burst;
                 else
                   v.write_if_state := write_data_check;
@@ -206,7 +206,7 @@ begin
         -- two words with bm_bytes size each.
           if to_integer(unsigned(r.curr_size)) >= bm_bytes then
             sz_aftr_write     := sub_vector(r.curr_size, bm_bytes, sz_aftr_write'length);
-	          if or_reduce(sz_aftr_write) = '0' then -- more data to be writen after current data write
+	          if or_vector(sz_aftr_write) = '0' then -- more data to be writen after current data write
               v.write_if_state := write_data_check;
             end if;
             v.curr_size       := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);
@@ -226,7 +226,7 @@ begin
         if write_if_bmi.wr_done = '1' then
           v.bmst_wr_busy := '0';
           if write_if_bmi.wr_err = '0' then
-            if or_reduce(r.tot_size) /= '0' then --Start again if there are remaining bytes
+            if or_vector(r.tot_size) /= '0' then --Start again if there are remaining bytes
               v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                              dest_fixed_addr  => d_des_in.ctrl.dest_fix_adr,
                                              max_bsize        => MAX_SIZE_BEAT,

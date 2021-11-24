@@ -7,7 +7,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_misc.or_reduce; -- OR to a vector
+--use ieee.std_logic_misc.or_reduce; -- OR to a vector
 library bsc;
 use bsc.injector_pkg.all;
 use bsc.tb_injector_pkg.all;
@@ -187,7 +187,7 @@ begin  -- rtl
     apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
     apbi.write  <= '0';
     wait until rising_edge(clk); wait until rising_edge(clk);
-    if(or_reduce(apbo.rdata) = '1') then
+    if(or_vector(apbo.rdata) = '1') then
       assert FALSE report "Test 1: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
     else           report "Test 1: Injector has been reset successfully!";
     end if;

@@ -8,7 +8,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_misc.or_reduce;
+--use ieee.std_logic_misc.or_reduce;
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -157,7 +157,7 @@ begin
           v.tot_size       := d_des_in.ctrl.size;
           v.inc            := (others => '0');
           v.bmst_rd_err    := '0';
-          if or_reduce(d_des_in.ctrl.size) = '0' then
+          if or_vector(d_des_in.ctrl.size) = '0' then
             v.sts.comp := '1';
           end if;
           v.curr_size := find_burst_size(src_fixed_addr         => d_des_in.ctrl.src_fix_adr,
@@ -170,7 +170,7 @@ begin
       ----------     
         
       when exec_data_desc =>
-        if or_reduce(r.curr_size) /= '0' then  -- More data remaining to be fetched
+        if or_vector(r.curr_size) /= '0' then  -- More data remaining to be fetched
           if r.bmst_rd_busy = '0' then
             if d_des_in.ctrl.src_fix_adr = '1' then
               -- If souce address is fixed, data is read in a looped manner from same source address. Single access. No burst              
@@ -216,7 +216,7 @@ begin
           -- Check if read burst is done
           if read_if_bmi.rd_done = '1' then
             if v.bmst_rd_err = '0' then  -- no bus master error                    
-              if or_reduce(remaining) /= '0' then
+              if or_vector(remaining) /= '0' then
                 v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
                                                 max_bsize       => MAX_SIZE_BEAT,

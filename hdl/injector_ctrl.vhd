@@ -7,7 +7,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_misc.or_reduce;
+--use ieee.std_logic_misc.or_reduce;
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -445,7 +445,7 @@ begin  -- rtl
 	          v.state          := decode_desc;
 
 	          -- Check if FIFO is fully read
-	          if or_reduce(fifo_rdata) = '0' or fifo_completed = '1' then 
+	          if or_vector(fifo_rdata) = '0' or fifo_completed = '1' then 
 		          v.fifo_rd_rst       := '1';
 		          v.fifo_finished     := '1';
 	          end if;
@@ -497,7 +497,7 @@ begin  -- rtl
       when read_if =>
         -- Check whether the transaction was successfull or not
         if (r.read_if_start = '0' and read_if_sts_in.comp = '1') then 
-           if ( r.rep_count < r.rd_desc(140 downto 135) and or_reduce(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+           if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
               v.state         := decode_desc;
            else          
@@ -519,7 +519,7 @@ begin  -- rtl
         -- Check whether the transaction was successfull or not
         if (r.write_if_start = '0' and write_if_sts_in.comp = '1') then
            -- Check the descriptor repetition count parameter
-	      if ( r.rep_count < r.rd_desc(140 downto 135) and or_reduce(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+	      if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
 	            v.state         := decode_desc;
            else
@@ -540,7 +540,7 @@ begin  -- rtl
       when delay_if =>
         -- Check whether the transaction was successfull or not
         if (r.delay_if_start = '0' and delay_if_sts_in.comp = '1') then
-          if ( r.rep_count < r.rd_desc(140 downto 135) and or_reduce(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+          if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
             v.rep_count       := add_vector(r.rep_count, 1, r.rep_count'length);
             v.state           := decode_desc;
           else

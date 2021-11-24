@@ -7,7 +7,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use ieee.std_logic_misc.or_reduce;
+--use ieee.std_logic_misc.or_reduce;
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -120,7 +120,7 @@ begin
           v.sts.operation  := '1';
           v.sts.comp       := '0';
           v.tot_size       := d_des_in.ctrl.size;
-          if or_reduce(d_des_in.ctrl.size) = '0' then
+          if or_vector(d_des_in.ctrl.size) = '0' then
             v.sts.comp := '1';
           end if;
           v.delay_if_state := exec_data_desc;

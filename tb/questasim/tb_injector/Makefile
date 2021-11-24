@@ -14,11 +14,11 @@ compile: clean
 
 #Launches the simulation with the graphical interface
 vsim-launch: compile
-	vsim -voptargs=+acc tb_injector -do "do wave.do"
+	vsim -voptargs=+acc tb_injector -do "do wave.do" -do "run -all"
 
 #Launches the simulation in batch mode
 vsim: compile
-	vsim -voptargs=+acc tb_injector -do "run 30.3 us" <<! 
+	vsim -voptargs=+acc tb_injector -do "run -all" <<! 
     
 #Analyzes the results of the simulation
 launch-tb : vsim

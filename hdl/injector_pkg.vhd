@@ -45,6 +45,8 @@ package injector_pkg is
 -- Types and records
 -------------------------------------------------------------------------------
 
+  type array_std_logic_vector is array (natural range <>) of std_logic_vector(1 to 160);
+
   -- BM specific types
   type bm_out_type is record  --Input to injector_ctrl from bus master interface output
     -- Read channel
@@ -491,21 +493,25 @@ package injector_pkg is
   -------------------------------------------------------------------------------
   -- Subprograms
   -------------------------------------------------------------------------------
-  function find_burst_size(src_fixed_addr   : std_ulogic;
-                           dest_fixed_addr  : std_ulogic;
-                           max_bsize        : integer;
-                           total_size       : std_logic_vector(18 downto 0)
-                           )
-  return std_logic_vector;
+  function find_burst_size  (src_fixed_addr   : std_ulogic;
+                             dest_fixed_addr  : std_ulogic;
+                             max_bsize        : integer;
+                             total_size       : std_logic_vector(18 downto 0)
+                             ) return std_logic_vector;
 
-  function log_2           (max_size         : integer)
-  return integer;
+  -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
+  function log_2            (max_size         : integer) return integer;
 
   -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
-  function add_vector(A, B : std_logic_vector; len : natural) return std_logic_vector;
-  function sub_vector(A, B : std_logic_vector; len : natural) return std_logic_vector;
-  function add_vector(A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
-  function sub_vector(A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
+  function sub_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
+  function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+
+  -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
+  function or_vector        (vect : std_logic_vector) return std_logic;
+
+
   
   -------------------------------------------------------------------------------
   -- Components
@@ -789,14 +795,23 @@ package body injector_pkg is
   -- Function used to compute bus lengths. DO NOT attempt to use it as 
   -- combinational logic, just to compute values pre-synthesis.
   function log_2(max_size : integer) return integer is
-    variable res : integer;
+    variable res : integer := 0;
   begin
-    res := 0;  
     while (2**res < max_size) and res < 31 loop
        res := res + 1;
     end loop;
     return res;
   end log_2;
+
+  function or_vector(vect : std_logic_vector) return std_logic is
+    variable wool  : std_logic;
+  begin
+    wool := '0';
+    for i in vect'range loop
+      wool := wool or vect(i);
+    end loop;
+    return wool;
+  end or_vector;
 
 
    
