@@ -17,8 +17,8 @@ if [ $? -ne 0 ]; then
 exit 3
 fi
 # check if there is a result file
-echo "$TOP/consolidated_reports/lint_lint_rtl/moresimple.rpt"
-test -f $TOP/consolidated_reports/${TOP}lint_lint_rtl/moresimple.rpt || exit 2
+echo "$TOP/consolidated_reports/${TOP}_lint_lint_rtl/moresimple.rpt"
+test -f $TOP/consolidated_reports/${TOP}_lint_lint_rtl/moresimple.rpt || exit 2
 # Check outcome
 printf "UNIT - : ${BLUE} $TOP ${BLUE}${NC}\n"
 cat $TOP/consolidated_reports/${TOP}lint_lint_rtl/moresimple.rpt  | grep -i 'error\|Syntax' | GREP_COLORS='mt=01;31'  egrep -i --color=always error\|syntax
