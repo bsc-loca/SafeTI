@@ -7,15 +7,15 @@ The injector works along with the multi-core setup instantiated on the platform 
 In order to generate traffic to the bus, the module performs a set of AMBA transactions based on data descriptors set at startup into a predefined memory address range.
 A high-level block diagram of the module is shown, its internal components and respective configuration and functionalities are described
 
-![High Level Module](docs/img/injector_high_level.png)
+![High Level Module](docs/Injector_Specs/img/injector_high_level.png)
 
-![Sub-modules signals](docs/img/injector_low_level.png)
+![Sub-modules signals](docs/Injector_Specs/img/injector_low_level.png)
 
 
 ## Descriptors
 Descriptors are used to define, control, and monitor transactions in the Traffic Injector. Descriptor types supported by this module can be classified, as of today, as read and write descriptors. Furthermore, each transaction type has the possibility of starting a **burst transfer** by **not fixing** the Source and Destinations bits in the **Descriptor Control Word**.
 
-![Descriptors](docs/img/descriptors.png)
+![Descriptors](docs/Injector_Specs/img/descriptors.png)
 
 For more informatio regarding the use of the Module, see [Specifications](docs/Injector_Specs.pdf)
 

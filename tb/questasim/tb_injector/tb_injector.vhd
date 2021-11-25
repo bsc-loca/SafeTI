@@ -7,16 +7,16 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
---use ieee.std_logic_misc.or_reduce; -- OR to a vector
 library bsc;
 use bsc.injector_pkg.all;
 use bsc.tb_injector_pkg.all;
-use std.env.all;
+
 -----------------------------------------------------------------------------
 -- Top level testbench entity for injector.
 --
 -- This testbench validates, previous to the AHB/AXI interface (on BM bus), the following:
 --  Load of the descriptors (tests 1 and 2),
+--  Transaction completion (test 1 and 2),
 --  Transaction repetition (test 1),
 --  Queue mode (test 1),
 --  Injector reset (end of test 1),
@@ -29,30 +29,35 @@ use std.env.all;
 -- For each test (descriptor bank batch), the injector is initialized as if it were at the
 -- SELENE platform by sending the equivalent APB signals. 
 --
--- This testbench specifically tests the behaviour when reading and writing by checking on
--- the moment of the request if the address being acted on is the expected, having in accordance
--- the "fixed address" and "bursts" features. Furthermore, the tests checks if the transfers are
--- completed from the injector view.
--- The tests use descriptors enabled and with interrupt flags, meaning related features to these
--- flags being desasserted are not validated at this testbench (skip disabled descriptors 
--- and transfer errors).
+-- This testbench specifically tests the if the address being acted on is the programmed/expected, 
+-- taking into account the "fixed address" and "bursts" features. Furthermore, the tests checks if
+-- the injector asserts the descriptor completion flag when it's supposed to finish. 
+-- The tests use descriptors with the 'enabled' and 'interrupt' flags asserted, meaning related 
+-- features to these flags being desasserted are not validated by this testbench (skip disabled 
+-- descriptors, for example).
 --
--- Some generics may not work for different values from the default ones, as transfer sizes of 0. 
+-- In addition, the user may change the threshold of how many clock cycles are allowed to pass since
+-- some signals assertions, including injector requests, testbench grant requests and testbench
+-- waiting for the injector to assert the 'descriptor completed' interruption (this one is 0 by 
+-- default because the testbench is arrenged to always check on the interruption when is expected
+-- to be asserted).
+--
+-- Some generics may not work for different values from the default ones. 
 -- 
 -----------------------------------------------------------------------------
 
 entity tb_injector is
   generic (
     -- APB configuration  
-    pindex            : integer                             := 6;         -- APB configuartion slave index
-    paddr             : integer                             := 16#850#;   -- APB configuartion slave address
-    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask
-    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq
+    pindex            : integer                             := 6;         -- APB configuartion slave index (deffault=6)
+    paddr             : integer                             := 16#850#;   -- APB configuartion slave address (deffault=16#850#)
+    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask (deffault=16#FFF#)
+    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (deffault=6)
     -- Bus master configuration
-    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO
-    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction.
+    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO (deffault=32)
+    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction. (deffault=1024)
     -- Injector configuration
-    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag
+    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (deffault=FALSE)
     );
 
 end entity tb_injector;
@@ -61,6 +66,10 @@ architecture rtl of tb_injector is
   -----------------------------------------------------------------------------
   -- Constant declaration
   -----------------------------------------------------------------------------
+
+  -- Testbench thresholds (maximum number of clock cycles allowed for the signals to be asserted before an error message)
+  constant req_threshold  : integer                       := 2;  -- Requests (injector asserted) and granted requests (testbench asserted) (default=2)
+  constant descr_compl_thereshold : integer               := 0;  -- Waiting threshold for descriptor completition flag (injector asserted) (default=0)
 
   -- Pointers
   constant apb_inj_addr   : std_logic_vector(31 downto 0) := X"000" & std_logic_vector(to_unsigned(paddr, 12)) & X"00"; -- Location of the injector at APB memory
@@ -110,6 +119,7 @@ architecture rtl of tb_injector is
     write_descriptor(              15,  0,   RD, action_addr, '1', add_vector(descr_addr2r, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
   );
 
+
   -----------------------------------------------------------------------------
   -- Records and types
   -----------------------------------------------------------------------------
@@ -133,7 +143,15 @@ architecture rtl of tb_injector is
   -- APB configuration
   signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
 
-  
+  -- Control test signals, used to error if the execution doesn't continue after a threshold
+  signal limit_rd_req_grant : integer := 0;
+  signal limit_wr_req_grant : integer := 0;
+  signal limit_rd_req       : integer := 0;
+  signal limit_wr_req       : integer := 0;
+  signal limit_descr_compl  : integer := 0;
+  signal wait_descr_compl   : std_logic := '0';
+
+
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
@@ -171,9 +189,11 @@ begin  -- rtl
     report "Test 1: Loading descriptor batch!";
     load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
 
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
-    report "Test 1 descriptor batch has been completed succesfully once!";
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 for second time (queue test)
+    -- Test all descriptors from TEST 1 once
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl);
+    report "Test 1 descriptor batch has been completed succesfully once!";  
+    -- Test all descriptors from TEST 1 for second time (queue test)
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully twice!";
 
 
@@ -211,7 +231,8 @@ begin  -- rtl
     report "Test 2: Loading write descriptor batch!";
     load_descriptors(clk, descriptors2w, descr_addr2w, bm_in, bm_out);
 
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
+    -- Test all descriptors from TEST 2 write
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor write batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
@@ -236,7 +257,8 @@ begin  -- rtl
     report "Test 2: Loading read descriptor batch!";
     load_descriptors(clk, descriptors2r, descr_addr2r, bm_in, bm_out);
 
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BEAT, apbo.irq(pirq)); -- Test all descriptors from TEST 1 once
+    -- Test all descriptors from TEST 2 read
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor read batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
@@ -254,9 +276,46 @@ begin  -- rtl
 
 
     wait for 1 us;
-    finish(1);
+    report "TEST SUCCESSFULLY FINISHED!";
+    std.env.stop;
+    --assert FALSE report "TEST SUCCESSFULLY FINISHED!" severity failure;
 
   end process test;
+
+  -- 
+  interrupt_test : process(clk)
+  begin 
+    if(clk = '1' and clk'event) then
+      -- Increment if the signal stays asserted
+      if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
+        else limit_rd_req_grant <= 0; end if;
+      if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
+        else limit_wr_req_grant <= 0; end if;
+      if(bm_in.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
+        else limit_rd_req <= 0; end if;
+      if(bm_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
+        else limit_wr_req <= 0; end if;
+      if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
+        else limit_descr_compl <= 0; end if;
+    end if;
+
+    -- Crash test with error if something gets stuck
+    if(
+      limit_rd_req_grant > req_threshold or
+      limit_wr_req_grant > req_threshold or
+      limit_rd_req       > req_threshold or
+      limit_wr_req       > req_threshold
+    ) then
+      assert FALSE report "TEST GOT STUCK DUE TO REQUEST NOT BEING GRANTED OR INJECTOR NOT REQUESTING!" severity failure;
+    end if;
+
+    if(
+      limit_descr_compl > descr_compl_thereshold
+    ) then
+      assert FALSE report "The testbench has finished descriptor but the injector has not set the completition flag (apbo.irq is 0)." severity failure;
+    end if;
+
+  end process interrupt_test;
 
 
   -----------------------------------------------------------------------------
