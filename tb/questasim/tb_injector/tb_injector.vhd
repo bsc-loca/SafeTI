@@ -1,8 +1,10 @@
 -----------------------------------------------------------------------------   
--- Entity:      tb_injector
--- File:        tb_injector.vhd
--- Author:      Francis Fuentes
--- Description: Testbench injector top level entity.
+-- Entity:        tb_injector
+-- File:          tb_injector.vhd
+-- Author:        Francis Fuentes
+-- Description:   Testbench injector top level entity.
+-- Compatibility: This TB requires VHDL2008. However, it is compatible with older
+--                compilers by comenting VHDL2008 and uncommenting !VHDL2008 lines.
 ------------------------------------------------------------------------------ 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -10,6 +12,7 @@ use ieee.numeric_std.all;
 library bsc;
 use bsc.injector_pkg.all;
 use bsc.tb_injector_pkg.all;
+use std.env.all; -- VHDL2008
 
 -----------------------------------------------------------------------------
 -- Top level testbench entity for injector.
@@ -49,15 +52,15 @@ use bsc.tb_injector_pkg.all;
 entity tb_injector is
   generic (
     -- APB configuration  
-    pindex            : integer                             := 6;         -- APB configuartion slave index (deffault=6)
-    paddr             : integer                             := 16#850#;   -- APB configuartion slave address (deffault=16#850#)
-    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask (deffault=16#FFF#)
-    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (deffault=6)
+    pindex            : integer                             := 6;         -- APB configuartion slave index (default=6)
+    paddr             : integer                             := 16#850#;   -- APB configuartion slave address (default=16#850#)
+    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
+    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (default=6)
     -- Bus master configuration
-    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO (deffault=32)
-    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction. (deffault=1024)
+    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO (default=32)
+    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction. (default=1024)
     -- Injector configuration
-    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (deffault=FALSE)
+    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (default=FALSE)
     );
 
 end entity tb_injector;
@@ -276,9 +279,8 @@ begin  -- rtl
 
 
     wait for 1 us;
-    report "TEST SUCCESSFULLY FINISHED!";
-    std.env.stop;
-    --assert FALSE report "TEST SUCCESSFULLY FINISHED!" severity failure;
+    report "TEST SUCCESSFULLY FINISHED!"; stop; -- VHDL2008
+    assert FALSE report "TEST SUCCESSFULLY FINISHED!" severity failure; -- !VHDL2008
 
   end process test;
 
@@ -286,7 +288,7 @@ begin  -- rtl
   interrupt_test : process(clk)
   begin 
     if(clk = '1' and clk'event) then
-      -- Increment if the signal stays asserted
+      -- Increment counters if the signal stayss asserted
       if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
         else limit_rd_req_grant <= 0; end if;
       if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;

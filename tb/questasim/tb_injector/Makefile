@@ -9,8 +9,8 @@ compile: clean
 	mkdir -p bsc
 	vmap bsc bsc
 	vcom -2008 -work bsc $(hdl)/injector_pkg.vhd $(hdl)/../tb/questasim/tb_injector_pkg.vhd
-	vcom -2008 $(hdl)/injector.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_ctrl.vhd $(hdl)/fifo.vhd $(hdl)/injector_delay_if.vhd $(hdl)/injector_read_if.vhd $(hdl)/injector_write_if.vhd tb_injector.vhd
-
+	vcom -2008 tb_injector.vhd
+	vcom $(hdl)/injector.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_ctrl.vhd $(hdl)/fifo.vhd $(hdl)/injector_delay_if.vhd $(hdl)/injector_read_if.vhd $(hdl)/injector_write_if.vhd 
 
 #Launches the simulation with the graphical interface
 vsim-launch: compile

@@ -1,8 +1,11 @@
 -----------------------------------------------------------------------------   
--- Entity:      tb_injector_pkg
--- File:        tb_injector_pkg.vhd
--- Author:      Francis Fuentes
--- Description: Package for injector testbenches.
+-- Entity:        tb_injector_pkg
+-- File:          tb_injector_pkg.vhd
+-- Author:        Francis Fuentes
+-- Description:   Package for injector testbenches.
+-- Compatibility: This library uses VHDL2008 calls to offer better debugging support.
+--                However, it can be compiled with older versions by comenting VHDL2008
+--                and uncommenting !VHDL2008 lines.
 ------------------------------------------------------------------------------ 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -11,9 +14,9 @@ library bsc;
 use bsc.injector_pkg.all;
 
 -----------------------------------------------------------------------------
--- Top level entity for injector.
--- This is a wrapper which integrates injector core to the
--- AHB master - generic bus master bridge
+-- Library package for testbench top level entities. This file should include those
+-- functions, types, procedures, constants and other objects that are commonly used
+-- at the different injector's testbenches.
 -----------------------------------------------------------------------------
 
 package tb_injector_pkg is
@@ -218,9 +221,10 @@ package body tb_injector_pkg is
       bm_out.rd_valid <= '0';
       wait until rising_edge(bm_in.rd_req);
       addr := add_vector(descriptor_addr, 20*j, bm_in.rd_addr'length);
-      assert (bm_in.rd_addr = addr) report "The injector is fetching at the wrong address for descriptor to load!"
-        & LF & "         It should be requesting the address 0x" & to_hstring(unsigned(addr))
-        & ", but it is fetching at 0x" & to_hstring(unsigned(bm_in.rd_addr)) & " instead." severity failure;
+      assert (bm_in.rd_addr = addr) report "The injector is fetching at the wrong address for descriptor to load!"  -- VHDL2008
+        & LF & "         It should be requesting the address 0x" & to_hstring(unsigned(addr))                       -- VHDL2008
+        & ", but it is fetching at 0x" & to_hstring(unsigned(bm_in.rd_addr)) & " instead." severity failure;        -- VHDL2008
+      --assert (bm_in.rd_addr = addr) report "The injector is fetching at the wrong address for descriptor to load!" severity failure; -- !VHDL2008
       wait until falling_edge(bm_in.rd_req);
       bm_out.rd_req_grant <= '0';
 
@@ -284,7 +288,7 @@ package body tb_injector_pkg is
         wait_for_req := bmin.rd_req nor bmin.rd_req; -- Check if testbench must wait for injector request
 
         -- Wait for transaction request if is not asserted already
-        if(wait_for_req) then wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req); end if;
+        if(wait_for_req = '1') then wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req); end if;
         --report "Descriptor number " & integer'image(descr_num) & " and repet_count = " & integer'image(repet_count); -- Debug line
 
         -- First request transaction grant for each descriptor repetition
@@ -304,7 +308,7 @@ package body tb_injector_pkg is
 
             -- Each beat requires a handshake request process. The first one is done on the main loop to allow select transaction mode routine.
             wait_for_req := not bmin.rd_req; -- Check if testbench must wait for injector request
-            if(wait_for_req and not first_beat) then wait until rising_edge(bmin.rd_req); end if;
+            if(wait_for_req = '1' and first_beat = '0') then wait until rising_edge(bmin.rd_req); end if;
 
             -- Compute address offset if the transfer is not address fixed
             if(descr_wrd(0)(5) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
@@ -325,11 +329,12 @@ package body tb_injector_pkg is
 
             -- Check if injector is reading on the correct address
             addr_act := add_vector(descr_wrd(3), addr_off, addr_act'length);
-            assert (bmin.rd_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"
-                                      & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x" 
-                                      & to_hstring(unsigned(bmin.rd_addr)) & "." & LF & "This has happened at descriptor " 
-                                      & integer'image(descr_num) & " with a repetition count of " & integer'image(repet_count) 
-                                      & "." severity failure;
+            assert (bmin.rd_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"         -- VHDL2008
+                                      & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x"             -- VHDL2008
+                                      & to_hstring(unsigned(bmin.rd_addr)) & "." & LF & "This has happened at descriptor "      -- VHDL2008
+                                      & integer'image(descr_num) & " with a repetition count of " & integer'image(repet_count)  -- VHDL2008
+                                      & "." severity failure;                                                                   -- VHDL2008
+            --assert (bmin.rd_addr = addr_act) report  "Wrong address fetched for write transaction!" severity failure; -- !VHDL2008
                                       
             -- Start reading beat
             wait until falling_edge(bmin.rd_req); -- Waiting for request deassertion allows to manage beats
@@ -367,7 +372,7 @@ package body tb_injector_pkg is
 
             -- Each beat requires a handshake request process. The first one is done on the main loop to allow select transaction mode routine.
             wait_for_req := not bmin.wr_req; -- Check if testbench must wait for injector request
-            if(wait_for_req and not first_beat) then wait until rising_edge(bmin.wr_req) ; end if;
+            if(wait_for_req = '1' and first_beat = '0') then wait until rising_edge(bmin.wr_req) ; end if;
 
             -- Compute address offset if the transfer is not address fixed
             if(descr_wrd(0)(6) = '0') then addr_off := to_integer(unsigned(descr_wrd(0)(31 downto 13))) - tot_size; end if;
@@ -388,11 +393,12 @@ package body tb_injector_pkg is
             
             -- Check if injector is writing on the correct address
             addr_act := add_vector(descr_wrd(2), addr_off, addr_act'length);
-            assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for write transaction!" & LF & "Expected 0x"
-                                      & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x" 
-                                      & to_hstring(unsigned(bmin.wr_addr)) & "." & LF & "This has happened at descriptor " 
-                                      & integer'image(descr_num) & " with a repetition count of " & integer'image(repet_count) 
-                                      & "." severity failure;
+            assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for write transaction!" & LF & "Expected 0x"       -- VHDL2008
+                                      & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x"            -- VHDL2008
+                                      & to_hstring(unsigned(bmin.wr_addr)) & "." & LF & "This has happened at descriptor "     -- VHDL2008
+                                      & integer'image(descr_num) & " with a repetition count of " & integer'image(repet_count) -- VHDL2008
+                                      & "." severity failure;                                                                  -- VHDL2008
+            --assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for write transaction!" severity failure; -- !VHDL2008
             
             -- Start writing beat
             wait until falling_edge(bmin.wr_req); -- Waiting for request deassertion allows to manage beats
