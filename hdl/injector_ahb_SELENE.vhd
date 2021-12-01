@@ -36,7 +36,6 @@ entity injector_ahb_SELENE is
     -- Bus master configuration
     dbits             : integer range 32 to 128       := 32;        -- Data width of BM and FIFO    
     hindex            : integer                       := 0;         -- AHB master index 0
-    max_burst_length  : integer range 2 to 256        := 128;       -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF
     MAX_SIZE_BEAT     : integer range 32 to 1024      := 1024       -- Maximum size of bytes in a beat at a burst transaction.
     );
   port (
@@ -140,28 +139,6 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Component instantiation
   -----------------------------------------------------------------------------
-  -- injector_pkg (WIP, try to call pkg to transfer same generics from platform)
-  --inj_pkg : injector_pkg
-  --  generic map(
-  --    APB_SLAVE_NMAX	  => 0,
-  --    APB_IRQ_NMAX	    => 0,
-  --    APB_TEST_WIDTH	  => 0,
-  --    
-  --    AHB_MASTER_NMAX   => 0,
-  --    AHB_IRQ_NMAX		  => 0,	
-  --    AHB_DATA_WIDTH	  => 0,
-  --    AHB_TEST_WIDTH	  => 0,
-  --
-  --    BM_BURST_WIDTH    => 0,
-  --    INT_BURST_WIDTH   => 0,
-  --
-  --    AXI4_ID_WIDTH	    => 4,
-  --    AXI4_DATA_WIDTH   => 32,
-  --
-  --    numTech           => NTECH,
-  --    typeTech          => inferred
-  --  );
-
 
   -- injector_ahb
   ahb : injector_ahb

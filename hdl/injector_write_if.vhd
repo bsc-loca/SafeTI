@@ -7,7 +7,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
---use ieee.std_logic_misc.or_reduce; -- OR to a vector
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -67,8 +66,7 @@ architecture rtl of injector_write_if is
   constant WRITE_IF_CHECK   	: std_logic_vector(4 downto 0) := "01011"; -- 0x0B
 
   -- Constant for bit - byte manipulation
-  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;  -- Maximum BM interface data size
-  constant SHIFT_BIT          : natural := 3;                       -- in single burst is 1024 bytes
+  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;  -- Register width for maximum byte size at a burst
 
   -----------------------------------------------------------------------------
   -- Type and record 

@@ -18,28 +18,26 @@ use ieee.numeric_std.all;
 
 
 package injector_pkg is
-  --generic (
     -- APB bus generics
-    constant APB_SLAVE_NMAX		  : integer := 16;    -- Max number of slaves at APB bus
-    constant APB_IRQ_NMAX			  : integer := 32;    -- Max number of interrupts at APB bus
-    constant APB_TEST_WIDTH		  : integer :=  4;    -- apb_slave_in test in enable (tinen)
+    constant APB_SLAVE_NMAX		  : integer :=  16;   -- Max number of slaves at APB bus
+    constant APB_IRQ_NMAX			  : integer :=  32;   -- Max number of interrupts at APB bus
+    constant APB_TEST_WIDTH		  : integer :=   4;   -- apb_slave_in test in enable (tinen)
     -- AHB bus generics
-    constant AHB_MASTER_NMAX	  : integer := 16;    -- Max number of masters at AHB bus
-    constant AHB_IRQ_NMAX			  : integer := 32;    -- Max number of interrupts at APB bus
-    constant AHB_DATA_WIDTH	    : integer := 32;    -- Data's width at AHB bus
-    constant AHB_TEST_WIDTH		  : integer :=  4;    -- ahb_master_in testin
+    constant AHB_MASTER_NMAX	  : integer :=  16;   -- Max number of masters at AHB bus
+    constant AHB_IRQ_NMAX			  : integer :=  32;   -- Max number of interrupts at APB bus
+    constant AHB_DATA_WIDTH	    : integer :=  32;   -- Data's width at AHB bus
+    constant AHB_TEST_WIDTH		  : integer :=   4;   -- ahb_master_in testin
     -- BM bus and internal generics
-    constant BM_BURST_WIDTH     : integer range 3 to 10 := 10;    -- Bus width for bursts
-    constant INT_BURST_WIDTH    : integer range 2 to 11 := BM_BURST_WIDTH+1;  -- For internal count of the bytes left to send in the burst
+    constant BM_BURST_WIDTH     : integer range 3 to 10 := 10; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
+    constant INT_BURST_WIDTH    : integer range 4 to 11 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
     -- AXI bus generics
-    constant AXI4_ID_WIDTH	    : integer	:=  4;    -- Max number of IDs at AXI bus
-    constant AXI4_DATA_WIDTH	  : integer	:= 32;    -- Data's width at AXI bus
+    constant AXI4_ID_WIDTH	    : integer	:=   4;   -- Max number of IDs at AXI bus
+    constant AXI4_DATA_WIDTH	  : integer	:= 128;   -- Data's width at AXI bus
     -- Common generics
-    constant numTech            : integer := 67;    -- Target technology
-    constant typeTech           : integer :=  0;
+    constant numTech            : integer :=  67;   -- Target technology
+    constant typeTech           : integer :=   0;
     --constant VENDOR_BSC         : integer := 14;    -- BSC vendor code
-    --constant ASYNC_RST          : boolean := FALSE; -- Allow synchronous reset flag.
-  --);
+    --constant ASYNC_RST          : boolean := FALSE; -- Allow asynchronous reset flag.
 
 -------------------------------------------------------------------------------
 -- Types and records

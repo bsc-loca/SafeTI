@@ -61,6 +61,26 @@ architecture rtl of injector_axi4_SELENE is
   -- Records and types
   -----------------------------------------------------------------------------
 
+    -- AXI4 interface bus input
+    type axi4_in_type is record
+      -- Write address channel
+      aw_ready        : std_logic;
+      -- Write data channel
+      w_ready         : std_logic;
+      -- Write response channel
+      b_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
+      b_resp          : std_logic_vector (  1 downto 0 );
+      b_valid         : std_logic;
+      -- Read address channel
+      ar_ready        : std_logic;
+      -- Read data channel
+      r_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
+      r_data          : std_logic_vector ( AXI4_DATA_WIDTH-1   downto 0 );
+      r_resp          : std_logic_vector (  1 downto 0 );
+      r_last          : std_logic;
+      r_valid         : std_logic;
+    end record;
+
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------

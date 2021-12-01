@@ -24,12 +24,11 @@ package injector_pkg_selene is
       -- APB configuration  
       pindex            : integer                           := 0;
       paddr             : integer                           := 0;
-      pmask             : integer                           := 16#FF8#;
+      pmask             : integer                           := 16#FFF#;
       pirq              : integer range 0 to NAHBIRQ-1      := 0;
       -- Bus master configuration
       dbits             : integer range 32 to 128           := 32;
       hindex            : integer                           := 0;
-      max_burst_length  : integer range 2 to 256            := 128;
       MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024
       );
     port (
