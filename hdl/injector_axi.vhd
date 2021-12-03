@@ -16,7 +16,8 @@ use bsc.injector_pkg.all;
 -- AXI4 master - generic bus master bridge
 --
 -- This AXI4 master interface does not allow to have an BM bus wider than the AXI bus
--- (AXI4_DATA_WIDTH must be greater or equal to dbits).
+-- (AXI4_DATA_WIDTH must be greater or equal to dbits). It may not tolerate transactions
+-- of a width higher than the MAX_SIZE_BEAT.
 -----------------------------------------------------------------------------
 
 entity injector_axi is
@@ -30,18 +31,18 @@ entity injector_axi is
     -- Bus master configuration
     dbits         : integer range 32 to  128 := 32; -- Data width of BM and FIFO (must be power of 2)
     axi_id        : integer := 0; -- AXI master index
-    MAX_SIZE_BEAT : integer range 32 to 4096 := 1024; -- Maximum size of a beat at a burst transaction.
+    MAX_SIZE_BEAT : integer range 64 to 4096 := 1024; -- Maximum size of a beat at a burst transaction.
     -- Injector configuration
     ASYNC_RST     : boolean := FALSE -- Allow asynchronous reset flag
   );
   port (
-    rstn    : in std_ulogic; -- Reset
-    clk     : in std_ulogic; -- Clock
+    rstn    : in  std_ulogic; -- Reset
+    clk     : in  std_ulogic; -- Clock
     -- APB interface signals
-    apbi    : in apb_slave_in_type := (others => '0'); -- APB slave input
+    apbi    : in  apb_slave_in_type;  -- APB slave input
     apbo    : out apb_slave_out_type; -- APB slave output
     -- AXI interface signals
-    axi4mi  : in axi4_in_type      := (others => '0'); -- AXI4 master input 
+    axi4mi  : in  axi4_in_type; -- AXI4 master input 
     axi4mo  : out axi4_out_type -- AXI4 master output
   );
 end entity injector_axi;
@@ -52,46 +53,65 @@ architecture rtl of injector_axi is
   -----------------------------------------------------------------------------
 
   -- Constants that should be equal to what is written at injector_pkg.vhd
-  constant INT_BURST_WIDTH : integer := log_2(MAX_SIZE_BEAT) + 1; -- Register width for maximum byte size at a burst
-  constant AXI4_DATA_WIDTH : integer := axi4mo.w_data'length; -- This width value of the AXI data bus must be the same at injector_pkg
+  constant INT_BURST_WIDTH  : integer := log_2(MAX_SIZE_BEAT) + 1; -- Width to hold maximum beat size number
+  constant AXI4_DATA_WIDTH  : integer := axi4mo.w_data'length;     -- AXI data bus width
 
   -- AXI constants
-  constant size_array : integer(0 to 7) := (1, 2, 4, 8, 16, 32, 64, 128); -- AXI size transfer modes
-  constant FIXED      : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes
-  constant INC        : std_logic_vector(1 downto 0) := "01";
-  constant WRAP       : std_logic_vector(1 downto 0) := "10";
+  constant FIXED            : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes: FIXED
+  constant INC              : std_logic_vector(1 downto 0) := "01"; --                  INCREMENTAL
+  constant WRAP             : std_logic_vector(1 downto 0) := "10"; --                  WRAP
+  constant size_array       : array_integer(0 to 7) := (1, 2, 4, 8, 16, 32, 64, 128); -- AXI size transfer modes
+  constant size_mode_appl   : std_logic_vector(0 to 6) := (
+    -- Generate an array indicating what size modes are applicable due to the constrains of
+    -- both the AXI and BM bus widths implementation (are constants) and the max size beat.
+    0 => to_std_logic( dbits >= 128 and AXI4_DATA_WIDTH >= 128 and MAX_SIZE_BEAT >= 128 ),
+    1 => to_std_logic( dbits >=  64 and AXI4_DATA_WIDTH >=  64 and MAX_SIZE_BEAT >=  64 ),
+    2 => to_std_logic( dbits >=  32 and AXI4_DATA_WIDTH >=  32 and MAX_SIZE_BEAT >=  32 ), -- These should be unnecessary
+    3 => to_std_logic( dbits >=  16 and AXI4_DATA_WIDTH >=  16 and MAX_SIZE_BEAT >=  16 ), -- These should be unnecessary
+    4 => to_std_logic( dbits >=   8 and AXI4_DATA_WIDTH >=   8 and MAX_SIZE_BEAT >=   8 ), -- These should be unnecessary
+    5 => to_std_logic( dbits >=   4 and AXI4_DATA_WIDTH >=   4 and MAX_SIZE_BEAT >=   4 ), -- These should be unnecessary
+    6 => to_std_logic( dbits >=   2 and AXI4_DATA_WIDTH >=   2 and MAX_SIZE_BEAT >=   2 )  -- These should be unnecessary
+    );
 
   -----------------------------------------------------------------------------
   -- Records and types
   -----------------------------------------------------------------------------
 
-  -- The operation, when idle, accepts any transaction from the component (write and read), listening to what address and 
-  -- size may the operation be. When a request has been detected, this information is processed at the compute state, 
-  -- where the burst mode/size/length is set, the end address is computed (if it overflows the 4KB address space, asserts
-  -- the two_burst flag so during the operation this is taken into account). The handshake state 
+  -- The interface, when idle, accepts any transaction from the BM bus (write and read), listening to what address and 
+  -- size may the operation be. When a request has been granted, this information is processed at the compute1 state, 
+  -- where the size is split in two bursts if a 4KB address space overflow is detected. Then
+  -- burst mode/size/length and starting address is set for first burst. Here 4KB address space overflow is checked 
+  -- (asserting the two_burst flag) and
+  -- 
+  -- IDLE     -> Accept new requests from BM component.
+  -- COMPUTE1 -> Compute if 4KB address space overflow occurs.
+  --             In the case it does, generates
+  --
 
-  type transf_state is (idle, compute1, compute2, handshake, operation);
+  type transf_state is (idle, compute1, compute2, compute3, handshake, operation);
 
   type transfer_operation is record
     state       : transf_state; -- State of the operation
-    grant       : std_logic; -- Grant signals to component
-    error       : std_logic; -- Error (4KB boundary overflow)
+    grant       : std_logic;    -- Grant signals to BM component
+    error       : std_logic;    -- Error ()
 
-    axi_mode    : std_logic_vector(1 downto 0); -- AXI parameter: burst mode
-    axi_size    : std_logic_vector(2 downto 0); -- AXI parameter: size of each beat in the burst
+    axi_mode    : std_logic_vector(1 downto 0); -- AXI parameter: burst mode (FIXED, INC, WRAP)
+    axi_size    : std_logic_vector(2 downto 0); -- AXI parameter: size mode of each beat in the burst
     axi_len     : std_logic_vector(7 downto 0); -- AXI parameter: number of beats in the burst
+    axi_strobe  : std_logic_vector(AXI4_DATA_WIDTH/8 - 1 downto 0); -- What AXI lanes to use at transfer
     axi_valid   : std_logic;                    -- AXI parameter: valid addr/data/control
 
-    addr        : std_logic_vector(31 downto 0); -- Actual address to transfer
-    addr_curr   : std_logic_vector(31 downto 0); -- Starting address
-    two_burst   : std_logic; -- Need to slice transfer in two bursts for 4KB boundary
+    addr        : std_logic_vector(31 downto 0); -- Address register (BM requested, then changes to starting address)
+    --addr_curr   : std_logic_vector(31 downto 0); -- Starting address
+    two_burst   : std_logic; -- Need to slice transfer in two bursts due to surpassing the 4KB boundary
 
-    curr_size   : std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Total and then remaining size for first burst
-    rem_size    : std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Remaining size for second burst (4KB boundary)
+    bm_size     : std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Original size being requested by BM component
+    curr_size   : std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Remaining size for actual burst (first, then second)
+    rem_size    : std_logic_vector(INT_BURST_WIDTH - 2 downto 0); -- Remaining size for second burst (4KB boundary overflow)
 
     data_full   : std_logic; -- Cache is full, do not receive any more data
     data_bus    : std_logic_vector(AXI4_DATA_WIDTH - 1 downto 0); -- Lanes register
-    data_strobe : std_logic_vector(AXI4_DATA_WIDTH/8 - 1 downto 0);
+    byte_strobe : std_logic_vector( 6 downto 0); -- unsigned value of how many bytes to left unnused at first transfer
   end record;
 
   constant RST_TRANSF_OP : transfer_operation := (
@@ -101,14 +121,17 @@ architecture rtl of injector_axi is
     axi_mode    => (others => '0'),
     axi_size    => (others => '0'),
     axi_len     => (others => '0'),
+    axi_strobe  => (others => '0'),
     axi_valid   => '0',
     addr        => (others => '0'),
-    addr_curr   => (others => '0'),
+    --addr_curr   => (others => '0'),
     two_burst   => '0',
+    bm_size     => (others => '0'),
     curr_size   => (others => '0'),
+    rem_size    => (others => '0'),
     data_full   => '0',
     data_bus    => (others => '0'),
-    data_strobe => (others => '0')
+    byte_strobe => (others => '0')
   );
 
   -----------------------------------------------------------------------------
@@ -116,13 +139,13 @@ architecture rtl of injector_axi is
   -----------------------------------------------------------------------------
 
   -- I/O Injector and AXI interface
-  signal bm_in : bm_in_type;
-  signal bm_out : bm_out_type;
-  signal axi_in : axi4_in_type;
+  signal bm_in   : bm_in_type;
+  signal bm_out  : bm_out_type;
+  signal axi_in  : axi4_in_type;
   signal axi_out : axi4_out_type;
 
   -- Signals to manage things
-  signal rd_dbits : std_logic_vector(dbits - 1 downto 0); -- This is to addapt the 128bit bm.rd_data bus
+  signal rd_dbits : std_logic_vector(dbits - 1 downto 0); -- Used to addapt the 128bit bm.rd_data bus
 
   -- Registers for control
   signal wr : transfer_operation;
@@ -132,17 +155,114 @@ architecture rtl of injector_axi is
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
 
-  -- To check: 1) cur_size > size, 2) 4kb_boundary_size > 
+  -- The procedure decide_size sets the AXI size mode to be equal or the next lower power of 2
+  -- respect the size being requested by the BM component. This way, transfers between powers of
+  -- 2 will require more than a single transfer if the size is not equal to a power of 2. 
+  -- A single transfer could be achieved by requesting the next high power of 2 and using the
+  -- strobe logic to only transfer the correct bytes, but the logic of this procedure would be 
+  -- more complicated, decreasing the frequency of operation or requiring an additional
+  -- computing step previous to the transfer, which would lower performance anyways. Also, 
+  -- great part could be done with a loop, but it's for the best to do it manually if it can be 
+  -- done, just to not find yourself with long synthesis runs due to loops. 
+  --
+  -- The particular widths of the addresses come from how much the size mode can modify the 
+  -- address requested by BM, in order to align it with the size mode, leaving a starting address
+  -- always equal or lower. Since the max size mode is 128, only 7 address bits are required.
+  -- 
+  -- In addition, the selection of the size mode is also constrained by the widths of the BM 
+  -- component (dbits) and AXI data bus (AXI4_DATA_WIDTH), which is managed by the size_mode_appl 
+  -- constant vector.
   procedure decide_size(
-    cur_size  : in  std_logic_vector(12 downto 0);
-    addr      : in  std_logic_vector(31 downto 0);
-    two_burst : in  std_logic;
-    addr_strt : out std_logic_vector(31 downto 0);
-    size      : out std_logic_vector( 2 downto 0)
+    size_bm   : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Size requested by BM
+    addr_bm   : in  std_logic_vector(6 downto 0); -- LSB Address being requested by BM
+    size_axi  : out std_logic_vector(2 downto 0); -- Size mode to set
+    addr_axi  : out std_logic_vector(6 downto 0)  -- LSB Address to request at AXI
   ) is
+    variable n : std_logic_vector(0 to 6); -- 128, 64, 32, 16, 8, 4 and 2 byte size modes flags
   begin
+    -- Check if size is greater or equal than 128, 64, 32, 16, 8, 4, 2, while also
+    -- tacking into account if dbits, AXI4_DATA_WIDTH, MAX_SIZE_BEAT allow it.
+    n(0) := or_vector(size_bm(size_bm'length-1 downto 7)) and size_mode_appl(0); -- 128 bytes
+    n(1) := ( size_bm(6) or n(0) ) and size_mode_appl(1); -- 64 bytes
+    n(2) := ( size_bm(5) or n(1) ) and size_mode_appl(2); -- 32 bytes
+    n(3) := ( size_bm(4) or n(2) ) and size_mode_appl(3); -- 16 bytes
+    n(4) := ( size_bm(3) or n(3) ) and size_mode_appl(4); --  8 bytes
+    n(5) := ( size_bm(2) or n(4) ) and size_mode_appl(5); --  4 bytes
+    n(6) := ( size_bm(1) or n(5) ) and size_mode_appl(6); --  2 bytes
+
+    if   (n(0) = '1') then
+      size_axi := "111"; -- 128 bytes size mode
+      addr_axi := "000" & x"0";
+    elsif(n(1) = '1') then
+      size_axi := "110"; --  64 bytes size mode
+      addr_axi := addr_bm(6) & "00" & x"0";
+    elsif(n(2) = '1') then
+      size_axi := "101"; --  32 bytes size mode
+      addr_axi := addr_bm(6 downto 5) & "0" & x"0";
+    elsif(n(3) = '1') then
+      size_axi := "100"; --  16 bytes size mode
+      addr_axi := addr_bm(6 downto 4) & x"0";
+    elsif(n(4) = '1') then
+      size_axi := "011"; --   8 bytes size mode
+      addr_axi := addr_bm(6 downto 3) & "000";
+    elsif(n(5) = '1') then
+      size_axi := "010"; --   4 bytes size mode
+      addr_axi := addr_bm(6 downto 2) & "00";
+    elsif(n(6) = '1') then
+      size_axi := "001"; --   2 bytes size mode
+      addr_axi := addr_bm(6 downto 1) & "0";
+    else
+      size_axi := "000"; --   1 byte  size mode
+      addr_axi := addr_bm;
+    end if;
 
   end procedure decide_size;
+
+  -- To decide the number of beats at the burst, the number of bytes requested by the BM component 
+  -- is used, by applying a right shift to it a number equal to the AXI's size mode (the actual 
+  -- codification, no it's actual size meaning). In addition, size values between power of 2s and 
+  -- multiple of 128 require a +1 to compute the correct number of beats required to execute.
+  --
+  -- However, the AXI's codification of the number of beats is the actual number of beats -1, so
+  -- at the end, the actual calculation subtracts 1 to those that are equal to a power of 2 or 
+  -- multiple of 128. This is performed by an OR that affects depending the size_mode being set.
+  procedure decide_len(
+    size      : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Transfer size requested by BM
+    size_mode : in  std_logic_vector(2 downto 0); -- AXI size mode being set
+    burst_len : out std_logic_vector(7 downto 0)  -- AXI burst length (actual num of beats is +1)
+    ) is
+      variable len_temp : std_logic_vector(size'range); -- Temp var because VHDL is really strong /typed/
+      variable len      : std_logic_vector(8 downto 0); -- The max number of beats allowed at AXI4 is 256
+      variable one      : std_logic_vector(7 downto 0); -- Vector identifying if size is not multiple of...
+  begin
+    -- Number of beats required = size requested > size_mode (-1 if size = size_array(size_mode))
+    len_temp  := std_logic_vector(shift_right( unsigned(size), to_integer(unsigned(size_mode)) ));
+    len       := len_temp(len'range);
+
+    -- However, non-size AXI mode sizes must
+    one(0) := '0';                              -- Size not multiple of   1 byte  when asserted
+    one(1) := size(0);                          -- Size not multiple of   2 bytes when asserted
+    one(2) := size(1) or one(1);  -- Size not multiple of   4 bytes when asserted
+    one(3) := size(2) or one(2);  -- Size not multiple of   8 bytes when asserted
+    one(4) := size(3) or one(3);  -- Size not multiple of  16 bytes when asserted
+    one(5) := size(4) or one(4);  -- Size not multiple of  32 bytes when asserted
+    one(6) := size(5) or one(5);  -- Size not multiple of  64 bytes when asserted
+    one(7) := size(6) or one(6);  -- Size not multiple of 128 bytes when asserted
+
+    burst_len := sub_vector(len, '0' & one(to_integer(unsigned(size_mode))), burst_len'length);
+  end procedure decide_len;
+
+  procedure decide_strobe(
+    variable byte_strb  : in  std_logic_vector(rd.byte_strobe'range);
+    variable axi_strb   : out std_logic_vector(rd.axi_strobe'range)
+    ) is
+      variable strb : std_logic_vector(rd.axi_strobe'range) := (others => '1');
+  begin
+    for i in 0 to to_integer(unsigned(byte_strb))-1 loop
+      strb(i) := '0';      
+    end loop;
+    axi_strb := strb;
+  end procedure decide_strobe;
 
   
 begin -- rtl
@@ -158,7 +278,7 @@ begin -- rtl
   axi4mo.aw_len     <= (others => '0'); -- Burst length ('0' = 1 transaction)
   axi4mo.aw_burst   <= wr.axi_mode; -- Burst mode
   --axi4mo.aw_lock    <= (others => '0');
-  axi4mo.aw_cache   <= 0; --AXI4_CACHE_AW;
+  --axi4mo.aw_cache   <= 0; --AXI4_CACHE_AW;
   --axi4mo.aw_size    <= std_logic_vector( to_unsigned(log_2(dbits), axi4mo.aw_size'length)); -- Number of bytes to transfer for beat
   --axi4mo.aw_prot    <= ;
   --axi4mo.aw_qos     <= ;
@@ -192,21 +312,21 @@ begin -- rtl
 
   -- Bus Master (injector)
   -- Write channel
-  bm_in.wr_addr;
-  bm_in.wr_size;
-  bm_in.wr_req;
-  bm_out.wr_req_grant;
-  bm_in.wr_data(127 downto 128 - dbits);
-  bm_out.wr_full;
-  bm_out.wr_done;
-  bm_out.wr_err;
+  --bm_in.wr_addr;
+  --bm_in.wr_size;
+  --bm_in.wr_req;
+  --bm_out.wr_req_grant;
+  --bm_in.wr_data(127 downto 128 - dbits);
+  --bm_out.wr_full;
+  --bm_out.wr_done;
+  --bm_out.wr_err;
 
   -- Read channel
-  bm_in.rd_addr;
-  bm_in.rd_size;
-  bm_in.rd_req;
+  --bm_in.rd_addr;
+  --bm_in.rd_size;
+  --bm_in.rd_req;
   bm_out.rd_req_grant <= rd.grant;
-  bm_out.rd_data <= ( 127 downto (128 - dbits) => rd_dbits, others => '0');
+  bm_out.rd_data <= (rd_dbits & (dbits downto 0 => '0'));
   --bm_out.rd_valid <= rd.;
   --bm_out.rd_done <= rd.;
   --bm_out.rd_err <= rd.;
@@ -218,7 +338,12 @@ begin -- rtl
 
   -- READ PROCESS
   read_proc : process (clk, rstn)
-    variable addr_temp : std_logic_vector(12 downto 0); -- LSB of ending address for INC mode
+    variable addr_end  : std_logic_vector(12 downto 0); -- max end address LSB at INC mode
+    variable addr_strt : std_logic_vector( 6 downto 0); -- AXI LSB starting address
+    variable byte_strb : std_logic_vector( rd.byte_strobe'range ); -- byte strobe
+    variable axi_size  : std_logic_vector( rd.axi_size'range    ); -- AXI size mode
+    variable axi_len   : std_logic_vector( rd.axi_len'range     ); -- AXI burst length
+    variable axi_strb  : std_logic_vector( rd.axi_strobe'range  ); -- AXI strobe
   begin
     if (rstn = '0') then
       rd       <= RST_TRANSF_OP;
@@ -226,7 +351,7 @@ begin -- rtl
 
     elsif (clk = '1' and clk'event) then
       case rd.state is
-        when idle =>
+        when idle => -- Worst delay path: BM component output
           -- Reset registers
           rd       <= RST_TRANSF_OP;
           rd_dbits <= (others => '0');
@@ -234,38 +359,65 @@ begin -- rtl
           -- Load request information from BM
           if (bm_in.rd_req = '1' and rd.grant = '1') then
             rd.grant      <= '0';           -- Deassert granting requests for BM component
-            rd.curr_size  <= bm_in.rd_size; -- Load BM size to transfer (real is +1)
+            rd.bm_size    <= bm_in.rd_size; -- Load BM size to transfer (real is +1)
             rd.addr       <= bm_in.rd_addr; -- Load starting address
             rd.state      <= compute1;      -- Change to next state
           else
             rd.grant <= '1'; -- Allow new transaction requests
           end if;
 
-        when compute1 =>
-          -- Check if transaction will access two 4KB address boundary
-          addr_temp    := add_vector(rd.curr_size, rd.addr(11 downto 0), addr_temp'length);
-          rd.two_burst <= addr_temp(12);
+
+        when compute1 => -- Worst delay path: ADD 11+12, SUB 13-12
+          -- Check if transaction will access two 4KB address regions
+          addr_end      := add_vector(rd.bm_size, rd.addr(11 downto 0), addr_end'length);
+          rd.two_burst  <= addr_end(12);
 
           -- If transaction must be split in two bursts, due to 4KB overflow boundary, calculate...
-          if(rd.two_burst = '1') then
-            -- first burst size (does not require +1)
-            rd.curr_size <= sub_vector(x"1000", rd.addr(11 downto 0), rd.curr_size'length);
-            -- second burst size (requires +1)
-            rd.rem_size  <= sub_vector(addr_temp(11 downto 0), rd.curr_size, rd.rem_size'length);
+          if(addr_end(12) = '1') then
+            -- first burst size (doesn't require +1)  MAX=4096, MIN=0
+            rd.bm_size  <= sub_vector('1'&"000", rd.addr(11 downto 0), rd.bm_size'length);
+            -- second burst size (doesn't require +1) MAX=4095, MIN=0
+            rd.rem_size <= sub_vector(addr_end, x"FFF", rd.rem_size'length);
+          else
+            -- if not, update burst size so it doesn't require +1
+            rd.bm_size  <= add_vector(rd.bm_size, 1, rd.bm_size'length);
           end if;
 
           -- Next compute step
           rd.state <= compute2;
 
-        when compute2 =>
-          -- 
-              
+
+        when compute2 => -- Worst delay path: DECIDE_SIZE, SUB 8-8, LUT 128-1
+          -- Decide AXI size mode and update start address with aligned address
+          decide_size(rd.bm_size, rd.addr(6 downto 0), axi_size, addr_strt);
+          rd.axi_size         <= axi_size;
+          rd.addr(6 downto 0) <= addr_strt;
+
+          -- BM requested address - AXI address to request = Number of '0' bytes to strobe at the first transfer
+          byte_strb           := sub_vector(rd.addr(6 downto 0), addr_strt, rd.curr_size'length);
+          rd.byte_strobe      <= byte_strb;
+
+          decide_strobe(byte_strb, axi_strb);
+          rd.axi_strobe       <= axi_strb;
+
+          -- Next compute state
+          rd.state <= compute3;
+
+        when compute3 => -- Worst delay path: DECIDE_LEN(MUX 8to1, ORx6, SUB 9-1)
+          -- Compute how many beats will be necessary to transfer the axi_size (the one computed at this timeframe)
+          decide_len(rd.bm_size, rd.axi_size, axi_len);
+          rd.axi_len          <= axi_len;
+
+          -- Next, the handshake step
+          rd.state <= handshake;
 
 
-          rd.axi_size      <= decide_size(rd.curr_size, rd.addr, rd.two_burst);
-          --rd.axi_len       <= decide_len(0);
+        when handshake =>
+
           rd.axi_mode      <= INC;
           rd.axi_valid     <= '1'; -- Request AXI read for first burst
+
+        when others =>
 
       end case;
 
@@ -285,22 +437,23 @@ begin -- rtl
 
   -- injector core
   core : injector
-  generic map(
-    tech => tech,
-    pindex => pindex,
-    paddr => paddr,
-    pmask => pmask,
-    pirq => pirq,
-    dbits => dbits
-  )
-  port map(
-    rstn => rstn,
-    clk => clk,
-    apbi => apbi,
-    apbo => apbo,
-    bm0_in => bm_in,
-    bm0_out => bm_out
-  );
+    generic map (
+      pindex        => pindex,
+      paddr         => paddr,
+      pmask         => pmask,
+      pirq          => pirq,
+      dbits         => dbits,
+      MAX_SIZE_BEAT => MAX_SIZE_BEAT
+      )
+    port map (
+      rstn    => rstn,
+      clk     => clk,
+      apbi    => apbi,
+      apbo    => apbo,
+      bm0_in  => bm_in,
+      bm0_out => bm_out
+      );
+
   -- BM0
   --bm0 : generic_bm_axi
   --  generic map(

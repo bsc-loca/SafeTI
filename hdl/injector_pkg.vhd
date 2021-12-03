@@ -26,14 +26,14 @@ package injector_pkg is
     constant AHB_MASTER_NMAX	  : integer :=  16;   -- Max number of masters at AHB bus
     constant AHB_IRQ_NMAX			  : integer :=  32;   -- Max number of interrupts at APB bus
     constant AHB_DATA_WIDTH	    : integer :=  32;   -- Data's width at AHB bus
-    constant AHB_TEST_WIDTH		  : integer :=   4;   -- ahb_master_in testin
-    -- BM bus and internal generics
-    constant BM_BURST_WIDTH     : integer range 3 to 10 := 10; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
-    constant INT_BURST_WIDTH    : integer range 4 to 11 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
+    constant AHB_TEST_WIDTH		  : integer :=   4;   -- ahb_master_in testin width
     -- AXI bus generics
-    constant AXI4_ID_WIDTH	    : integer	:=   4;   -- Max number of IDs at AXI bus
-    constant AXI4_DATA_WIDTH	  : integer	:= 128;   -- Data's width at AXI bus
+    constant AXI4_ID_WIDTH	    : integer	:=   4;                   -- AXI ID's bus width
+    constant AXI4_DATA_WIDTH	  : integer	range 32 to 1024 := 128;  -- Data's width at AXI bus
+
     -- Common generics
+    constant BM_BURST_WIDTH     : integer range 3 to 12 := 10; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
+    constant INT_BURST_WIDTH    : integer range 4 to 11 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
     constant numTech            : integer :=  67;   -- Target technology
     constant typeTech           : integer :=   0;
     --constant VENDOR_BSC         : integer := 14;    -- BSC vendor code
@@ -44,6 +44,7 @@ package injector_pkg is
 -------------------------------------------------------------------------------
 
   type array_std_logic_vector is array (natural range <>) of std_logic_vector(1 to 160);
+  type array_integer          is array (natural range <>) of integer;
 
   -- BM specific types
   type bm_out_type is record  --Input to injector_ctrl from bus master interface output
@@ -509,6 +510,9 @@ package injector_pkg is
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
 
+  -- Boolean to std_logic
+  function to_std_logic     (wool : boolean) return std_logic;
+
 
   
   -------------------------------------------------------------------------------
@@ -810,6 +814,15 @@ package body injector_pkg is
     end loop;
     return wool;
   end or_vector;
+
+  function to_std_logic(wool : boolean) return std_logic is
+    variable logic : std_logic;
+  begin
+    if wool then logic := '1'; 
+    else         logic := '0';
+    end if;
+    return logic;
+  end to_std_logic;
 
 
    
