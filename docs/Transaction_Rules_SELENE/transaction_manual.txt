@@ -1,20 +1,20 @@
-This document gathers the BM bus behaviour between the injector and the AHB interface from the
-SELENE platform. The size specified on the following text is the programmed on the descriptors.
-However, the size seen on the BM bus is the programmed -1 in value (the listed 0 is an exception).
+This document gathers the BM bus behavior between the injector and the AHB interface from the SELENE 
+platform. The size specified on the following text is the programmed on the descriptors. However, the 
+size seen on the BM bus is the programmed -1 in value (the listed 0 is an exception).
 
 Write transactions (non-fixed address):
 size 	Comment about BM bus
 0	Injector does not assert wr_req (no transaction happens).
 1-4	Injector asserts wr_req for 1 clk. At wr_req deassert, also deasserts wr_grant_req.
-	Sometime later, asserts wr_done for 1 clk. At wr_done dessartation, assert wr_req_grant.
+	Sometime later, asserts wr_done for 1 clk. At wr_done deassation, assert wr_req_grant.
 5-8	At wr_req deassert, also deasserts wr_grant_req and wr_full. After 1 clk, asserts wr_full.
-	Sometime later, asserts wr_done for 1 clk. At wr_done dessartation, assert wr_req_grant.
+	Sometime later, asserts wr_done for 1 clk. At wr_done deassertion, assert wr_req_grant.
 9-12	At wr_req deassert, also deasserts wr_grant_req and wr_full. After 2 clk, asserts wr_full.
-	Sometime later, asserts wr_done for 1 clk. At wr_done dessartation, assert wr_req_grant.
+	Sometime later, asserts wr_done for 1 clk. At wr_done deassertion, assert wr_req_grant.
 13-1024	At wr_req deassert, also deasserts wr_grant_req and wr_full. After 2 clk, asserts wr_full.
-	After a time, dessaserts wr_full for a clock cycle (this wait and dessartamiento of wr_full
+	After a time, dessaserts wr_full for a clock cycle (this wait and deassertion of wr_full
 	is done floor(size/4)-1 times).	Sometime later, asserts wr_done for 1 clk. At wr_done 
-	dessartation, assert wr_req_grant.
+	deassertion, assert wr_req_grant.
 1025-inf The total size is sliced in MAX_BEAT_SIZE (1024 in this case) or less size beats, which 
 	each is executed like the transaction with 13-1024 in total size. This includes the 
 	wr_grant_req and wr_req handshake and wr_done assertions.
@@ -22,10 +22,10 @@ size 	Comment about BM bus
 Read transactions (non-fixed address):
 0	Injector does not assert rd_req (no transaction happens).
 1-4	Injector asserts rd_req for 1 clk. At rd_req deassert, also deasserts rd_grant_req.
-	Sometime later, asserts rd_valid and rd_done for 1 clk. At both signals dessartation, 
+	Sometime later, asserts rd_valid and rd_done for 1 clk. At both signals deassertion, 
 	assert rd_req_grant.
 5-8	At rd_req deassert, also deasserts rd_grant_req. Sometime later, asserts rd_valid for 1 clk. 
-	Some time later, asserts rd_valid and rd_done for 1 clk. At both signals dessartation, assert
+	Some time later, asserts rd_valid and rd_done for 1 clk. At both signals deassertion, assert
 	wr_req_grant.
 9-1024	At rd_req deassert, also deasserts rd_grant_req. Sometime later, asserts rd_valid for 1 clk.
 	The "sometime later, asserts rd_valid for 1 clk" happens a total of ceil(size/4) times, 
@@ -35,18 +35,15 @@ Read transactions (non-fixed address):
 	rd_grant_req and rd_req handshake and rd_done assertions.
 
 
-
 The fixed address transactions are executed as its non-fixed equivalent, but initiating burst 
-transfers anytime the transfer size is greater than 4 bytes, creating beats of 4 bytes (dbits),
+transfers anytime the transfer size is greater than 4 bytes, creating beats of 4 bytes (equal to dbits),
 each with it's own request handshake requesting to act onto the same address.
 
 For any write/read transaction, even of size 0, the completion interrupt is asserted. On those 
-transactions with a size higher of 0, the interrupt is asserted for 2 clock cyles. This 
+transactions with a size higher of 0, the interrupt is asserted for 2 clock cycles. This 
 assertion happens a clock cycle after the deassertion of the last wd_done/rd_done at a write and
 read transaction respectively.
 
 In terms of what can manage about the req signals, the injector may assert a wr_req or rd_req for 
-a indifinitive duration until, for one clock cycle, the respectivelly request granted flag is 
+a undefined duration until, for one clock cycle, the respectively request granted flag is 
 asserted. This, however, locks the injector to that state until the transaction has been completed. 
-That is why the importance of an interface with the external world, to avoid such lock situations.
-

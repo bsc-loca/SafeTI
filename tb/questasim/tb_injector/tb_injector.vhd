@@ -284,11 +284,12 @@ begin  -- rtl
 
   end process test;
 
-  -- 
+
+  -- Counters used to count how many clk cycles X signals get stuck
   interrupt_test : process(clk)
   begin 
     if(clk = '1' and clk'event) then
-      -- Increment counters if the signal stayss asserted
+      -- Increment counters if the signal stays asserted
       if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
         else limit_rd_req_grant <= 0; end if;
       if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
@@ -301,20 +302,25 @@ begin  -- rtl
         else limit_descr_compl <= 0; end if;
     end if;
 
-    -- Crash test with error if something gets stuck
+    -- Crash test with error if something gets stuck for Y threshold
     if(
       limit_rd_req_grant > req_threshold or
-      limit_wr_req_grant > req_threshold or
+      limit_wr_req_grant > req_threshold
+    ) then
+      assert FALSE report "TEST GOT STUCK DUE TO REQUEST NOT BEING GRANTED!" severity failure;
+    end if;
+
+    if(
       limit_rd_req       > req_threshold or
       limit_wr_req       > req_threshold
     ) then
-      assert FALSE report "TEST GOT STUCK DUE TO REQUEST NOT BEING GRANTED OR INJECTOR NOT REQUESTING!" severity failure;
+      assert FALSE report "TEST GOT STUCK DUE TO INJECTOR NOT REQUESTING TRANSACTION!" severity failure;
     end if;
 
     if(
       limit_descr_compl > descr_compl_thereshold
     ) then
-      assert FALSE report "The testbench has finished descriptor but the injector has not set the completition flag (apbo.irq is 0)." severity failure;
+      assert FALSE report "The testbench has finished descriptor but the injector has not set the completion flag (apbo.irq is 0)." severity failure;
     end if;
 
   end process interrupt_test;

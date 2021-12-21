@@ -32,9 +32,7 @@ entity injector_axi4_SELENE is
     dbits         : integer range 32 to  128      := 32;      -- Data width of BM and FIFO (must be a power of 2)
     -- AXI Master configuration
     axi_id        : integer                       := 0;       -- AXI master index
-    MAX_SIZE_BEAT : integer range 64 to 4096      := 1024;    -- Maximum size of a beat at a burst transaction.
-    -- Injector configuration
-    ASYNC_RST     : boolean                       := FALSE    -- Allow asynchronous reset flag
+    MAX_SIZE_BEAT : integer range 64 to 4096      := 1024     -- Maximum size of a beat at a burst transaction.
   );
   port (
     rstn    : in  std_ulogic; -- Reset
@@ -57,32 +55,10 @@ architecture rtl of injector_axi4_SELENE is
   -- Reset configuration
   constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
-  -- Bus master interface burst chop mask
-  constant burst_chop_mask : integer := (max_burst_length*(log_2(AXIDW)-1));
-
   -----------------------------------------------------------------------------
   -- Records and types
   -----------------------------------------------------------------------------
 
-    -- AXI4 interface bus input
-    type axi4_in_type is record
-      -- Write address channel
-      aw_ready        : std_logic;
-      -- Write data channel
-      w_ready         : std_logic;
-      -- Write response channel
-      b_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
-      b_resp          : std_logic_vector (  1 downto 0 );
-      b_valid         : std_logic;
-      -- Read address channel
-      ar_ready        : std_logic;
-      -- Read data channel
-      r_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
-      r_data          : std_logic_vector ( AXI4_DATA_WIDTH-1   downto 0 );
-      r_resp          : std_logic_vector (  1 downto 0 );
-      r_last          : std_logic;
-      r_valid         : std_logic;
-    end record;
 
   -----------------------------------------------------------------------------
   -- Signal declaration
@@ -112,7 +88,7 @@ begin  -- rtl
   axi_in.r_resp     <= axi4mi.r.resp;
   axi_in.r_last     <= axi4mi.r.last;
   axi_in.r_valid    <= axi4mi.r.valid;
-  -- AXI Master output from the injector;
+  -- AXI Master output from the injector
   axi4mo.aw.id      <= axi_out.aw_id;
   axi4mo.aw.addr    <= axi_out.aw_addr;
   axi4mo.aw.len     <= axi_out.aw_len;
@@ -167,8 +143,8 @@ begin  -- rtl
       apbi    => apbi,    -- APB slave input
       apbo    => apbo,    -- APB slave output
       -- AXI interface signals
-      axi4mi  => axi4mi,  -- AXI4 master input 
-      axi4mo  => axi4mo   -- AXI4 master output
+      axi4mi  => axi_in,  -- AXI4 master input 
+      axi4mo  => axi_out  -- AXI4 master output
       );
 
 end architecture rtl;

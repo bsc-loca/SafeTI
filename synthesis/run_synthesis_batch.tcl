@@ -46,9 +46,10 @@ read_vhdl ../hdl/fifo.vhd
 # STEP#2: run synthesis, report utilization and timing estimates, write checkpoint design
 #
 synth_design -top injector_ahb 
-create_clock -name clk -period 20 [get_ports clk]
-set_input_delay -clock clk 2 [all_inputs]
-set_output_delay -clock clk 2 [all_outputs]
+create_clock -name clk -period 10 [get_ports clk]
+
+#set_input_delay -clock clk 2 [all_inputs]
+#set_output_delay -clock clk 2 [all_outputs]
 write_checkpoint -force $outputDir/post_synth
 report_timing_summary -report_unconstrained -file $outputDir/post_synth_timing_summary.rpt
 #report_timing_summary -file $outputDir/post_synth_timing_summary.rpt

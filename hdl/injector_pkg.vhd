@@ -684,7 +684,7 @@ package injector_pkg is
       tech              : integer range 0 to numTech        := typeTech;
       pindex            : integer                           := 0;
       paddr             : integer                           := 0;
-      pmask             : integer                           := 16#FF8#;
+      pmask             : integer                           := 16#FFF#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
       dbits             : integer range 32 to 128           := 32;
       hindex            : integer                           := 0;

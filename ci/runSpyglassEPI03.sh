@@ -139,4 +139,4 @@ echo -e "exit"
 scp -r $sshclient:/tmp/${username}Spyglass/$N/$N ./
 echo -e "copy resuts"
 #Comment the line below to debug the transffer and SpyGlass execution
-vim -p ./$N/consolidated_reports/${N}_lint_lint_rtl/*.rpt
+#vim -p ./$N/consolidated_reports/${N}_lint_lint_rtl/*.rpt
