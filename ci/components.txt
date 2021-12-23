@@ -1,6 +1,6 @@
 # Project files to test with SpyGlass
-../hdl/injector_ahb.vhd
-#../hdl/injector_axi.vhd
+#../hdl/injector_ahb.vhd
+../hdl/injector_axi.vhd
 ../hdl/injector.vhd
 ../hdl/injector_apb.vhd
 ../hdl/injector_ctrl.vhd
