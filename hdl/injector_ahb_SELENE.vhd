@@ -34,7 +34,8 @@ entity injector_ahb_SELENE is
     pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
     pirq              : integer range 0 to NAHBIRQ-1  := 1;         -- APB configuartion slave irq
     -- Bus master configuration
-    dbits             : integer range 32 to 128       := 32;        -- Data width of BM and FIFO    
+    dbits             : integer range 32 to 128       := 32;        -- Data width of BM and FIFO   
+    max_burst_length  : integer range 2 to 256        := 128;       -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF 
     hindex            : integer                       := 0;         -- AHB master index 0
     MAX_SIZE_BEAT     : integer range 32 to 1024      := 1024       -- Maximum size of bytes in a beat at a burst transaction.
     );

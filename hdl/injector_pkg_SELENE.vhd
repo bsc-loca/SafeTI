@@ -29,6 +29,7 @@ package injector_pkg_selene is
       -- Bus master configuration
       dbits             : integer range 32 to 128           := 32;
       hindex            : integer                           := 0;
+      max_burst_length  : integer range 2 to 256            := 128;
       MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024
       );
     port (

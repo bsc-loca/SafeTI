@@ -506,6 +506,7 @@ package injector_pkg is
   function sub_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
   function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
   function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
 
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
@@ -665,8 +666,7 @@ package injector_pkg is
       pmask             : integer                           := 16#FF8#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
       dbits             : integer range 32 to  128          := 32;
-      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024;
-      ASYNC_RST         : boolean                           := FALSE
+      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024
       );
     port (
       rstn              : in  std_ulogic;
@@ -790,7 +790,19 @@ package body injector_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(len - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, len-1), len));
+    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, len), len));
+    return res;
+  end sub_vector;
+
+  -- Subtract function between integer and std_logic_vector, outputs with length assigned
+  function sub_vector(
+    A : integer;
+    B : std_logic_vector;
+    len : natural) 
+  return std_logic_vector is
+    variable res : std_logic_vector(len - 1 downto 0);
+  begin
+    res := std_logic_vector(resize(to_unsigned(A, len) - unsigned(B), len));
     return res;
   end sub_vector;
 
