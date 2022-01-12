@@ -16,3 +16,4 @@ tb/questasim/tb_injector_axi/work/*
 tb/questasim/tb_injector_axi/modelsim.ini
 tb/questasim/tb_injector_axi/transcript
 tb/questasim/tb_injector_axi/.lquesta.log
+tb/questasim/tb_injector_axi/noInclude/*

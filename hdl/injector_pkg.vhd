@@ -27,24 +27,16 @@ package injector_pkg is
     constant AHB_IRQ_NMAX			  : integer :=  32;   -- Max number of interrupts at APB bus
     constant AHB_DATA_WIDTH	    : integer :=  32;   -- Data's width at AHB bus
     constant AHB_TEST_WIDTH		  : integer :=   4;   -- ahb_master_in testin width
-    -- AXI bus generics
-    constant AXI4_ID_WIDTH	    : integer	:=   4;                   -- AXI ID's bus width
-    constant AXI4_DATA_WIDTH	  : integer	range 32 to 1024 := 128;  -- Data's width at AXI bus
 
     -- Common generics
     constant BM_BURST_WIDTH     : integer range 3 to 12 := 10; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
     constant INT_BURST_WIDTH    : integer range 4 to 11 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
     constant numTech            : integer :=  67;   -- Target technology
     constant typeTech           : integer :=   0;
-    --constant VENDOR_BSC         : integer := 14;    -- BSC vendor code
-    --constant ASYNC_RST          : boolean := FALSE; -- Allow asynchronous reset flag.
 
 -------------------------------------------------------------------------------
 -- Types and records
 -------------------------------------------------------------------------------
-
-  type array_std_logic_vector is array (natural range <>) of std_logic_vector(1 to 160);
-  type array_integer          is array (natural range <>) of integer;
 
   -- BM specific types
   type bm_out_type is record  --Input to injector_ctrl from bus master interface output
@@ -109,63 +101,6 @@ package injector_pkg is
     wr_req  => '0',
     wr_data => (others => '0')
     );
-
-  -- AXI4 interface bus output
-  type axi4_out_type is record
-    -- Write address channel
-    aw_id           : std_logic_vector( AXI4_ID_WIDTH-1     downto 0 );
-    aw_addr         : std_logic_vector( 31 downto 0 );
-    aw_len          : std_logic_vector(  7 downto 0 );
-    aw_burst        : std_logic_vector(  1 downto 0 );
-    aw_lock         : std_logic;
-    aw_cache        : std_logic_vector(  3 downto 0 );
-    aw_size         : std_logic_vector(  2 downto 0 );
-    aw_prot         : std_logic_vector(  2 downto 0 );
-    aw_qos          : std_logic_vector(  3 downto 0 );
-    aw_region       : std_logic_vector(  3 downto 0 );
-    aw_valid        : std_logic;
-    -- Write data channel
-    w_data          : std_logic_vector( AXI4_DATA_WIDTH-1   downto 0 );
-    w_strb          : std_logic_vector( AXI4_DATA_WIDTH/8-1 downto 0 );
-    w_last          : std_logic;
-    w_valid         : std_logic;
-    -- Write response channel
-    b_ready         : std_logic;
-    -- Read address channel
-    ar_id           : std_logic_vector( AXI4_ID_WIDTH-1     downto 0 );
-    ar_addr         : std_logic_vector( 31 downto 0 );
-    ar_len          : std_logic_vector(  7 downto 0 );
-    ar_size         : std_logic_vector(  2 downto 0 );
-    ar_burst        : std_logic_vector(  1 downto 0 );
-    ar_lock         : std_logic;
-    ar_cache        : std_logic_vector(  3 downto 0 );
-    ar_prot         : std_logic_vector(  2 downto 0 );
-    ar_qos          : std_logic_vector(  3 downto 0 );
-    ar_region       : std_logic_vector(  3 downto 0 );
-    ar_valid        : std_logic;
-    -- Read data channel
-    r_ready         : std_logic;
-  end record;
-
-  -- AXI4 interface bus input
-  type axi4_in_type is record
-    -- Write address channel
-    aw_ready        : std_logic;
-    -- Write data channel
-    w_ready         : std_logic;
-    -- Write response channel
-    b_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
-    b_resp          : std_logic_vector (  1 downto 0 );
-    b_valid         : std_logic;
-    -- Read address channel
-    ar_ready        : std_logic;
-    -- Read data channel
-    r_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
-    r_data          : std_logic_vector ( AXI4_DATA_WIDTH-1   downto 0 );
-    r_resp          : std_logic_vector (  1 downto 0 );
-    r_last          : std_logic;
-    r_valid         : std_logic;
-  end record;
 
   type apb_slave_in_type is record
     sel             : std_logic_vector ( 0 to APB_SLAVE_NMAX-1 );
@@ -393,11 +328,11 @@ package injector_pkg is
     decode_err              => '0',
     rd_desc_err             => '0',
     state                   => (others => '0'),
-    count		                => (others => '0'), 
     read_if_rd_data_err     => '0',
     write_if_wr_data_err    => '0',
     kick_pend               => '0',
     rd_nxt_ptr_err          => '0',
+    count                   => (others => '0'), 
     active                  => '0'
     );
 
@@ -510,9 +445,6 @@ package injector_pkg is
 
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
-
-  -- Boolean to std_logic
-  function to_std_logic     (wool : boolean) return std_logic;
 
 
   
@@ -666,7 +598,8 @@ package injector_pkg is
       pmask             : integer                           := 16#FF8#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
       dbits             : integer range 32 to  128          := 32;
-      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024
+      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024;
+      ASYNC_RST         : boolean                           := FALSE
       );
     port (
       rstn              : in  std_ulogic;
@@ -826,15 +759,6 @@ package body injector_pkg is
     end loop;
     return wool;
   end or_vector;
-
-  function to_std_logic(wool : boolean) return std_logic is
-    variable logic : std_logic;
-  begin
-    if wool then logic := '1'; 
-    else         logic := '0';
-    end if;
-    return logic;
-  end to_std_logic;
 
 
    
