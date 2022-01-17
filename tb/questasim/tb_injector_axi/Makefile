@@ -9,15 +9,18 @@ compile: clean
 	mkdir -p bsc
 	vmap bsc bsc
 	vcom -work bsc $(hdl)/injector_pkg.vhd $(hdl)/axi4_pkg.vhd
+	vcom -2008 -work bsc $(hdl)/../tb/questasim/tb_injector_pkg.vhd
+	vcom -2008 $(hdl)/../tb/questasim/tb_injector_axi/tb_injector_axi.vhd 
+	vlog $(hdl)/../tb/questasim/tb_injector_axi/noInclude/subordinate_v1_0.v $(hdl)/../tb/questasim/tb_injector_axi/noInclude/subordinate_v1_0_S00_AXI.v 
 	vcom $(hdl)/injector_axi.vhd $(hdl)/axi4_manager.vhd $(hdl)/injector.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_ctrl.vhd $(hdl)/fifo.vhd $(hdl)/injector_delay_if.vhd $(hdl)/injector_read_if.vhd $(hdl)/injector_write_if.vhd 
 
 #Launches the simulation with the graphical interface
 vsim-launch: compile
-	vsim -voptargs=+acc injector_axi -do "do wave.do" -do "run -all"
+	vsim -voptargs=+acc tb_injector_axi -do "do wave.do" -do "run -all"
 
 #Launches the simulation in batch mode
 vsim: compile
-	vsim -voptargs=+acc injector_axi -do "run -all" <<! 
+	vsim -voptargs=+acc tb_injector_axi -do "run -all" <<! 
     
 #Analyzes the results of the simulation
 launch-tb : vsim

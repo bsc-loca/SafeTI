@@ -73,11 +73,11 @@ architecture rtl of axi4_manager is
   -----------------------------------------------------------------------------
   -- Records and types
   -----------------------------------------------------------------------------
-
+  --
   -- This interface, when idle, accepts read and write transaction requests from the BM bus, listening the starting address 
   -- and the total transfer size of the operation (this last must be lower or equal to the set by MAX_SIZE_BEAT-1).
   -- Once the request has been granted (deasserting new requests until finished), it processes the information to check if 
-  -- the total transfer surpasses the 4kB address boundary, splitting the transaction in two in such situations.
+  -- the total transfer surpasses the 4kB address boundary, splitting the transaction in two bursts in such situations.
   -- The interface sets up the correspondent AXI control data for the first or only trasaction burst, including burst mode,
   -- size mode, burst length and the aligned starting address respect to the size mode being set. Then, proceeds to execute
   -- the handshake with the AXI interconnect network.
@@ -92,7 +92,7 @@ architecture rtl of axi4_manager is
   --
   -- After the total transaction is completed, the interface returns to the idle state to accept new requests from BM.
   --
-  -- The following table explains the actions done at each stage of the operation:
+  -- The following table points out the actions done at each stage of the operation:
   -- 
   -- IDLE     -> Accept new requests from BM component.
   -- COMPUTE1 -> Compute if 4KB address space overflow occurs.
@@ -410,7 +410,7 @@ begin -- rtl
   --bm_in.rd_size;  -- used because input
   --bm_in.rd_req;   -- used because input
   bm_out.rd_req_grant <= rd.grant;
-  bm_out.rd_data      <= (rd.data_bus(dbits-1 downto 0) & (128-dbits downto 0 => '0'));
+  bm_out.rd_data      <= (rd.data_bus(dbits-1 downto 0) & (127-dbits downto 0 => '0'));
   bm_out.rd_valid     <= rd.bm_valid;
   --bm_out.rd_done <= rd.;
   --bm_out.rd_err <= rd.;

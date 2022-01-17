@@ -37,9 +37,12 @@ entity injector_axi4_SELENE is
   port (
     rstn    : in  std_ulogic; -- Reset
     clk     : in  std_ulogic; -- Clock
+    -- APB interface signals
+    apbi    : in  apb_slv_in_type;  -- APB subordinate input to injector
+    apbo    : out apb_slv_out_type; -- APB subordinate output from injector
     -- AXI4 interconnect SELENE bus
-    axi4mi  : in  axi_somi_type;
-    axi4mo  : out axi4_mosi_type
+    axi4mi  : in  axi_somi_type;    -- AXI4 manager input to injector
+    axi4mo  : out axi4_mosi_type    -- AXI4 manager output from injector
   );
 end entity injector_axi4_SELENE;
 

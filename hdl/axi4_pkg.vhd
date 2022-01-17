@@ -15,8 +15,8 @@ package axi4_pkg is
   -----------------------------------------------------------------------------
 
   -- AXI bus generics
-  constant AXI4_ID_WIDTH	    : integer	                  := 4;   -- AXI ID's bus width
-  constant AXI4_DATA_WIDTH	  : integer	range 32 to 1024  := 128; -- Data's width at AXI bus
+  constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
+  constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus
   -- Common generics
   constant BM_BURST_WIDTH     : integer range  3 to   12  := 10;  -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
 
