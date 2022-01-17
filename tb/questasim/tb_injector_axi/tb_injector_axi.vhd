@@ -119,8 +119,8 @@ architecture rtl of tb_injector_axi is
   signal bm_in  : bm_in_type;
   signal bm_out : bm_out_type       := DEF_INJ_BM;
 
-	signal axi4mi : axi4_in_type;
-	signal axi4mo : axi4_out_type;
+  signal axi4mi : axi4_in_type;
+  signal axi4mo : axi4_out_type;
 
   -- APB configuration
   signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
@@ -161,65 +161,65 @@ architecture rtl of tb_injector_axi is
   end component injector_axi;
 
   -- AXI4 subordinate memory wrapper
-	component subordinate_v1_0 is
-	generic (
-		C_S00_AXI_ID_WIDTH     : integer := 1;
-		C_S00_AXI_DATA_WIDTH   : integer := 32;
-		C_S00_AXI_ADDR_WIDTH   : integer := 10;
-		C_S00_AXI_AWUSER_WIDTH : integer := 0;
-		C_S00_AXI_ARUSER_WIDTH : integer := 0;
-		C_S00_AXI_WUSER_WIDTH  : integer := 0;
-		C_S00_AXI_RUSER_WIDTH  : integer := 0;
-		C_S00_AXI_BUSER_WIDTH  : integer := 0
-	);
-	port (
-		s00_axi_aclk 	    : in  std_ulogic;
-		s00_axi_aresetn   : in  std_ulogic;
-		s00_axi_awid 	    : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-		s00_axi_awaddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
-		s00_axi_awlen     : in  std_logic_vector(7 downto 0);
-		s00_axi_awsize    : in  std_logic_vector(2 downto 0);
-		s00_axi_awburst   : in  std_logic_vector(1 downto 0);
-		s00_axi_awlock    : in  std_logic;
-		s00_axi_awcache   : in  std_logic_vector(3 downto 0);
-		s00_axi_awprot    : in  std_logic_vector(2 downto 0);
-		s00_axi_awqos     : in  std_logic_vector(3 downto 0);
-		s00_axi_awregion  : in  std_logic_vector(3 downto 0);
-		s00_axi_awuser    : in  std_logic_vector(C_S00_AXI_AWUSER_WIDTH-1 downto 0);
-		s00_axi_awvalid   : in  std_logic;
-		s00_axi_awready   : out std_logic;
-		s00_axi_wdata     : in  std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
-		s00_axi_wstrb     : in  std_logic_vector((C_S00_AXI_DATA_WIDTH/8)-1 downto 0);
-		s00_axi_wlast     : in  std_logic;
-		s00_axi_wuser     : in  std_logic_vector(C_S00_AXI_WUSER_WIDTH-1 downto 0);
-		s00_axi_wvalid    : in  std_logic;
-		s00_axi_wready    : out std_logic;
-		s00_axi_bid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-		s00_axi_bresp     : out std_logic_vector(1 downto 0);
-		s00_axi_buser     : out std_logic_vector(C_S00_AXI_BUSER_WIDTH-1 downto 0);
-		s00_axi_bvalid    : out std_logic;
-		s00_axi_bready    : in  std_logic;
-		s00_axi_arid      : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-		s00_axi_araddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
-		s00_axi_arlen     : in  std_logic_vector(7 downto 0);
-		s00_axi_arsize    : in  std_logic_vector(2 downto 0);
-		s00_axi_arburst   : in  std_logic_vector(1 downto 0);
-		s00_axi_arlock    : in  std_logic;
-		s00_axi_arcache   : in  std_logic_vector(3 downto 0);
-		s00_axi_arprot    : in  std_logic_vector(2 downto 0);
-		s00_axi_arqos     : in  std_logic_vector(3 downto 0);
-		s00_axi_arregion  : in  std_logic_vector(3 downto 0);
-		s00_axi_aruser    : in  std_logic_vector(C_S00_AXI_ARUSER_WIDTH-1 downto 0);
-		s00_axi_arvalid   : in  std_logic;
-		s00_axi_arready   : out std_logic;
-		s00_axi_rid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-		s00_axi_rdata     : out std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
-		s00_axi_rresp     : out std_logic_vector(1 downto 0);
-		s00_axi_rlast     : out std_logic;
-		s00_axi_ruser     : out std_logic_vector(C_S00_AXI_RUSER_WIDTH-1 downto 0);
-		s00_axi_rvalid    : out std_logic;
-		s00_axi_rready    : in  std_logic
-	);
+  component subordinate_v1_0 is
+  generic (
+    C_S00_AXI_ID_WIDTH     : integer := 1;
+    C_S00_AXI_DATA_WIDTH   : integer := 32;
+    C_S00_AXI_ADDR_WIDTH   : integer := 10;
+    C_S00_AXI_AWUSER_WIDTH : integer := 0;
+    C_S00_AXI_ARUSER_WIDTH : integer := 0;
+    C_S00_AXI_WUSER_WIDTH  : integer := 0;
+    C_S00_AXI_RUSER_WIDTH  : integer := 0;
+    C_S00_AXI_BUSER_WIDTH  : integer := 0
+  );
+  port (
+    s00_axi_aclk       : in  std_ulogic;
+    s00_axi_aresetn   : in  std_ulogic;
+    s00_axi_awid       : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+    s00_axi_awaddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
+    s00_axi_awlen     : in  std_logic_vector(7 downto 0);
+    s00_axi_awsize    : in  std_logic_vector(2 downto 0);
+    s00_axi_awburst   : in  std_logic_vector(1 downto 0);
+    s00_axi_awlock    : in  std_logic;
+    s00_axi_awcache   : in  std_logic_vector(3 downto 0);
+    s00_axi_awprot    : in  std_logic_vector(2 downto 0);
+    s00_axi_awqos     : in  std_logic_vector(3 downto 0);
+    s00_axi_awregion  : in  std_logic_vector(3 downto 0);
+    s00_axi_awuser    : in  std_logic_vector(C_S00_AXI_AWUSER_WIDTH-1 downto 0);
+    s00_axi_awvalid   : in  std_logic;
+    s00_axi_awready   : out std_logic;
+    s00_axi_wdata     : in  std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
+    s00_axi_wstrb     : in  std_logic_vector((C_S00_AXI_DATA_WIDTH/8)-1 downto 0);
+    s00_axi_wlast     : in  std_logic;
+    s00_axi_wuser     : in  std_logic_vector(C_S00_AXI_WUSER_WIDTH-1 downto 0);
+    s00_axi_wvalid    : in  std_logic;
+    s00_axi_wready    : out std_logic;
+    s00_axi_bid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+    s00_axi_bresp     : out std_logic_vector(1 downto 0);
+    s00_axi_buser     : out std_logic_vector(C_S00_AXI_BUSER_WIDTH-1 downto 0);
+    s00_axi_bvalid    : out std_logic;
+    s00_axi_bready    : in  std_logic;
+    s00_axi_arid      : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+    s00_axi_araddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
+    s00_axi_arlen     : in  std_logic_vector(7 downto 0);
+    s00_axi_arsize    : in  std_logic_vector(2 downto 0);
+    s00_axi_arburst   : in  std_logic_vector(1 downto 0);
+    s00_axi_arlock    : in  std_logic;
+    s00_axi_arcache   : in  std_logic_vector(3 downto 0);
+    s00_axi_arprot    : in  std_logic_vector(2 downto 0);
+    s00_axi_arqos     : in  std_logic_vector(3 downto 0);
+    s00_axi_arregion  : in  std_logic_vector(3 downto 0);
+    s00_axi_aruser    : in  std_logic_vector(C_S00_AXI_ARUSER_WIDTH-1 downto 0);
+    s00_axi_arvalid   : in  std_logic;
+    s00_axi_arready   : out std_logic;
+    s00_axi_rid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+    s00_axi_rdata     : out std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
+    s00_axi_rresp     : out std_logic_vector(1 downto 0);
+    s00_axi_rlast     : out std_logic;
+    s00_axi_ruser     : out std_logic_vector(C_S00_AXI_RUSER_WIDTH-1 downto 0);
+    s00_axi_rvalid    : out std_logic;
+    s00_axi_rready    : in  std_logic
+  );
   end component subordinate_v1_0;
 
 begin  -- rtl
@@ -413,65 +413,65 @@ begin  -- rtl
     axi4mo        => axi4mo
   );
 
-	AXI_S0 : subordinate_v1_0
-	generic map (
-		C_S00_AXI_ID_WIDTH 			=> axi4mo.aw_id'length,
-		C_S00_AXI_DATA_WIDTH 		=> axi4mo.w_data'length,
-		C_S00_AXI_ADDR_WIDTH 		=> 10,
-		C_S00_AXI_AWUSER_WIDTH 	=> 1,
-		C_S00_AXI_ARUSER_WIDTH 	=> 1,
-		C_S00_AXI_WUSER_WIDTH 	=> 1,
-		C_S00_AXI_RUSER_WIDTH 	=> 1,
-		C_S00_AXI_BUSER_WIDTH 	=> 1
-	)
-	port map (
-		s00_axi_aclk 			=> clk,
-		s00_axi_aresetn 	=> rstn,
-		s00_axi_awid 			=> axi4mo.aw_id,
-		s00_axi_awaddr 		=> axi4mo.aw_addr(9 downto 0),
-		s00_axi_awlen 		=> axi4mo.aw_len,
-		s00_axi_awsize 		=> axi4mo.aw_size,
-		s00_axi_awburst 	=> axi4mo.aw_burst,
-		s00_axi_awlock 		=> axi4mo.aw_lock,
-		s00_axi_awcache 	=> axi4mo.aw_cache,
-		s00_axi_awprot 		=> axi4mo.aw_prot,
-		s00_axi_awqos 		=> axi4mo.aw_qos,
-		s00_axi_awregion 	=> axi4mo.aw_region,
-		s00_axi_awuser 		=> "0",
-		s00_axi_awvalid 	=> axi4mo.aw_valid,
-		s00_axi_awready 	=> axi4mi.aw_ready,
-		s00_axi_wdata 		=> axi4mo.w_data,
-		s00_axi_wstrb 		=> axi4mo.w_strb,
-		s00_axi_wlast 		=> axi4mo.w_last,
-		s00_axi_wuser 		=> "0",
-		s00_axi_wvalid 		=> axi4mo.w_valid,
-		s00_axi_wready 		=> axi4mi.w_ready,
-		s00_axi_bid 			=> axi4mi.b_id,
-		s00_axi_bresp 		=> axi4mi.b_resp,
-		--s00_axi_buser 		=> "0",
-		s00_axi_bvalid 		=> axi4mi.b_valid,
-		s00_axi_bready 		=> axi4mo.b_ready,
-		s00_axi_arid 			=> axi4mo.ar_id,
-		s00_axi_araddr 		=> axi4mo.ar_addr(9 downto 0),
-		s00_axi_arlen 		=> axi4mo.ar_len,
-		s00_axi_arsize 		=> axi4mo.ar_size,
-		s00_axi_arburst 	=> axi4mo.ar_burst,
-		s00_axi_arlock 		=> axi4mo.ar_lock,
-		s00_axi_arcache 	=> axi4mo.ar_cache,
-		s00_axi_arprot 		=> axi4mo.ar_prot,
-		s00_axi_arqos 		=> axi4mo.ar_qos,
-		s00_axi_arregion 	=> axi4mo.ar_region,
-		s00_axi_aruser 		=> "0",
-		s00_axi_arvalid 	=> axi4mo.ar_valid,
-		s00_axi_arready 	=> axi4mi.ar_ready,
-		s00_axi_rid 			=> axi4mi.r_id,
-		s00_axi_rdata 		=> axi4mi.r_data,
-		s00_axi_rresp 		=> axi4mi.r_resp,
-		s00_axi_rlast 		=> axi4mi.r_last,
-		--s00_axi_ruser 		=> "0",
-		s00_axi_rvalid 		=> axi4mi.r_valid,
-		s00_axi_rready 		=> axi4mo.r_ready
-	);
+  AXI_S0 : subordinate_v1_0
+  generic map (
+    C_S00_AXI_ID_WIDTH      => axi4mo.aw_id'length,
+    C_S00_AXI_DATA_WIDTH    => axi4mo.w_data'length,
+    C_S00_AXI_ADDR_WIDTH    => 10,
+    C_S00_AXI_AWUSER_WIDTH  => 1,
+    C_S00_AXI_ARUSER_WIDTH  => 1,
+    C_S00_AXI_WUSER_WIDTH   => 1,
+    C_S00_AXI_RUSER_WIDTH   => 1,
+    C_S00_AXI_BUSER_WIDTH   => 1
+  )
+  port map (
+    s00_axi_aclk      => clk,
+    s00_axi_aresetn   => rstn,
+    s00_axi_awid      => axi4mo.aw_id,
+    s00_axi_awaddr    => axi4mo.aw_addr(9 downto 0),
+    s00_axi_awlen     => axi4mo.aw_len,
+    s00_axi_awsize    => axi4mo.aw_size,
+    s00_axi_awburst   => axi4mo.aw_burst,
+    s00_axi_awlock    => axi4mo.aw_lock,
+    s00_axi_awcache   => axi4mo.aw_cache,
+    s00_axi_awprot    => axi4mo.aw_prot,
+    s00_axi_awqos     => axi4mo.aw_qos,
+    s00_axi_awregion  => axi4mo.aw_region,
+    s00_axi_awuser    => "0",
+    s00_axi_awvalid   => axi4mo.aw_valid,
+    s00_axi_awready   => axi4mi.aw_ready,
+    s00_axi_wdata     => axi4mo.w_data,
+    s00_axi_wstrb     => axi4mo.w_strb,
+    s00_axi_wlast     => axi4mo.w_last,
+    s00_axi_wuser     => "0",
+    s00_axi_wvalid    => axi4mo.w_valid,
+    s00_axi_wready    => axi4mi.w_ready,
+    s00_axi_bid       => axi4mi.b_id,
+    s00_axi_bresp     => axi4mi.b_resp,
+    --s00_axi_buser     => "0",
+    s00_axi_bvalid    => axi4mi.b_valid,
+    s00_axi_bready    => axi4mo.b_ready,
+    s00_axi_arid      => axi4mo.ar_id,
+    s00_axi_araddr    => axi4mo.ar_addr(9 downto 0),
+    s00_axi_arlen     => axi4mo.ar_len,
+    s00_axi_arsize    => axi4mo.ar_size,
+    s00_axi_arburst   => axi4mo.ar_burst,
+    s00_axi_arlock    => axi4mo.ar_lock,
+    s00_axi_arcache   => axi4mo.ar_cache,
+    s00_axi_arprot    => axi4mo.ar_prot,
+    s00_axi_arqos     => axi4mo.ar_qos,
+    s00_axi_arregion  => axi4mo.ar_region,
+    s00_axi_aruser    => "0",
+    s00_axi_arvalid   => axi4mo.ar_valid,
+    s00_axi_arready   => axi4mi.ar_ready,
+    s00_axi_rid       => axi4mi.r_id,
+    s00_axi_rdata     => axi4mi.r_data,
+    s00_axi_rresp     => axi4mi.r_resp,
+    s00_axi_rlast     => axi4mi.r_last,
+    --s00_axi_ruser     => "0",
+    s00_axi_rvalid    => axi4mi.r_valid,
+    s00_axi_rready    => axi4mo.r_ready
+  );
 
   
 end architecture rtl;

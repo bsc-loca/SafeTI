@@ -77,23 +77,23 @@ architecture rtl of injector_ctrl is
   -- Constant declaration
   -----------------------------------------------------------------------------
   -- Constants for FSM present state display
-  constant IDLE_STATE      	  : std_logic_vector(4 downto 0) := "00000"; -- 0x00
-  constant FETCH_DES       	  : std_logic_vector(4 downto 0) := "00001"; -- 0x01
-  constant READ_DES        	  : std_logic_vector(4 downto 0) := "00010"; -- 0x02
-  constant READ_FIFO_Q		    : std_logic_vector(4 downto 0) := "00011"; -- 0x03
-  constant DECODE          	  : std_logic_vector(4 downto 0) := "00100"; -- 0x04
+  constant IDLE_STATE         : std_logic_vector(4 downto 0) := "00000"; -- 0x00
+  constant FETCH_DES          : std_logic_vector(4 downto 0) := "00001"; -- 0x01
+  constant READ_DES           : std_logic_vector(4 downto 0) := "00010"; -- 0x02
+  constant READ_FIFO_Q        : std_logic_vector(4 downto 0) := "00011"; -- 0x03
+  constant DECODE             : std_logic_vector(4 downto 0) := "00100"; -- 0x04
   
-  constant READ_IF_IDLE      	: std_logic_vector(4 downto 0) := "00101"; -- 0x05
-  constant READ_IF_EXEC    	  : std_logic_vector(4 downto 0) := "00110"; -- 0x06
-  constant READ_IF_DATA_READ	: std_logic_vector(4 downto 0) := "00111"; -- 0x07
+  constant READ_IF_IDLE       : std_logic_vector(4 downto 0) := "00101"; -- 0x05
+  constant READ_IF_EXEC       : std_logic_vector(4 downto 0) := "00110"; -- 0x06
+  constant READ_IF_DATA_READ  : std_logic_vector(4 downto 0) := "00111"; -- 0x07
   
-  constant WRITE_IF_IDLE   	  : std_logic_vector(4 downto 0) := "01000"; -- 0x08
-  constant WRITE_IF_FIRST_W	  : std_logic_vector(4 downto 0) := "01001"; -- 0x09
-  constant WRITE_IF_BURST   	: std_logic_vector(4 downto 0) := "01010"; -- 0x0A
-  constant WRITE_IF_CHECK   	: std_logic_vector(4 downto 0) := "01011"; -- 0x0B  
+  constant WRITE_IF_IDLE      : std_logic_vector(4 downto 0) := "01000"; -- 0x08
+  constant WRITE_IF_FIRST_W   : std_logic_vector(4 downto 0) := "01001"; -- 0x09
+  constant WRITE_IF_BURST     : std_logic_vector(4 downto 0) := "01010"; -- 0x0A
+  constant WRITE_IF_CHECK     : std_logic_vector(4 downto 0) := "01011"; -- 0x0B  
   
-  constant DELAY_IF_IDLE    	: std_logic_vector(4 downto 0) := "01100"; -- 0x0C
-  constant DELAY_IF_EXEC    	: std_logic_vector(4 downto 0) := "01101"; -- 0x0D 
+  constant DELAY_IF_IDLE      : std_logic_vector(4 downto 0) := "01100"; -- 0x0C
+  constant DELAY_IF_EXEC      : std_logic_vector(4 downto 0) := "01101"; -- 0x0D 
 
   -- Other constants
   constant READ       : std_logic_vector(2 downto 0) := "000";
@@ -162,11 +162,11 @@ architecture rtl of injector_ctrl is
     err_state           : std_logic_vector(4 downto 0);    -- FSM state in which error occured
     desc_ptr            : std_logic_vector(31 downto 0);   -- Current descriptor pointer
     i                   : integer range 0 to 7;            -- Register for index increment
-    rep_count           : std_logic_vector(5 downto 0);	   -- Register for Repetition Count increment
+    rep_count           : std_logic_vector(5 downto 0);    -- Register for Repetition Count increment
     rd_desc             : std_logic_vector(159 downto 0);  -- Register for descriptor read from BM (5 Registers * 32 bits)
     read_if_start       : std_ulogic;                      -- READ_IF start signal
     write_if_start      : std_ulogic;                      -- WRITE_IF start signal
-    delay_if_start      : std_ulogic;			                 -- DELAY_IF start signal
+    delay_if_start      : std_ulogic;                      -- DELAY_IF start signal
     desc_skip           : std_ulogic;                      -- descriptor skip flag
     err_flag            : std_ulogic;                      -- Error flag
     dcomp_flg           : std_ulogic;                      -- Descriptor completed flag
@@ -176,10 +176,10 @@ architecture rtl of injector_ctrl is
     bmst_rd_err         : std_ulogic;                      -- bus master read error
     err_status          : std_ulogic;                      -- register to find the falling edge of err_status input signal
     sts                 : status_out_type;                 -- Status register   
-    fifo_wen            : std_ulogic;			   -- FIFO write enable signal
-    fifo_ren		        : std_ulogic;			   -- FIFO read enable signal
-    fifo_finished       : std_ulogic;			   -- FIFO is fully read flag
-    fifo_rd_rst         : std_ulogic;			   -- FIFO read address reset signal 
+    fifo_wen            : std_ulogic;                      -- FIFO write enable signal
+    fifo_ren            : std_ulogic;                      -- FIFO read enable signal
+    fifo_finished       : std_ulogic;                      -- FIFO is fully read flag
+    fifo_rd_rst         : std_ulogic;                      -- FIFO read address reset signal 
   end record;
   -- Reset value for injector_ctrl local reg type
   constant CTRL_REG_RST : ctrl_reg_type := (
@@ -215,13 +215,13 @@ architecture rtl of injector_ctrl is
   signal d_des  : data_dsc_strct_type;  -- Data descriptor
   signal bmst   : bm_in_type;           -- Bus master control signals
   
-  signal fifo_wen_o     : std_logic;			                -- Write enable (to FIFO)
-  signal fifo_ren_o     : std_logic;			                -- Read enable  (to FIFO)
-  signal fifo_wdata     : std_logic_vector(159 downto 0);	-- FIFO Write data bus
-  signal fifo_rdata     : std_logic_vector(159 downto 0);	-- FIFO Read data bus
-  signal fifo_full      : std_logic;			                -- FIFO is full (from FIFO)
-  signal fifo_completed : std_logic;			                -- FIFO completely read (from FIFO)
-  signal fifo_read_rst  : std_logic;			                -- FIFO Read Address Reset output
+  signal fifo_wen_o     : std_logic;                      -- Write enable (to FIFO)
+  signal fifo_ren_o     : std_logic;                      -- Read enable  (to FIFO)
+  signal fifo_wdata     : std_logic_vector(159 downto 0); -- FIFO Write data bus
+  signal fifo_rdata     : std_logic_vector(159 downto 0); -- FIFO Read data bus
+  signal fifo_full      : std_logic;                      -- FIFO is full (from FIFO)
+  signal fifo_completed : std_logic;                      -- FIFO completely read (from FIFO)
+  signal fifo_read_rst  : std_logic;                      -- FIFO Read Address Reset output
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -306,7 +306,7 @@ begin  -- rtl
         -- Default values
         v.write_if_start      := '0';
         v.read_if_start       := '0';
-	      v.delay_if_start      := '0';
+        v.delay_if_start      := '0';
         v.sts.err             := '0';
         v.sts.decode_desc_err := '0';
         v.sts.rd_desc_err     := '0';
@@ -329,7 +329,7 @@ begin  -- rtl
             v.sts.ongoing   := '1';
             v.sts.comp      := '0';
             v.dcomp_flg     := '0';
-	          v.fifo_finished := '0';
+            v.fifo_finished := '0';
             v.desc_ptr      := des_ptr.ptr;
             v.rd_desc       := (others => '0');
             v.state         := fetch_desc;
@@ -340,21 +340,21 @@ begin  -- rtl
               v.rd_desc     := (others => '0');
               v.state       := fetch_desc;
             else  -- No initial desc read error
-	            if r.fifo_finished = '1' then  -- When fifo is fully Read, update Completed Flag
-		          v.sts.ongoing   := '0';
-		          v.dcomp_flg     := '0';
-		          v.sts.desc_comp := '0';
-		            if(ctrl.qmode = '0') then
-		    -- Normal Queue execution finished, update flags and end execution
-		            v.sts.comp      := '1';
-		            else
-		    -- Queue Mode, re-enter FIFO and restart execution
-		            v.sts.ongoing   := '1';
-		            v.fifo_finished := '0';
-		            v.state	   := read_fifo;
-		            end if;
-	            elsif d_des.nxt_des.last = '1' or fifo_full = '1' then -- If descriptor queue is finished or FIFO is full
-		            v.state       := read_fifo;
+              if r.fifo_finished = '1' then  -- When fifo is fully Read, update Completed Flag
+              v.sts.ongoing   := '0';
+              v.dcomp_flg     := '0';
+              v.sts.desc_comp := '0';
+                if(ctrl.qmode = '0') then
+        -- Normal Queue execution finished, update flags and end execution
+                v.sts.comp      := '1';
+                else
+        -- Queue Mode, re-enter FIFO and restart execution
+                v.sts.ongoing   := '1';
+                v.fifo_finished := '0';
+                v.state    := read_fifo;
+                end if;
+              elsif d_des.nxt_des.last = '1' or fifo_full = '1' then -- If descriptor queue is finished or FIFO is full
+                v.state       := read_fifo;
               else  -- not last descriptor. Continue with next descriptor in the queue
                 v.desc_ptr      := d_des.nxt_des.ptr;
                 v.dcomp_flg     := '0';
@@ -434,25 +434,25 @@ begin  -- rtl
         -----------
 
       when read_fifo =>
-	      if r.fifo_finished = '0' then
-	        if r.fifo_ren = '0' then -- Single clock Read enable signal
-	          v.fifo_ren := '1';
-	        else
-	          v.fifo_ren       := '0'; -- Ready to read from FIFO
-	          v.dcomp_flg      := '0';
-	          v.sts.desc_comp  := '0';
-	          v.rd_desc        := fifo_rdata;
-	          v.state          := decode_desc;
+        if r.fifo_finished = '0' then
+          if r.fifo_ren = '0' then -- Single clock Read enable signal
+            v.fifo_ren := '1';
+          else
+            v.fifo_ren       := '0'; -- Ready to read from FIFO
+            v.dcomp_flg      := '0';
+            v.sts.desc_comp  := '0';
+            v.rd_desc        := fifo_rdata;
+            v.state          := decode_desc;
 
-	          -- Check if FIFO is fully read
-	          if or_vector(fifo_rdata) = '0' or fifo_completed = '1' then 
-		          v.fifo_rd_rst       := '1';
-		          v.fifo_finished     := '1';
-	          end if;
-	        end if;
-	      else
-	        v.state := idle;
-	      end if;
+            -- Check if FIFO is fully read
+            if or_vector(fifo_rdata) = '0' or fifo_completed = '1' then 
+              v.fifo_rd_rst       := '1';
+              v.fifo_finished     := '1';
+            end if;
+          end if;
+        else
+          v.state := idle;
+        end if;
         -----------
 
       when decode_desc => 
@@ -490,7 +490,7 @@ begin  -- rtl
             v.sts.err   := '1';
             v.err_flag  := '1';
             v.err_state := DECODE;
-            v.state 	  := idle;
+            v.state     := idle;
         end case;  --Decoding completed
         -----------
 
@@ -501,7 +501,7 @@ begin  -- rtl
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
               v.state         := decode_desc;
            else          
-	            v.sts.desc_comp := '1';
+              v.sts.desc_comp := '1';
               v.dcomp_flg     := '1';
               v.rep_count     := (others => '0');
               v.state         := read_fifo;
@@ -511,7 +511,7 @@ begin  -- rtl
           v.err_flag          := '1';
           v.err_state         := read_if_sts_in.state;
           v.sts.rd_data_err   := '1';
-          v.state	            := idle;
+          v.state             := idle;
         end if;
         -----------
 
@@ -519,21 +519,21 @@ begin  -- rtl
         -- Check whether the transaction was successfull or not
         if (r.write_if_start = '0' and write_if_sts_in.comp = '1') then
            -- Check the descriptor repetition count parameter
-	      if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+        if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
-	            v.state         := decode_desc;
+              v.state         := decode_desc;
            else
-	            v.sts.desc_comp := '1';
+              v.sts.desc_comp := '1';
               v.dcomp_flg     := '1';
-	            v.rep_count     := (others => '0');
-              v.state	        := read_fifo;
-	   end if;
+              v.rep_count     := (others => '0');
+              v.state         := read_fifo;
+     end if;
         elsif write_if_sts_in.write_if_err = '1' then
           v.sts.err           := '1';
           v.err_flag          := '1';
           v.err_state         := write_if_sts_in.state;
           v.sts.wr_data_err   := '1';
-          v.state 	          := idle;
+          v.state             := idle;
         end if;
         -----------
 
@@ -544,17 +544,17 @@ begin  -- rtl
             v.rep_count       := add_vector(r.rep_count, 1, r.rep_count'length);
             v.state           := decode_desc;
           else
-	          v.sts.desc_comp   := '1';
+            v.sts.desc_comp   := '1';
             v.dcomp_flg       := '1';
             v.rep_count       := (others => '0');
-            v.state	          := read_fifo;
-	        end if;
+            v.state           := read_fifo;
+          end if;
         elsif delay_if_sts_in.delay_if_err = '1' then
           v.sts.err           := '1';
           v.err_flag          := '1';
           v.err_state         := delay_if_sts_in.state;
           v.sts.wr_data_err   := '1';
-          v.state 	          := idle;
+          v.state             := idle;
         end if;
  
       when others =>
@@ -604,8 +604,8 @@ begin  -- rtl
           status.state <= READ_DES;
         when decode_desc =>
           status.state <= DECODE;
-	when read_fifo =>
-	  status.state <= READ_FIFO_Q;
+  when read_fifo =>
+    status.state <= READ_FIFO_Q;
         when read_if =>
           status.state <= read_if_sts_in.state;
         when write_if =>
@@ -691,9 +691,9 @@ begin  -- rtl
         rstn       => rstn,
         write_i    => fifo_wen_o,
         read_i     => fifo_ren_o,
-	read_rst_i => fifo_read_rst,
-	full_o     => fifo_full,
-	comp_o     => fifo_completed,
+        read_rst_i => fifo_read_rst,
+        full_o     => fifo_full,
+        comp_o     => fifo_completed,
         wdata_i    => fifo_wdata,
         rdata_o    => fifo_rdata
     );

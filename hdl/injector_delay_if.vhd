@@ -50,8 +50,8 @@ architecture rtl of injector_delay_if is
   --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   -- Constants for read_if present state
-  constant DELAY_IF_IDLE    	: std_logic_vector(4 downto 0) := "01100"; -- 0x0C
-  constant DELAY_IF_EXEC    	: std_logic_vector(4 downto 0) := "01101"; -- 0x0D
+  constant DELAY_IF_IDLE      : std_logic_vector(4 downto 0) := "01100"; -- 0x0C
+  constant DELAY_IF_EXEC      : std_logic_vector(4 downto 0) := "01101"; -- 0x0D
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -114,7 +114,7 @@ begin
         v.curr_size         := (others => '0');
         v.sts.delay_if_err  := '0';
 
-	-- Operation starts when start signal from control interface arrives and no errors are present
+  -- Operation starts when start signal from control interface arrives and no errors are present
         if delay_if_start = '1' and err_sts_in = '0' then
           v.err_state      := (others => '0');
           v.sts.operation  := '1';

@@ -19,14 +19,14 @@ use ieee.numeric_std.all;
 
 package injector_pkg is
     -- APB bus generics
-    constant APB_SLAVE_NMAX		  : integer :=  16;   -- Max number of slaves at APB bus
-    constant APB_IRQ_NMAX			  : integer :=  32;   -- Max number of interrupts at APB bus
-    constant APB_TEST_WIDTH		  : integer :=   4;   -- apb_slave_in test in enable (tinen)
+    constant APB_SLAVE_NMAX     : integer :=  16;   -- Max number of slaves at APB bus
+    constant APB_IRQ_NMAX       : integer :=  32;   -- Max number of interrupts at APB bus
+    constant APB_TEST_WIDTH     : integer :=   4;   -- apb_slave_in test in enable (tinen)
     -- AHB bus generics
-    constant AHB_MASTER_NMAX	  : integer :=  16;   -- Max number of masters at AHB bus
-    constant AHB_IRQ_NMAX			  : integer :=  32;   -- Max number of interrupts at APB bus
-    constant AHB_DATA_WIDTH	    : integer :=  32;   -- Data's width at AHB bus
-    constant AHB_TEST_WIDTH		  : integer :=   4;   -- ahb_master_in testin width
+    constant AHB_MASTER_NMAX    : integer :=  16;   -- Max number of masters at AHB bus
+    constant AHB_IRQ_NMAX       : integer :=  32;   -- Max number of interrupts at APB bus
+    constant AHB_DATA_WIDTH     : integer :=  32;   -- Data's width at AHB bus
+    constant AHB_TEST_WIDTH     : integer :=   4;   -- ahb_master_in testin width
 
     -- Common generics
     constant BM_BURST_WIDTH     : integer range 3 to 12 := 10; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
@@ -638,12 +638,12 @@ package injector_pkg is
   -- Procedures
   -------------------------------------------------------------------------------
   -- pragma translate_off
-  --constant vmode	: boolean := false;	-- Extra print-out
+  --constant vmode  : boolean := false; -- Extra print-out
 
 --  procedure run_injector_tests(
---    signal atmi		: out at_ahb_mst_in_type;
---    signal atmo		: in  at_ahb_mst_out_type);  
-	
+--    signal atmi   : out at_ahb_mst_in_type;
+--    signal atmo   : in  at_ahb_mst_out_type);  
+
   -- pragma translate_on
 
 

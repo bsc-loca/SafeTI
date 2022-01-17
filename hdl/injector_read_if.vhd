@@ -61,9 +61,9 @@ architecture rtl of injector_read_if is
   --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   -- Constants for read_if present state
-  constant READ_IF_IDLE      	: std_logic_vector(4 downto 0) := "00101"; -- 0x05
-  constant READ_IF_EXEC    	  : std_logic_vector(4 downto 0) := "00110"; -- 0x06
-  constant READ_IF_DATA_READ	: std_logic_vector(4 downto 0) := "00111"; -- 0x07
+  constant READ_IF_IDLE       : std_logic_vector(4 downto 0) := "00101"; -- 0x05
+  constant READ_IF_EXEC       : std_logic_vector(4 downto 0) := "00110"; -- 0x06
+  constant READ_IF_DATA_READ  : std_logic_vector(4 downto 0) := "00111"; -- 0x07
 
   -- Bus master interface front end width in bytes := dbits/8
   constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;-- Maximum BM interface data size
@@ -222,8 +222,8 @@ begin
                                                 max_bsize       => MAX_SIZE_BEAT,
                                                 total_size      => remaining
                                                 );
-		            v.bmst_rd_busy	:= '0';
-		            v.read_if_state	:= exec_data_desc;		
+                v.bmst_rd_busy  := '0';
+                v.read_if_state := exec_data_desc;
               else                      -- Data fetch completed
                 v.read_if_state := idle;
                 v.sts.operation := '0';

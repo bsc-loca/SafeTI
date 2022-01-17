@@ -60,10 +60,10 @@ architecture rtl of injector_write_if is
   --constant ASYNC_RST          : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   -- Constants for injector_write_if present state
-  constant WRITE_IF_IDLE   	  : std_logic_vector(4 downto 0) := "01000"; -- 0x08
-  constant WRITE_IF_FIRST_W	  : std_logic_vector(4 downto 0) := "01001"; -- 0x09
-  constant WRITE_IF_BURST   	: std_logic_vector(4 downto 0) := "01010"; -- 0x0A
-  constant WRITE_IF_CHECK   	: std_logic_vector(4 downto 0) := "01011"; -- 0x0B
+  constant WRITE_IF_IDLE      : std_logic_vector(4 downto 0) := "01000"; -- 0x08
+  constant WRITE_IF_FIRST_W   : std_logic_vector(4 downto 0) := "01001"; -- 0x09
+  constant WRITE_IF_BURST     : std_logic_vector(4 downto 0) := "01010"; -- 0x0A
+  constant WRITE_IF_CHECK     : std_logic_vector(4 downto 0) := "01011"; -- 0x0B
 
   -- Constant for bit - byte manipulation
   constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;  -- Register width for maximum byte size at a burst
@@ -161,7 +161,7 @@ begin
      
       when first_word =>  -- First data passed with write initiation
         if or_vector(r.curr_size) /= '0' then
-	        if d_des_in.ctrl.dest_fix_adr = '1' then
+          if d_des_in.ctrl.dest_fix_adr = '1' then
             write_if_bmo.wr_addr <= d_des_in.dest_addr;
           else
             write_if_bmo.wr_addr <= add_vector(d_des_in.dest_addr, r.inc, write_if_bmo.wr_addr'length);
@@ -189,10 +189,10 @@ begin
               end if;
             end if;
           end if;
-  	    else
-	        v.sts.comp	      := '1';
-	        v.write_if_state  := idle;
-	      end if;
+        else
+          v.sts.comp        := '1';
+          v.write_if_state  := idle;
+        end if;
       ----------
         
       when write_burst =>
@@ -204,7 +204,7 @@ begin
         -- two words with bm_bytes size each.
           if to_integer(unsigned(r.curr_size)) >= bm_bytes then
             sz_aftr_write     := sub_vector(r.curr_size, bm_bytes, sz_aftr_write'length);
-	          if or_vector(sz_aftr_write) = '0' then -- more data to be writen after current data write
+            if or_vector(sz_aftr_write) = '0' then -- more data to be writen after current data write
               v.write_if_state := write_data_check;
             end if;
             v.curr_size       := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);

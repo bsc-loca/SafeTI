@@ -14,15 +14,15 @@ entity fifo is
         --ASYNC_RST  : boolean := FALSE
     );
     port(
-        clk            : in  std_logic;
-        rstn           : in  std_logic;
-        write_i        : in  std_logic;
-        read_i         : in  std_logic;
-        read_rst_i     : in  std_logic;
-        full_o         : out std_logic;
-        comp_o	        : out std_logic;
-        wdata_i        : in  std_logic_vector(BUS_LENGTH-1 downto 0);
-        rdata_o        : out std_logic_vector(BUS_LENGTH-1 downto 0)
+        clk           : in  std_logic;
+        rstn          : in  std_logic;
+        write_i       : in  std_logic;
+        read_i        : in  std_logic;
+        read_rst_i    : in  std_logic;
+        full_o        : out std_logic;
+        comp_o        : out std_logic;
+        wdata_i       : in  std_logic_vector(BUS_LENGTH-1 downto 0);
+        rdata_o       : out std_logic_vector(BUS_LENGTH-1 downto 0)
     );  
 end;
 
@@ -43,60 +43,59 @@ architecture rtl of fifo is
     signal ram : ram_type;
     signal addr, r_write_addr, r_read_addr : unsigned(RAM_INDEX-1 downto 0);
     signal fifo_full, fifo_comp : std_logic; 
- begin
+    
+  begin
+
     RAM_PROC: process(clk)
     begin
-	
-	if rising_edge(clk) then
-           
-	   -- RAM
-           if write_i = '1' then
-              ram(to_integer(r_write_addr)) <= wdata_i;
-           end if;
-	   
-	   --if read_i = '1' then
-	      rdata_o <= ram(to_integer(r_read_addr));
-	   --end if;
+      if rising_edge(clk) then
+        -- RAM
+        if write_i = '1' then
+          ram(to_integer(r_write_addr)) <= wdata_i;
+        end if;
 
-	   -- FIFO
-	   if rstn = '0' then
-	      r_write_addr <= (others => '0');
-              r_read_addr  <= (others => '0');
-	      ram 	   <= (others => (others => '0'));
-	      fifo_full    <= '0';
-	      fifo_comp    <= '0';
-	   else
-	      
-              if write_i = '1' then
-                 r_write_addr <= r_write_addr + 1;
-              end if;
-              
-	      if read_i = '1' then
-                 r_read_addr <= r_read_addr + 1;
-              end if;
+        --if read_i = '1' then
+          rdata_o <= ram(to_integer(r_read_addr));
+        --end if;
+      
+        -- FIFO
+        if rstn = '0' then
+          r_write_addr  <= (others => '0');
+          r_read_addr   <= (others => '0');
+          ram           <= (others => (others => '0'));
+          fifo_full     <= '0';
+          fifo_comp     <= '0';
+        else
+          if write_i = '1' then
+            r_write_addr <= r_write_addr + 1;
+          end if;
 
-	      if read_rst_i = '1' then
-		 r_read_addr <= (others => '0');
-	      end if;
-
-	      if r_read_addr = (RAM_LENGTH - 1) then
-	         fifo_comp <= '1';
-	      else
-		 fifo_comp <= '0';
-	      end if;
-
-	      if r_write_addr = (RAM_LENGTH -1) then
-	         fifo_full <= '1';
-	      else
-	         fifo_full <= '0';
-	      end if;
-
-	   end if;
-	end if;
+          if read_i = '1' then
+            r_read_addr <= r_read_addr + 1;
+          end if;
+        
+          if read_rst_i = '1' then
+            r_read_addr <= (others => '0');
+          end if;
+        
+          if r_read_addr = (RAM_LENGTH - 1) then
+            fifo_comp <= '1';
+          else
+            fifo_comp <= '0';
+          end if;
+        
+          if r_write_addr = (RAM_LENGTH -1) then
+            fifo_full <= '1';
+          else
+            fifo_full <= '0';
+          end if;
+        
+        end if;
+      end if;
     end process;
     
     full_o <= fifo_full;
     comp_o <= fifo_comp;
     --addr <= r_write_addr when write_i = '1' else r_read_addr;
 
-end;
+  end;

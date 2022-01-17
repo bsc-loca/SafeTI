@@ -187,7 +187,7 @@ begin -- rtl
           v.ctrl.irq_err := apbi.wdata(4);
           v.ctrl.qmode   := apbi.wdata(5);
         when "000001" =>                --0x04 Injector status register. Errors are cleared on write
-          v.sts.err                  := r.sts.err and not(apbi.wdata(1));		  
+          v.sts.err                  := r.sts.err and not(apbi.wdata(1));
           v.sts.irq_flag             := r.sts.irq_flag and not(apbi.wdata(5));
           v.sts.decode_err           := r.sts.decode_err and not(apbi.wdata(6));
           v.sts.rd_desc_err          := r.sts.rd_desc_err and not(apbi.wdata(7));        
@@ -195,7 +195,7 @@ begin -- rtl
           v.sts.write_if_wr_data_err := r.sts.write_if_wr_data_err and not(apbi.wdata(9));
           v.sts.rd_nxt_ptr_err       := r.sts.rd_nxt_ptr_err and not(apbi.wdata(10));
         when "000010" =>                --0x08 Injector descriptor pointer register
-          v.desc_ptr.ptr := apbi.wdata(31 downto 0); 		  
+          v.desc_ptr.ptr := apbi.wdata(31 downto 0);
         when others =>
           null;
       end case;
