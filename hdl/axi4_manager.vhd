@@ -24,7 +24,7 @@ entity axi4_manager is
     dbits         : integer range 32 to  128          := 32;      -- Data width of BM and FIFO (must be a power of 2)
     -- AXI Manager configuration
     axi_id        : integer                           := 0;       -- AXI master index
-    MAX_SIZE_BEAT : integer range 64 to 4096          := 1024;    -- Maximum size of a beat at a burst transaction.
+    MAX_SIZE_BEAT : integer range 32 to 4096          := 4096;    -- Maximum size of a BM transaction. (default=4096)
     -- Injector configuration
     ASYNC_RST     : boolean                           := FALSE    -- Allow asynchronous reset
   );
@@ -46,9 +46,9 @@ architecture rtl of axi4_manager is
   -----------------------------------------------------------------------------
 
   -- Constants that should be equal to what is written at injector_pkg.vhd
-  constant INT_BURST_WIDTH  : integer := log_2(MAX_SIZE_BEAT) + 1;  -- Width to hold maximum beat size number
+  constant INT_BURST_WIDTH  : integer := log_2(MAX_SIZE_BEAT);      -- Width to hold maximum beat size number
   constant AXI4_DATA_WIDTH  : integer := axi4mo.w_data'length;      -- AXI data bus width
-  constant AXI4_DATA_BYTE   : integer := log_2(AXI4_DATA_WIDTH/8);  -- Width of unsigned value to address data bus bytes
+  constant AXI4_DATA_BYTE   : integer := log_2(AXI4_DATA_WIDTH/8)-1;-- Width of unsigned value to address data bus bytes
 
   -- AXI constants
   constant FIXED            : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes: FIXED
@@ -422,13 +422,13 @@ begin -- rtl
 
   -- READ PROCESS
   read_proc : process (clk, rstn)
-    variable addr_end   : std_logic_vector( 12 downto 0               ); -- max end address LSB at INC mode (4kB check)
-    variable addr_strt  : std_logic_vector( AXI4_DATA_BYTE-1 downto 0 ); -- AXI LSB starting address
-    variable unsg_strb  : std_logic_vector( AXI4_DATA_BYTE-1 downto 0 ); -- unsigned number of bytes to skip
-    variable axi_size   : std_logic_vector( rd.axi_size'range         ); -- AXI size mode
-    variable axi_len    : std_logic_vector( rd.axi_len'range          ); -- AXI burst length
-    variable data_tmp   : std_logic_vector( AXI4_DATA_WIDTH-1 downto 0); -- Shifted read data
-    variable data_bm    : std_logic_vector( dbits-1 downto 0          ); -- Masked data for BM transfer
+    variable addr_end   : std_logic_vector( 12                   downto 0 ); -- max end address LSB at INC mode (4kB check)
+    variable addr_strt  : std_logic_vector( AXI4_DATA_BYTE-1     downto 0 ); -- AXI LSB starting address
+    variable unsg_strb  : std_logic_vector( AXI4_DATA_BYTE       downto 0 ); -- unsigned number of bytes to skip
+    variable axi_size   : std_logic_vector( rd.axi_size'range             ); -- AXI size mode
+    variable axi_len    : std_logic_vector( rd.axi_len'range              ); -- AXI burst length
+    variable data_tmp   : std_logic_vector( AXI4_DATA_WIDTH-1    downto 0 ); -- Shifted read data
+    variable data_bm    : std_logic_vector( rd.data_bus'length-1 downto 0 ); -- Masked data for BM transfer
   begin
     if (rstn = '0' and ASYNC_RST) then
       rd       <= RST_TRANSF_OP;

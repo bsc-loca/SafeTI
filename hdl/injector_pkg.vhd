@@ -29,8 +29,8 @@ package injector_pkg is
     constant AHB_TEST_WIDTH     : integer :=   4;   -- ahb_master_in testin width
 
     -- Common generics
-    constant BM_BURST_WIDTH     : integer range 3 to 12 := 10; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
-    constant INT_BURST_WIDTH    : integer range 4 to 11 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
+    constant BM_BURST_WIDTH     : integer range 3 to 12 := 12; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
+    constant INT_BURST_WIDTH    : integer range 4 to 13 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
     constant numTech            : integer :=  67;   -- Target technology
     constant typeTech           : integer :=   0;
 
@@ -425,6 +425,12 @@ package injector_pkg is
     );
 
   -------------------------------------------------------------------------------
+  -- Other types
+  -------------------------------------------------------------------------------
+
+  type array_integer          is array (natural range <>) of integer;
+
+  -------------------------------------------------------------------------------
   -- Subprograms
   -------------------------------------------------------------------------------
   function find_burst_size  (src_fixed_addr   : std_ulogic;
@@ -435,6 +441,9 @@ package injector_pkg is
 
   -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
   function log_2            (max_size         : integer) return integer;
+
+  -- Returns maximum value from an array of integers.
+  function max              (A : array_integer) return integer;
 
   -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
   function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
@@ -518,7 +527,7 @@ package injector_pkg is
     generic (
       dbits             : integer range 32 to  128  := 32;
       bm_bytes          : integer range  4 to   16  := 4;
-      MAX_SIZE_BEAT     : integer range 32 to 1024  := 1024;
+      MAX_SIZE_BEAT     : integer range 32 to 4096  := 1024;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -539,7 +548,7 @@ package injector_pkg is
     generic (
       dbits             : integer range 32 to  128  := 32;
       bm_bytes          : integer range  4 to   16  := 4;
-      MAX_SIZE_BEAT     : integer range 32 to 1024  := 1024;
+      MAX_SIZE_BEAT     : integer range 32 to 4096  := 1024;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -558,7 +567,7 @@ package injector_pkg is
   -- DELAY_IF
   component injector_delay_if is
     generic (
-      ASYNC_RST         : boolean                 := FALSE
+      ASYNC_RST         : boolean                   := FALSE
     );
     port (
       rstn              : in  std_ulogic;
@@ -598,7 +607,7 @@ package injector_pkg is
       pmask             : integer                           := 16#FF8#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
       dbits             : integer range 32 to  128          := 32;
-      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024;
+      MAX_SIZE_BEAT     : integer range 32 to 4096          := 1024;
       ASYNC_RST         : boolean                           := FALSE
       );
     port (
@@ -621,7 +630,7 @@ package injector_pkg is
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
       dbits             : integer range 32 to 128           := 32;
       hindex            : integer                           := 0;
-      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024;
+      MAX_SIZE_BEAT     : integer range 32 to 4096          := 1024;
       ASYNC_RST         : boolean                           := FALSE
       );
     port (
@@ -681,15 +690,28 @@ package body injector_pkg is
     return burst_size;
   end find_burst_size;
 
+    -- Maximum integer from an array of integers.
+    function max(A : array_integer) return integer is
+      variable temp : integer := 0;
+      variable k : integer := 0;
+    begin
+      for k in A'range loop
+        if(A(k) > temp) then
+          temp := A(k);
+        end if;
+      end loop;
+      return temp;
+    end max;
+
   -- Addition function between std_logic_vectors, outputs with length assigned
   function add_vector(
     A, B : std_logic_vector;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(unsigned(A) + unsigned(B));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) + unsigned(B), res'length));
+    return res(len - 1 downto 0);
   end add_vector;
 
   -- Addition function between std_logic_vector and integer, outputs with length assigned
@@ -698,10 +720,10 @@ package body injector_pkg is
     B : integer;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, len-1), len));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, res'length), res'length));
+    return res(len - 1 downto 0);
   end add_vector;
 
   -- Subtract function between std_logic_vectors, outputs with length assigned
@@ -709,10 +731,10 @@ package body injector_pkg is
     A, B : std_logic_vector;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(unsigned(A) - unsigned(B));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) - resize(unsigned(B), res'length), res'length));
+    return res(len - 1 downto 0);
   end sub_vector;
 
   -- Subtract function between std_logic_vector and integer, outputs with length assigned
@@ -721,10 +743,10 @@ package body injector_pkg is
     B : integer;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, len), len));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, res'length), res'length));
+    return res(len - 1 downto 0);
   end sub_vector;
 
   -- Subtract function between integer and std_logic_vector, outputs with length assigned
@@ -733,10 +755,10 @@ package body injector_pkg is
     B : std_logic_vector;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(to_unsigned(A, len) - unsigned(B), len));
-    return res;
+    res := std_logic_vector(to_unsigned(A, res'length) - resize(unsigned(B), res'length));
+    return res(len - 1 downto 0);
   end sub_vector;
 
   -- Function used to compute bus lengths. DO NOT attempt to use it as 

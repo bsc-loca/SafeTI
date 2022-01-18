@@ -28,7 +28,7 @@ entity injector_read_if is
   generic (
     dbits           : integer range 32 to  128  := 32;    -- Bus master front end data
     bm_bytes        : integer range  4 to   16  := 4;     -- bus master data width in bytes
-    MAX_SIZE_BEAT   : integer range 32 to 1024  := 1024;  -- Maximum size of a beat at a burst transaction.
+    MAX_SIZE_BEAT   : integer range 32 to 4096  := 1024;  -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
     );
   port (

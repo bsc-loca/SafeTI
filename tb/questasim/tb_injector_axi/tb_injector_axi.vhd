@@ -14,6 +14,7 @@ use bsc.injector_pkg.all;
 use bsc.tb_injector_pkg.all;
 use bsc.axi4_pkg.axi4_in_type;
 use bsc.axi4_pkg.axi4_out_type;
+use bsc.axi4_pkg.axi4_manager;
 use std.env.all; -- VHDL2008
 
 -----------------------------------------------------------------------------
@@ -34,7 +35,7 @@ entity tb_injector_axi is
     pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (default=6)
     -- Bus master configuration
     dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO (default=32)
-    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction. (default=1024)
+    MAX_SIZE_BEAT     : integer range 32 to 4096            := 4096;      -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     -- Injector configuration
     ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (default=FALSE)
     );
@@ -100,9 +101,34 @@ architecture rtl of tb_injector_axi is
 
 
   -----------------------------------------------------------------------------
-  -- Records and types
+  -- Function instantation
   -----------------------------------------------------------------------------
 
+  -- Switch BM connections to AXI4 manager interface.
+  procedure bm_axi_redirect( signal bm_in_component   : in  bsc.injector_pkg.bm_in_type;
+                             signal bm_out_interface  : in  bsc.axi4_pkg.bm_out_type;
+                             signal bm_in_interface   : out bsc.axi4_pkg.bm_in_type;
+                             signal bm_out_component  : out bsc.injector_pkg.bm_out_type
+                             ) is
+  begin
+    bm_in_interface.rd_addr         <= bm_in_component.rd_addr;
+    bm_in_interface.rd_size         <= bm_in_component.rd_size;
+    bm_in_interface.rd_req          <= bm_in_component.rd_req;
+    bm_in_interface.wr_addr         <= bm_in_component.wr_addr;
+    bm_in_interface.wr_size         <= bm_in_component.wr_size;
+    bm_in_interface.wr_req          <= bm_in_component.wr_req;
+    bm_in_interface.wr_data         <= bm_in_component.wr_data;
+
+    bm_out_component.rd_data       <= bm_out_interface.rd_data;
+    bm_out_component.rd_req_grant  <= bm_out_interface.rd_req_grant;
+    bm_out_component.rd_valid      <= bm_out_interface.rd_valid;
+    bm_out_component.rd_done       <= bm_out_interface.rd_done;
+    bm_out_component.rd_err        <= bm_out_interface.rd_err;
+    bm_out_component.wr_req_grant  <= bm_out_interface.wr_req_grant;
+    bm_out_component.wr_full       <= bm_out_interface.wr_full;
+    bm_out_component.wr_done       <= bm_out_interface.wr_done;
+    bm_out_component.wr_err        <= bm_out_interface.wr_err;
+  end procedure bm_axi_redirect;
 
 
   -----------------------------------------------------------------------------
@@ -116,11 +142,21 @@ architecture rtl of tb_injector_axi is
   signal apbi   : apb_slave_in_type := DEF_INJ_APB;
   signal apbo   : apb_slave_out_type;
 
-  signal bm_in  : bm_in_type;
-  signal bm_out : bm_out_type       := DEF_INJ_BM;
-
   signal axi4mi : axi4_in_type;
   signal axi4mo : axi4_out_type;
+
+  signal bm_axi_req_rd : std_logic;
+  signal bm_axi_req_wr : std_logic;
+
+  -- I/O Injector and AXI interface
+  signal bm_in_injector   : bsc.injector_pkg.bm_in_type;
+  signal bm_out_injector  : bsc.injector_pkg.bm_out_type;
+  signal bm_in_manager    : bsc.axi4_pkg.bm_in_type;
+  signal bm_out_manager   : bsc.axi4_pkg.bm_out_type;
+
+  -- Testbench BM I/O
+  signal bm_in  : bsc.injector_pkg.bm_in_type;
+  signal bm_out : bsc.injector_pkg.bm_out_type       := DEF_INJ_BM;
 
   -- APB configuration
   signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
@@ -138,88 +174,66 @@ architecture rtl of tb_injector_axi is
   -- Component instantiation
   -----------------------------------------------------------------------------
 
-  -- INJECTOR AXI4 top level interface
-  component injector_axi is
-    generic (
-      tech          : integer range 0 to numTech          := typeTech;
-      pindex        : integer                             := 0;
-      paddr         : integer                             := 0;
-      pmask         : integer                             := 16#FFF#;
-      pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 1;
-      dbits         : integer range 32 to  128            := 32;
-      axi_id        : integer                             := 0;
-      MAX_SIZE_BEAT : integer range 64 to 4096            := 1024 
-    );
-    port (
-      rstn          : in  std_ulogic;
-      clk           : in  std_ulogic;
-      apbi          : in  apb_slave_in_type;
-      apbo          : out apb_slave_out_type;
-      axi4mi        : in  axi4_in_type;
-      axi4mo        : out axi4_out_type
-    );
-  end component injector_axi;
-
   -- AXI4 subordinate memory wrapper
   component subordinate_v1_0 is
-  generic (
-    C_S00_AXI_ID_WIDTH     : integer := 1;
-    C_S00_AXI_DATA_WIDTH   : integer := 32;
-    C_S00_AXI_ADDR_WIDTH   : integer := 10;
-    C_S00_AXI_AWUSER_WIDTH : integer := 0;
-    C_S00_AXI_ARUSER_WIDTH : integer := 0;
-    C_S00_AXI_WUSER_WIDTH  : integer := 0;
-    C_S00_AXI_RUSER_WIDTH  : integer := 0;
-    C_S00_AXI_BUSER_WIDTH  : integer := 0
-  );
-  port (
-    s00_axi_aclk       : in  std_ulogic;
-    s00_axi_aresetn   : in  std_ulogic;
-    s00_axi_awid       : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-    s00_axi_awaddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
-    s00_axi_awlen     : in  std_logic_vector(7 downto 0);
-    s00_axi_awsize    : in  std_logic_vector(2 downto 0);
-    s00_axi_awburst   : in  std_logic_vector(1 downto 0);
-    s00_axi_awlock    : in  std_logic;
-    s00_axi_awcache   : in  std_logic_vector(3 downto 0);
-    s00_axi_awprot    : in  std_logic_vector(2 downto 0);
-    s00_axi_awqos     : in  std_logic_vector(3 downto 0);
-    s00_axi_awregion  : in  std_logic_vector(3 downto 0);
-    s00_axi_awuser    : in  std_logic_vector(C_S00_AXI_AWUSER_WIDTH-1 downto 0);
-    s00_axi_awvalid   : in  std_logic;
-    s00_axi_awready   : out std_logic;
-    s00_axi_wdata     : in  std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
-    s00_axi_wstrb     : in  std_logic_vector((C_S00_AXI_DATA_WIDTH/8)-1 downto 0);
-    s00_axi_wlast     : in  std_logic;
-    s00_axi_wuser     : in  std_logic_vector(C_S00_AXI_WUSER_WIDTH-1 downto 0);
-    s00_axi_wvalid    : in  std_logic;
-    s00_axi_wready    : out std_logic;
-    s00_axi_bid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-    s00_axi_bresp     : out std_logic_vector(1 downto 0);
-    s00_axi_buser     : out std_logic_vector(C_S00_AXI_BUSER_WIDTH-1 downto 0);
-    s00_axi_bvalid    : out std_logic;
-    s00_axi_bready    : in  std_logic;
-    s00_axi_arid      : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-    s00_axi_araddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
-    s00_axi_arlen     : in  std_logic_vector(7 downto 0);
-    s00_axi_arsize    : in  std_logic_vector(2 downto 0);
-    s00_axi_arburst   : in  std_logic_vector(1 downto 0);
-    s00_axi_arlock    : in  std_logic;
-    s00_axi_arcache   : in  std_logic_vector(3 downto 0);
-    s00_axi_arprot    : in  std_logic_vector(2 downto 0);
-    s00_axi_arqos     : in  std_logic_vector(3 downto 0);
-    s00_axi_arregion  : in  std_logic_vector(3 downto 0);
-    s00_axi_aruser    : in  std_logic_vector(C_S00_AXI_ARUSER_WIDTH-1 downto 0);
-    s00_axi_arvalid   : in  std_logic;
-    s00_axi_arready   : out std_logic;
-    s00_axi_rid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
-    s00_axi_rdata     : out std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
-    s00_axi_rresp     : out std_logic_vector(1 downto 0);
-    s00_axi_rlast     : out std_logic;
-    s00_axi_ruser     : out std_logic_vector(C_S00_AXI_RUSER_WIDTH-1 downto 0);
-    s00_axi_rvalid    : out std_logic;
-    s00_axi_rready    : in  std_logic
-  );
+    generic (
+      C_S00_AXI_ID_WIDTH     : integer := 1;
+      C_S00_AXI_DATA_WIDTH   : integer := 32;
+      C_S00_AXI_ADDR_WIDTH   : integer := 10;
+      C_S00_AXI_AWUSER_WIDTH : integer := 0;
+      C_S00_AXI_ARUSER_WIDTH : integer := 0;
+      C_S00_AXI_WUSER_WIDTH  : integer := 0;
+      C_S00_AXI_RUSER_WIDTH  : integer := 0;
+      C_S00_AXI_BUSER_WIDTH  : integer := 0
+    );
+    port (
+      s00_axi_aclk      : in  std_ulogic;
+      s00_axi_aresetn   : in  std_ulogic;
+      s00_axi_awid      : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+      s00_axi_awaddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
+      s00_axi_awlen     : in  std_logic_vector(7 downto 0);
+      s00_axi_awsize    : in  std_logic_vector(2 downto 0);
+      s00_axi_awburst   : in  std_logic_vector(1 downto 0);
+      s00_axi_awlock    : in  std_logic;
+      s00_axi_awcache   : in  std_logic_vector(3 downto 0);
+      s00_axi_awprot    : in  std_logic_vector(2 downto 0);
+      s00_axi_awqos     : in  std_logic_vector(3 downto 0);
+      s00_axi_awregion  : in  std_logic_vector(3 downto 0);
+      s00_axi_awuser    : in  std_logic_vector(C_S00_AXI_AWUSER_WIDTH-1 downto 0);
+      s00_axi_awvalid   : in  std_logic;
+      s00_axi_awready   : out std_logic;
+      s00_axi_wdata     : in  std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
+      s00_axi_wstrb     : in  std_logic_vector((C_S00_AXI_DATA_WIDTH/8)-1 downto 0);
+      s00_axi_wlast     : in  std_logic;
+      s00_axi_wuser     : in  std_logic_vector(C_S00_AXI_WUSER_WIDTH-1 downto 0);
+      s00_axi_wvalid    : in  std_logic;
+      s00_axi_wready    : out std_logic;
+      s00_axi_bid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+      s00_axi_bresp     : out std_logic_vector(1 downto 0);
+      s00_axi_buser     : out std_logic_vector(C_S00_AXI_BUSER_WIDTH-1 downto 0);
+      s00_axi_bvalid    : out std_logic;
+      s00_axi_bready    : in  std_logic;
+      s00_axi_arid      : in  std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+      s00_axi_araddr    : in  std_logic_vector(C_S00_AXI_ADDR_WIDTH-1 downto 0);
+      s00_axi_arlen     : in  std_logic_vector(7 downto 0);
+      s00_axi_arsize    : in  std_logic_vector(2 downto 0);
+      s00_axi_arburst   : in  std_logic_vector(1 downto 0);
+      s00_axi_arlock    : in  std_logic;
+      s00_axi_arcache   : in  std_logic_vector(3 downto 0);
+      s00_axi_arprot    : in  std_logic_vector(2 downto 0);
+      s00_axi_arqos     : in  std_logic_vector(3 downto 0);
+      s00_axi_arregion  : in  std_logic_vector(3 downto 0);
+      s00_axi_aruser    : in  std_logic_vector(C_S00_AXI_ARUSER_WIDTH-1 downto 0);
+      s00_axi_arvalid   : in  std_logic;
+      s00_axi_arready   : out std_logic;
+      s00_axi_rid       : out std_logic_vector(C_S00_AXI_ID_WIDTH-1 downto 0);
+      s00_axi_rdata     : out std_logic_vector(C_S00_AXI_DATA_WIDTH-1 downto 0);
+      s00_axi_rresp     : out std_logic_vector(1 downto 0);
+      s00_axi_rlast     : out std_logic;
+      s00_axi_ruser     : out std_logic_vector(C_S00_AXI_RUSER_WIDTH-1 downto 0);
+      s00_axi_rvalid    : out std_logic;
+      s00_axi_rready    : in  std_logic
+    );
   end component subordinate_v1_0;
 
 begin  -- rtl
@@ -230,6 +244,8 @@ begin  -- rtl
 
   -- Clock generation
     clk <= not clk after T/2;
+
+
   
   -----------------------------------------------------------------------------
   -- Sequential process
@@ -252,13 +268,18 @@ begin  -- rtl
 
     -- Load descriptors for test 1
     report "Test 1: Loading descriptor batch!";
+      -- Change BM connections to testbench, so no AXI communication is established
+    bm_in           <= bm_in_injector;
+    bm_out_injector <= bm_out;
     load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
 
     -- Test all descriptors from TEST 1 once
+      -- Change BM connections to AXI manager, to establish AXI communication and transaction.
+    bm_axi_redirect(bm_in_injector, bm_out_manager, bm_in_manager, bm_out_injector);
     test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl);
+    --test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully twice!";
 
 
@@ -294,19 +315,19 @@ begin  -- rtl
 
     -- Load descriptors for test 2 write
     report "Test 2: Loading write descriptor batch!";
-    load_descriptors(clk, descriptors2w, descr_addr2w, bm_in, bm_out);
+    --load_descriptors(clk, descriptors2w, descr_addr2w, bm_in, bm_out);
 
     -- Test all descriptors from TEST 2 write
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl); 
+    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor write batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
     for i in 0 to 9 loop
       wait until rising_edge(clk); 
     end loop;
-    assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
-                                      & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
-                                      & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
+    --assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
+    --                                  & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
+    --                                  & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
 
     -- To reset loaded descriptors, it is required to use the reset low input
     rstn        <= '0';
@@ -320,19 +341,19 @@ begin  -- rtl
 
     -- Load descriptors for test 2 read
     report "Test 2: Loading read descriptor batch!";
-    load_descriptors(clk, descriptors2r, descr_addr2r, bm_in, bm_out);
+    --load_descriptors(clk, descriptors2r, descr_addr2r, bm_in, bm_out);
 
     -- Test all descriptors from TEST 2 read
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl); 
+    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BEAT, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor read batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
     for i in 0 to 9 loop
       wait until rising_edge(clk); 
     end loop;
-    assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
-                                      & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
-                                      & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
+    --assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
+    --                                  & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
+    --                                  & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
 
     -- To reset loaded descriptors, it is required to use the reset low input
     rstn        <= '0';
@@ -348,71 +369,86 @@ begin  -- rtl
 
 
   -- Counters used to count how many clk cycles X signals get stuck
-  interrupt_test : process(clk)
-  begin 
-    if(clk = '1' and clk'event) then
-      -- Increment counters if the signal stays asserted
-      if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
-        else limit_rd_req_grant <= 0; end if;
-      if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
-        else limit_wr_req_grant <= 0; end if;
-      if(bm_in.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
-        else limit_rd_req <= 0; end if;
-      if(bm_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
-        else limit_wr_req <= 0; end if;
-      if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
-        else limit_descr_compl <= 0; end if;
-    end if;
+  -- interrupt_test : process(clk)
+  -- begin 
+  --   if(clk = '1' and clk'event) then
+  --     -- Increment counters if the signal stays asserted
+  --     if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
+  --       else limit_rd_req_grant <= 0; end if;
+  --     if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
+  --       else limit_wr_req_grant <= 0; end if;
+  --     if(bm_in.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
+  --       else limit_rd_req <= 0; end if;
+  --     if(bm_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
+  --       else limit_wr_req <= 0; end if;
+  --     if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
+  --       else limit_descr_compl <= 0; end if;
+  --   end if;
 
-    -- Crash test with error if something gets stuck for Y threshold
-    if(
-      limit_rd_req_grant > req_threshold or
-      limit_wr_req_grant > req_threshold
-    ) then
-      assert FALSE report "TEST GOT STUCK DUE TO REQUEST NOT BEING GRANTED!" severity failure;
-    end if;
+  --   -- Crash test with error if something gets stuck for Y threshold
+  --   if(
+  --     limit_rd_req_grant > req_threshold or
+  --     limit_wr_req_grant > req_threshold
+  --   ) then
+  --     assert FALSE report "TEST GOT STUCK DUE TO REQUEST NOT BEING GRANTED!" severity failure;
+  --   end if;
 
-    if(
-      limit_rd_req       > req_threshold or
-      limit_wr_req       > req_threshold
-    ) then
-      assert FALSE report "TEST GOT STUCK DUE TO INJECTOR NOT REQUESTING TRANSACTION!" severity failure;
-    end if;
+  --   if(
+  --     limit_rd_req       > req_threshold or
+  --     limit_wr_req       > req_threshold
+  --   ) then
+  --     assert FALSE report "TEST GOT STUCK DUE TO INJECTOR NOT REQUESTING TRANSACTION!" severity failure;
+  --   end if;
 
-    if(
-      limit_descr_compl > descr_compl_thereshold
-    ) then
-      assert FALSE report "The testbench has finished descriptor but the injector has not set the completion flag (apbo.irq is 0)." severity failure;
-    end if;
+  --   if(
+  --     limit_descr_compl > descr_compl_thereshold
+  --   ) then
+  --     assert FALSE report "The testbench has finished descriptor but the injector has not set the completion flag (apbo.irq is 0)." severity failure;
+  --   end if;
 
-  end process interrupt_test;
+  -- end process interrupt_test;
 
 
   -----------------------------------------------------------------------------
   -- Component instantiation
   -----------------------------------------------------------------------------
 
-  -- AXI4 manager interface + injector core
-  AXI_M0 : injector_axi
+  -- injector core
+  core : injector
+    generic map (
+      pindex        => pindex,
+      paddr         => paddr,
+      pmask         => pmask,
+      pirq          => pirq,
+      dbits         => dbits,
+      MAX_SIZE_BEAT => MAX_SIZE_BEAT,
+      ASYNC_RST     => false
+    )
+    port map (
+      rstn          => rstn,
+      clk           => clk,
+      apbi          => apbi,
+      apbo          => apbo,
+      bm0_in        => bm_in_injector,
+      bm0_out       => bm_out_injector
+    );
+
+  -- AXI4 Manager interface
+  axi4M : axi4_manager
   generic map (
-    pindex        => pindex,
-    paddr         => paddr,
-    pmask         => pmask,
-    pirq          => pirq,
     dbits         => dbits,
-    axi_id        => 0,
     MAX_SIZE_BEAT => MAX_SIZE_BEAT
-    
   )
   port map (
     rstn          => rstn,
     clk           => clk,
-    apbi          => apbi,
-    apbo          => apbo,
     axi4mi        => axi4mi,
-    axi4mo        => axi4mo
+    axi4mo        => axi4mo,
+    bm_in         => bm_in_manager,
+    bm_out        => bm_out_manager
   );
 
+  -- AXI4 subordinate memory 1024 bytes
   AXI_S0 : subordinate_v1_0
   generic map (
     C_S00_AXI_ID_WIDTH      => axi4mo.aw_id'length,

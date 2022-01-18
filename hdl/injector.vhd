@@ -24,7 +24,7 @@ entity injector is
     pirq          : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
     -- Bus master configuration
     dbits         : integer range 32 to 128           := 32;        -- Data width of BM and FIFO
-    MAX_SIZE_BEAT : integer range 32 to 1024          := 1024;      -- Maximum size of a beat at a burst transaction.     
+    MAX_SIZE_BEAT : integer range 32 to 4096          := 1024;      -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     -- Injector configuration
     ASYNC_RST     : boolean                           := FALSE      -- Allow asynchronous reset
     );

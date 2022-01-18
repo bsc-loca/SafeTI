@@ -18,7 +18,7 @@ package axi4_pkg is
   constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
   constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus
   -- Common generics
-  constant BM_BURST_WIDTH     : integer range  3 to   12  := 10;  -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
+  constant BM_BURST_WIDTH     : integer range  3 to   12  := 12;  -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
 
   -----------------------------------------------------------------------------
   -- Records and types
@@ -114,8 +114,11 @@ package axi4_pkg is
   -- Subprograms
   -------------------------------------------------------------------------------
 
+  -- Returns maximum value from an array of integers.
+  function max              (A : array_integer) return integer;
+
   -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
-  function log_2            (max_size         : integer) return integer;
+  function log_2            (max_size : integer) return integer;
 
   -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
   function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
@@ -157,15 +160,15 @@ end package axi4_pkg;
 
 package body axi4_pkg is
 
-    -- Addition function between std_logic_vectors, outputs with length assigned
+  -- Addition function between std_logic_vectors, outputs with length assigned
   function add_vector(
     A, B : std_logic_vector;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(unsigned(A) + unsigned(B));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) + unsigned(B), res'length));
+    return res(len - 1 downto 0);
   end add_vector;
 
   -- Addition function between std_logic_vector and integer, outputs with length assigned
@@ -174,10 +177,10 @@ package body axi4_pkg is
     B : integer;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, len-1), len));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, res'length), res'length));
+    return res(len - 1 downto 0);
   end add_vector;
 
   -- Subtract function between std_logic_vectors, outputs with length assigned
@@ -185,10 +188,10 @@ package body axi4_pkg is
     A, B : std_logic_vector;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(unsigned(A) - unsigned(B));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) - resize(unsigned(B), res'length), res'length));
+    return res(len - 1 downto 0);
   end sub_vector;
 
   -- Subtract function between std_logic_vector and integer, outputs with length assigned
@@ -197,10 +200,10 @@ package body axi4_pkg is
     B : integer;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, len), len));
-    return res;
+    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, res'length), res'length));
+    return res(len - 1 downto 0);
   end sub_vector;
 
   -- Subtract function between integer and std_logic_vector, outputs with length assigned
@@ -209,10 +212,10 @@ package body axi4_pkg is
     B : std_logic_vector;
     len : natural) 
   return std_logic_vector is
-    variable res : std_logic_vector(len - 1 downto 0);
+    variable res : std_logic_vector(max((len, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(to_unsigned(A, len) - unsigned(B), len));
-    return res;
+    res := std_logic_vector(to_unsigned(A, res'length) - resize(unsigned(B), res'length));
+    return res(len - 1 downto 0);
   end sub_vector;
 
   -- Function used to compute bus lengths. DO NOT attempt to use it as 
@@ -226,6 +229,7 @@ package body axi4_pkg is
     return res;
   end log_2;
 
+  -- OR function of all the bits in a std_logic_vector.
   function or_vector(vect : std_logic_vector) return std_logic is
     variable wool  : std_logic;
   begin
@@ -236,6 +240,7 @@ package body axi4_pkg is
     return wool;
   end or_vector;
 
+  -- Boolean to std_logic function.
   function to_std_logic(wool : boolean) return std_logic is
     variable logic : std_logic;
   begin
@@ -244,5 +249,19 @@ package body axi4_pkg is
     end if;
     return logic;
   end to_std_logic;
+
+  -- Maximum integer from an array of integers.
+  function max(A : array_integer) return integer is
+    variable temp : integer := 0;
+    variable k : integer := 0;
+  begin
+    for k in A'range loop
+      if(A(k) > temp) then
+        temp := A(k);
+      end if;
+    end loop;
+    return temp;
+  end max;
+
 
 end package body axi4_pkg;
