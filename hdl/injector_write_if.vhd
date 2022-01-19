@@ -24,9 +24,6 @@ use bsc.injector_pkg.all;
 
 entity injector_write_if is
   generic (
-    dbits           : integer range 32 to  128  := 32;    -- Bus master front end data
-    bm_bytes        : integer range  4 to   16  := 4;     -- bus master data width in bytes
-    MAX_SIZE_BEAT   : integer range 32 to 4096  := 1024;  -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
     );
   port (
@@ -56,17 +53,11 @@ architecture rtl of injector_write_if is
   -- Constant declaration
   -----------------------------------------------------------------------------
 
-  -- Reset configuration
-  --constant ASYNC_RST          : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
-
   -- Constants for injector_write_if present state
   constant WRITE_IF_IDLE      : std_logic_vector(4 downto 0) := "01000"; -- 0x08
   constant WRITE_IF_FIRST_W   : std_logic_vector(4 downto 0) := "01001"; -- 0x09
   constant WRITE_IF_BURST     : std_logic_vector(4 downto 0) := "01010"; -- 0x0A
   constant WRITE_IF_CHECK     : std_logic_vector(4 downto 0) := "01011"; -- 0x0B
-
-  -- Constant for bit - byte manipulation
-  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;  -- Register width for maximum byte size at a burst
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -87,7 +78,7 @@ architecture rtl of injector_write_if is
     write_if_state    : write_if_state_type;                    -- WRITE_IF states
     sts               : d_ex_sts_out_type;                      -- WRITE_IF status signals
     tot_size          : std_logic_vector(18 downto 0);          -- Total size of data to write 
-    curr_size         : std_logic_vector(BURST_BUS_WIDTH-1 downto 0); -- Remaining size in the burst, to be written
+    curr_size         : std_logic_vector(INT_BURST_WIDTH-1 downto 0); -- Remaining size in the burst, to be written
     inc               : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_wr_busy      : std_ulogic;                             -- bus master write busy
     err_state         : std_logic_vector(4 downto 0);           -- Error state
@@ -121,7 +112,7 @@ begin
   
   comb : process (write_if_bmi, r, d_des_in, write_if_start, err_sts_in)
     variable v             : write_if_reg_type;
-    variable sz_aftr_write : std_logic_vector(BURST_BUS_WIDTH-2 downto 0);  -- Index for data remaining to be transferred
+    variable sz_aftr_write : std_logic_vector(INT_BURST_WIDTH-2 downto 0);  -- Index for data remaining to be transferred
     variable err           : std_logic_vector(2 downto 0);   -- error variable
     
   begin
@@ -152,7 +143,7 @@ begin
           end if;
           v.curr_size := find_burst_size(src_fixed_addr       => d_des_in.ctrl.src_fix_adr,
                                               dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                              max_bsize       => MAX_SIZE_BEAT,
+                                              max_bsize       => MAX_SIZE_BURST,
                                               total_size      => d_des_in.ctrl.size
                                               );
           v.write_if_state := first_word;
@@ -227,7 +218,7 @@ begin
             if or_vector(r.tot_size) /= '0' then --Start again if there are remaining bytes
               v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                              dest_fixed_addr  => d_des_in.ctrl.dest_fix_adr,
-                                             max_bsize        => MAX_SIZE_BEAT,
+                                             max_bsize        => MAX_SIZE_BURST,
                                              total_size       => r.tot_size
                                              );
               v.write_if_state  := first_word;

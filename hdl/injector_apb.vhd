@@ -21,7 +21,6 @@ entity injector_apb is
     paddr       : integer                           := 0;         -- APB configuartion slave address
     pmask       : integer                           := 16#FFF#;   -- APB configuartion slave mask
     pirq        : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
-    dbits       : integer range 32 to 128           := 32;        -- Data width of BM
     ASYNC_RST   : boolean                           := FALSE      -- Allow asynchronous reset flag
     );
   port (

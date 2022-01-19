@@ -18,10 +18,13 @@ use ieee.numeric_std.all;
 
 
 package injector_pkg is
+  -- User parameters START --
+
     -- APB bus generics
     constant APB_SLAVE_NMAX     : integer :=  16;   -- Max number of slaves at APB bus
     constant APB_IRQ_NMAX       : integer :=  32;   -- Max number of interrupts at APB bus
     constant APB_TEST_WIDTH     : integer :=   4;   -- apb_slave_in test in enable (tinen)
+
     -- AHB bus generics
     constant AHB_MASTER_NMAX    : integer :=  16;   -- Max number of masters at AHB bus
     constant AHB_IRQ_NMAX       : integer :=  32;   -- Max number of interrupts at APB bus
@@ -29,10 +32,20 @@ package injector_pkg is
     constant AHB_TEST_WIDTH     : integer :=   4;   -- ahb_master_in testin width
 
     -- Common generics
-    constant BM_BURST_WIDTH     : integer range 3 to 12 := 12; -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
-    constant INT_BURST_WIDTH    : integer range 4 to 13 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
+    constant dbits              : integer range 32 to  128 := 32;   -- Data width of BM and FIFO at injector
+    constant MAX_SIZE_BURST     : integer range 32 to 4096 := 4096; -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
+    constant BM_BURST_WIDTH     : integer range  5 to   12 := 12;   -- Bus width for burst size. Change it manually to be log2(MAX_SIZE_BURST).
     constant numTech            : integer :=  67;   -- Target technology
     constant typeTech           : integer :=   0;
+
+  -- User parameters END --
+
+-------------------------------------------------------------------------------
+-- Parametric constants
+-------------------------------------------------------------------------------
+
+  constant INT_BURST_WIDTH    : integer range  4 to 13 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
+  constant bm_bytes           : integer range  4 to 16 := dbits/8; -- Number of bytes in dbits.
 
 -------------------------------------------------------------------------------
 -- Types and records
@@ -425,7 +438,7 @@ package injector_pkg is
     );
 
   -------------------------------------------------------------------------------
-  -- Other types
+  -- Types required by subprograms
   -------------------------------------------------------------------------------
 
   type array_integer          is array (natural range <>) of integer;
@@ -454,12 +467,11 @@ package injector_pkg is
 
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
-
-
   
   -------------------------------------------------------------------------------
   -- Components
   -------------------------------------------------------------------------------
+
   -- INJECTOR APB interface
   component injector_apb is
     generic (
@@ -467,7 +479,6 @@ package injector_pkg is
       paddr             : integer                 := 0;
       pmask             : integer                 := 16#FF8#;
       pirq              : integer                 := 0;
-      dbits             : integer range 32 to 128 := 32;
       ASYNC_RST         : boolean                 := FALSE
       );
     port (
@@ -483,13 +494,12 @@ package injector_pkg is
       curr_desc_in      : in  curr_des_out_type;
       curr_desc_ptr     : in  std_logic_vector(31 downto 0);
       sts_in            : in  status_out_type
-          );
+      );
   end component injector_apb;
 
   -- Control Module
   component injector_ctrl is
     generic (
-      dbits             : integer range 32 to 128 := 32;
       fifo_size         : integer range 1 to 16   := 8;
       ASYNC_RST         : boolean                 := FALSE
       );
@@ -525,9 +535,6 @@ package injector_pkg is
   -- WRITE_IF
   component injector_write_if is
     generic (
-      dbits             : integer range 32 to  128  := 32;
-      bm_bytes          : integer range  4 to   16  := 4;
-      MAX_SIZE_BEAT     : integer range 32 to 4096  := 1024;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -546,9 +553,6 @@ package injector_pkg is
    -- READ_IF
   component injector_read_if is
     generic (
-      dbits             : integer range 32 to  128  := 32;
-      bm_bytes          : integer range  4 to   16  := 4;
-      MAX_SIZE_BEAT     : integer range 32 to 4096  := 1024;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -568,7 +572,7 @@ package injector_pkg is
   component injector_delay_if is
     generic (
       ASYNC_RST         : boolean                   := FALSE
-    );
+      );
     port (
       rstn              : in  std_ulogic;
       clk               : in  std_ulogic;
@@ -582,20 +586,20 @@ package injector_pkg is
 
   component fifo is
     generic (
-        RAM_LENGTH      : integer := 8;
-        BUS_LENGTH      : integer := 160
-    );
+      RAM_LENGTH      : integer := 8;
+      BUS_LENGTH      : integer := 160
+      );
     port(
-        clk             : in  std_logic;
-        rstn            : in  std_logic;
-        write_i         : in  std_logic;
-        read_i          : in  std_logic;
-        read_rst_i      : in  std_logic;
-        full_o          : out std_logic;
-        comp_o          : out std_logic;
-        wdata_i         : in  std_logic_vector(BUS_LENGTH-1 downto 0);
-        rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0)
-    );
+      clk             : in  std_logic;
+      rstn            : in  std_logic;
+      write_i         : in  std_logic;
+      read_i          : in  std_logic;
+      read_rst_i      : in  std_logic;
+      full_o          : out std_logic;
+      comp_o          : out std_logic;
+      wdata_i         : in  std_logic_vector(BUS_LENGTH-1 downto 0);
+      rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0)
+      );
   end component fifo;
 
 
@@ -606,8 +610,6 @@ package injector_pkg is
       paddr             : integer                           := 0;
       pmask             : integer                           := 16#FF8#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
-      dbits             : integer range 32 to  128          := 32;
-      MAX_SIZE_BEAT     : integer range 32 to 4096          := 1024;
       ASYNC_RST         : boolean                           := FALSE
       );
     port (
@@ -628,9 +630,7 @@ package injector_pkg is
       paddr             : integer                           := 0;
       pmask             : integer                           := 16#FFF#;
       pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
-      dbits             : integer range 32 to 128           := 32;
       hindex            : integer                           := 0;
-      MAX_SIZE_BEAT     : integer range 32 to 4096          := 1024;
       ASYNC_RST         : boolean                           := FALSE
       );
     port (

@@ -14,6 +14,8 @@ use bsc.injector_pkg.numTech;
 use bsc.injector_pkg.typeTech;
 use bsc.injector_pkg.APB_IRQ_NMAX;
 use bsc.injector_pkg.injector;
+use bsc.injector_pkg.dbits;
+use bsc.injector_pkg.MAX_SIZE_BURST;
 use bsc.axi4_pkg.all;
 
 -----------------------------------------------------------------------------
@@ -30,11 +32,8 @@ entity injector_axi is
     paddr         : integer                             := 0;       -- APB configuartion slave address
     pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
     pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 1;       -- APB configuartion slave irq
-    -- Bus master configuration
-    dbits         : integer range 32 to  128            := 32;      -- Data width of BM and FIFO (must be a power of 2)
     -- AXI Master configuration
-    axi_id        : integer                             := 0;       -- AXI master index
-    MAX_SIZE_BEAT : integer range 64 to 4096            := 1024     -- Maximum size of a beat at a burst transaction.
+    axi_id        : integer                             := 0        -- AXI master index
     
   );
   port (
@@ -93,35 +92,35 @@ begin
   -- injector core
   core : injector
     generic map (
-      pindex        => pindex,
-      paddr         => paddr,
-      pmask         => pmask,
-      pirq          => pirq,
-      dbits         => dbits,
-      MAX_SIZE_BEAT => MAX_SIZE_BEAT,
-      ASYNC_RST     => false
+      pindex          => pindex,
+      paddr           => paddr,
+      pmask           => pmask,
+      pirq            => pirq,
+      ASYNC_RST       => FALSE
     )
     port map (
-      rstn          => rstn,
-      clk           => clk,
-      apbi          => apbi,
-      apbo          => apbo,
-      bm0_in        => bm_in_injector,
-      bm0_out       => bm_out_injector
+      rstn            => rstn,
+      clk             => clk,
+      apbi            => apbi,
+      apbo            => apbo,
+      bm0_in          => bm_in_injector,
+      bm0_out         => bm_out_injector
     );
 
   axi4M : axi4_manager
     generic map (
-      dbits         => dbits,
-      MAX_SIZE_BEAT => MAX_SIZE_BEAT
+      dbits           => dbits,
+      axi_id          => 0,
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
+      ASYNC_RST       => FALSE
     )
     port map (
-      rstn          => rstn,
-      clk           => clk,
-      axi4mi        => axi4mi,
-      axi4mo        => axi4mo,
-      bm_in         => bm_in_manager,
-      bm_out        => bm_out_manager
+      rstn            => rstn,
+      clk             => clk,
+      axi4mi          => axi4mi,
+      axi4mo          => axi4mo,
+      bm_in           => bm_in_manager,
+      bm_out          => bm_out_manager
     );
 
 end architecture rtl;

@@ -25,9 +25,7 @@ entity injector_ahb is
     pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask
     pirq              : integer range  0 to APB_IRQ_NMAX-1  := 1;         -- APB configuartion slave irq
     -- Bus master configuration
-    dbits             : integer range 32 to 128             := 32;        -- Data width of BM and FIFO    
     hindex            : integer                             := 0;         -- AHB master index
-    MAX_SIZE_BEAT     : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction.
     -- Injector configuration
     ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag
     );
@@ -79,8 +77,7 @@ begin  -- rtl
       paddr         => paddr,
       pmask         => pmask,
       pirq          => pirq,
-      dbits         => dbits,
-      MAX_SIZE_BEAT => MAX_SIZE_BEAT
+      ASYNC_RST     => ASYNC_RST
       )
     port map (
       rstn    => rstn,

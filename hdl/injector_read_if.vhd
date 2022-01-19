@@ -26,9 +26,6 @@ use bsc.injector_pkg.all;
 
 entity injector_read_if is
   generic (
-    dbits           : integer range 32 to  128  := 32;    -- Bus master front end data
-    bm_bytes        : integer range  4 to   16  := 4;     -- bus master data width in bytes
-    MAX_SIZE_BEAT   : integer range 32 to 4096  := 1024;  -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
     );
   port (
@@ -53,21 +50,15 @@ end entity injector_read_if;
 architecture rtl of injector_read_if is
   attribute sync_set_reset         : string;
   attribute sync_set_reset of rstn : signal is "true";
+
   -----------------------------------------------------------------------------
   -- Constant declaration
   -----------------------------------------------------------------------------
-
-  -- Reset configuration
-  --constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
   -- Constants for read_if present state
   constant READ_IF_IDLE       : std_logic_vector(4 downto 0) := "00101"; -- 0x05
   constant READ_IF_EXEC       : std_logic_vector(4 downto 0) := "00110"; -- 0x06
   constant READ_IF_DATA_READ  : std_logic_vector(4 downto 0) := "00111"; -- 0x07
-
-  -- Bus master interface front end width in bytes := dbits/8
-  constant BURST_BUS_WIDTH    : integer := log_2(MAX_SIZE_BEAT)+1;-- Maximum BM interface data size
-                                                                  -- in single burst is 1024 bytes
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -92,7 +83,7 @@ architecture rtl of injector_read_if is
     read_if_state       : read_if_state_type;                     -- READ_IF states
     sts                 : d_ex_sts_out_type;                      -- M2b status signals 
     tot_size            : std_logic_vector(18 downto 0);          -- Total size of data to read
-    curr_size           : std_logic_vector(BURST_BUS_WIDTH-1 downto 0); -- Remaining size in the burst, to be read
+    curr_size           : std_logic_vector(INT_BURST_WIDTH-1 downto 0); -- Remaining size in the burst, to be read
     inc                 : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_rd_busy        : std_ulogic;                             -- bus master read busy
     bmst_rd_err         : std_ulogic;                             -- bus master read error
@@ -162,7 +153,7 @@ begin
           end if;
           v.curr_size := find_burst_size(src_fixed_addr         => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                                max_bsize       => MAX_SIZE_BEAT,
+                                                max_bsize       => MAX_SIZE_BURST,
                                                 total_size      => d_des_in.ctrl.size
                                                 );
           v.read_if_state := exec_data_desc;
@@ -219,7 +210,7 @@ begin
               if or_vector(remaining) /= '0' then
                 v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                                max_bsize       => MAX_SIZE_BEAT,
+                                                max_bsize       => MAX_SIZE_BURST,
                                                 total_size      => remaining
                                                 );
                 v.bmst_rd_busy  := '0';

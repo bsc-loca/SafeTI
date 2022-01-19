@@ -22,9 +22,6 @@ entity injector is
     paddr         : integer                           := 0;         -- APB configuartion slave address
     pmask         : integer                           := 16#FFF#;   -- APB configuartion slave mask
     pirq          : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
-    -- Bus master configuration
-    dbits         : integer range 32 to 128           := 32;        -- Data width of BM and FIFO
-    MAX_SIZE_BEAT : integer range 32 to 4096          := 1024;      -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     -- Injector configuration
     ASYNC_RST     : boolean                           := FALSE      -- Allow asynchronous reset
     );
@@ -52,10 +49,7 @@ architecture rtl of injector is
 
   attribute sync_set_reset         : string;
   attribute sync_set_reset of rstn : signal is "true";
-  -- Constant for bit - byte manipulation
-  constant SHIFT_BIT               : natural := 3;
-  constant bm_bytes                : integer := to_integer(shift_right(unsigned(std_logic_vector(to_unsigned(dbits, 9))), SHIFT_BIT));
-   
+
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------  
@@ -114,7 +108,6 @@ begin  -- rtl
       paddr           => paddr,
       pmask           => pmask,
       pirq            => pirq,
-      dbits           => dbits,
       ASYNC_RST       => ASYNC_RST
     )
     port map (
@@ -135,9 +128,6 @@ begin  -- rtl
   -- READ_IF
   read_if : injector_read_if
     generic map (
-      dbits           => dbits,
-      bm_bytes        => bm_bytes,
-      MAX_SIZE_BEAT   => MAX_SIZE_BEAT,
       ASYNC_RST       => ASYNC_RST
       )
     port map (
@@ -155,9 +145,6 @@ begin  -- rtl
   -- WRITE_IF
   write_if : injector_write_if
     generic map (
-      dbits           => dbits,
-      bm_bytes        => bm_bytes,
-      MAX_SIZE_BEAT   => MAX_SIZE_BEAT,
       ASYNC_RST       => ASYNC_RST
       )
     port map (
@@ -191,7 +178,6 @@ begin  -- rtl
   -- Control module
   ctrl : injector_ctrl
     generic map (
-      dbits           => dbits,
       ASYNC_RST       => ASYNC_RST
       )  
     port map (

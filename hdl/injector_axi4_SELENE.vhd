@@ -131,11 +131,8 @@ begin  -- rtl
       paddr         => paddr,         -- APB configuartion slave address
       pmask         => pmask,         -- APB configuartion slave mask
       pirq          => pirq,          -- APB configuartion slave irq
-      -- Bus master configuration
-      dbits         => dbits,         -- Data width of BM and FIFO
       -- AXI4 Master configuration (other parameters must be updated at injector_pkg.vhd)
       axi_id        => axi_id,        -- AXI ID
-      MAX_SIZE_BEAT => MAX_SIZE_BEAT, -- Maximum number of beats at any burst
       -- Injector configuration
       ASYNC_RST     => ASYNC_RST      -- Allow asynchronous reset flag
       )

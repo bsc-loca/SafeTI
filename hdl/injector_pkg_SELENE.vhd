@@ -26,11 +26,9 @@ package injector_pkg_selene is
       paddr             : integer                           := 0;
       pmask             : integer                           := 16#FFF#;
       pirq              : integer range 0 to NAHBIRQ-1      := 0;
-      -- Bus master configuration
-      dbits             : integer range 32 to 128           := 32;
+      -- AHB configuration
       hindex            : integer                           := 0;
-      max_burst_length  : integer range 2 to 256            := 128;
-      MAX_SIZE_BEAT     : integer range 32 to 1024          := 1024
+      max_burst_length  : integer range 2 to 256            := 128
       );
     port (
       rstn              : in  std_ulogic;

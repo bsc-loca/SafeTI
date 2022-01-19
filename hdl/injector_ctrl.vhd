@@ -25,7 +25,6 @@ use bsc.injector_pkg.all;
 
 entity injector_ctrl is
   generic (
-    dbits             : integer range 32 to 128 := 32;      -- Bus master front end data width    
     fifo_size         : integer range  1 to  16 := 8;       -- FIFO Length (Length multiple of 8) 
     ASYNC_RST         : boolean                 := FALSE    -- Allow asynchronous reset flag
     );

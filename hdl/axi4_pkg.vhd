@@ -14,11 +14,15 @@ package axi4_pkg is
   -- Constant declaration
   -----------------------------------------------------------------------------
 
-  -- AXI bus generics
+  -- User parameters START --
+
+    -- AXI bus generics
   constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
   constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus
-  -- Common generics
-  constant BM_BURST_WIDTH     : integer range  3 to   12  := 12;  -- Bus width for bursts (max is 10/12 for AHB/AXI4 due to 1/4KB addr boundary rule)
+    -- Common generics (They must match with BM component package)
+  constant BM_BURST_WIDTH     : integer range  3 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
+
+  -- User parameters END --
 
   -----------------------------------------------------------------------------
   -- Records and types
@@ -139,18 +143,18 @@ package axi4_pkg is
 
   component axi4_manager is
     generic (
-      dbits         : integer range 32 to  128            := 32;
-      axi_id        : integer                             := 0;
-      MAX_SIZE_BEAT : integer range 64 to 4096            := 1024;
-      ASYNC_RST     : boolean                             := FALSE
+      dbits           : integer range 32 to  128  := 32;
+      axi_id          : integer                   := 0;
+      MAX_SIZE_BURST  : integer range 64 to 4096  := 4096;
+      ASYNC_RST       : boolean                   := FALSE
     );
     port (
-      rstn          : in  std_ulogic;
-      clk           : in  std_ulogic;
-      axi4mi        : in  axi4_in_type;
-      axi4mo        : out axi4_out_type;
-      bm_in         : in  bm_in_type;
-      bm_out        : out bm_out_type
+      rstn            : in  std_ulogic;
+      clk             : in  std_ulogic;
+      axi4mi          : in  axi4_in_type;
+      axi4mo          : out axi4_out_type;
+      bm_in           : in  bm_in_type;
+      bm_out          : out bm_out_type
     );
   end component axi4_manager;
 

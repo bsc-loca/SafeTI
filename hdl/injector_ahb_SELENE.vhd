@@ -33,11 +33,9 @@ entity injector_ahb_SELENE is
     paddr             : integer                       := 0;         -- APB configuartion slave address
     pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
     pirq              : integer range 0 to NAHBIRQ-1  := 1;         -- APB configuartion slave irq
-    -- Bus master configuration
-    dbits             : integer range 32 to 128       := 32;        -- Data width of BM and FIFO   
-    max_burst_length  : integer range 2 to 256        := 128;       -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF 
+    -- AHB configuration
     hindex            : integer                       := 0;         -- AHB master index 0
-    MAX_SIZE_BEAT     : integer range 32 to 1024      := 1024       -- Maximum size of bytes in a beat at a burst transaction.
+    max_burst_length  : integer range 2 to 256        := 128        -- BM backend burst length in words. Total burst of 'Max_size'bytes, is split in to bursts of 'max_burst_length' bytes by the BMIF 
     );
   port (
     rstn              : in  std_ulogic;                   -- Reset
@@ -150,10 +148,8 @@ begin  -- rtl
       paddr             => paddr,             -- APB configuartion slave address
       pmask             => pmask,             -- APB configuartion slave mask
       pirq              => pirq,              -- APB configuartion slave irq
-      -- Bus master configuration
-      dbits             => dbits,             -- Data width of BM and FIFO    
+      -- AHB configuration
       hindex            => hindex,            -- AHB master index 0
-      MAX_SIZE_BEAT     => MAX_SIZE_BEAT,     -- Maximum size of a beat at a burst transaction.
       -- Injector configuration
       ASYNC_RST         => ASYNC_RST          -- Allow asynchronous reset flag
       )
@@ -176,7 +172,7 @@ begin  -- rtl
       bm_dw            => dbits,
       be_dw            => AHBDW,
       be_rd_pipe       => 0,
-      max_size         => MAX_SIZE_BEAT,
+      max_size         => MAX_SIZE_BURST,
       max_burst_length => max_burst_length,
       burst_chop_mask  => burst_chop_mask,
       bm_info_print    => 1,

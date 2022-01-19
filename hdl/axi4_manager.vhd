@@ -15,28 +15,28 @@ use bsc.axi4_pkg.all;
 --
 -- This AXI4 manager interface does not allow to have a BM bus wider than the AXI bus
 -- (AXI4_DATA_WIDTH must be greater or equal to dbits). It may not tolerate transactions
--- of a width higher than the MAX_SIZE_BEAT. It applies little endian data structure.
+-- of a width higher than the MAX_SIZE_BURST. It applies little endian data structure.
 -----------------------------------------------------------------------------
 
 entity axi4_manager is
   generic (
     -- Bus Manager configuration
-    dbits         : integer range 32 to  128          := 32;      -- Data width of BM and FIFO (must be a power of 2)
+    dbits           : integer range 32 to  128  := 32;      -- BM data bus width (must be a power of 2)
     -- AXI Manager configuration
-    axi_id        : integer                           := 0;       -- AXI master index
-    MAX_SIZE_BEAT : integer range 32 to 4096          := 4096;    -- Maximum size of a BM transaction. (default=4096)
+    axi_id          : integer                   := 0;       -- AXI master index
+    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;    -- Maximum size of a BM transaction. (default=4096)
     -- Injector configuration
-    ASYNC_RST     : boolean                           := FALSE    -- Allow asynchronous reset
+    ASYNC_RST       : boolean                   := FALSE    -- Allow asynchronous reset
   );
   port (
-    rstn          : in  std_ulogic;         -- Reset
-    clk           : in  std_ulogic;         -- Clock
+    rstn            : in  std_ulogic;         -- Reset
+    clk             : in  std_ulogic;         -- Clock
     -- AXI interface signals
-    axi4mi        : in  axi4_in_type;       -- AXI4 master input 
-    axi4mo        : out axi4_out_type;      -- AXI4 master output
+    axi4mi          : in  axi4_in_type;       -- AXI4 master input 
+    axi4mo          : out axi4_out_type;      -- AXI4 master output
     -- Bus master signals
-    bm_in         : in  bm_in_type;         -- BM master input
-    bm_out        : out bm_out_type         -- BM master output
+    bm_in           : in  bm_in_type;         -- BM master input
+    bm_out          : out bm_out_type         -- BM master output
   );
 end entity axi4_manager;
 
@@ -46,7 +46,7 @@ architecture rtl of axi4_manager is
   -----------------------------------------------------------------------------
 
   -- Constants that should be equal to what is written at injector_pkg.vhd
-  constant INT_BURST_WIDTH  : integer := log_2(MAX_SIZE_BEAT);      -- Width to hold maximum beat size number
+  constant INT_BURST_WIDTH  : integer := log_2(MAX_SIZE_BURST);     -- Width to hold maximum beat size number
   constant AXI4_DATA_WIDTH  : integer := axi4mo.w_data'length;      -- AXI data bus width
   constant AXI4_DATA_BYTE   : integer := log_2(AXI4_DATA_WIDTH/8)-1;-- Width of unsigned value to address data bus bytes
 
@@ -61,13 +61,13 @@ architecture rtl of axi4_manager is
   constant size_mode_appl   : std_logic_vector(0 to 6) := (
     -- Generate an array indicating what size modes are applicable due to the constrains of
     -- both the AXI and BM bus widths implementation (are constants) and the max size beat.
-    0 => to_std_logic( dbits >= 128 and AXI4_DATA_WIDTH >= 128 and MAX_SIZE_BEAT >= 128 ),
-    1 => to_std_logic( dbits >=  64 and AXI4_DATA_WIDTH >=  64 and MAX_SIZE_BEAT >=  64 ),
-    2 => to_std_logic( dbits >=  32 and AXI4_DATA_WIDTH >=  32 and MAX_SIZE_BEAT >=  32 ), -- These should be unnecessary
-    3 => to_std_logic( dbits >=  16 and AXI4_DATA_WIDTH >=  16 and MAX_SIZE_BEAT >=  16 ), -- These should be unnecessary
-    4 => to_std_logic( dbits >=   8 and AXI4_DATA_WIDTH >=   8 and MAX_SIZE_BEAT >=   8 ), -- These should be unnecessary
-    5 => to_std_logic( dbits >=   4 and AXI4_DATA_WIDTH >=   4 and MAX_SIZE_BEAT >=   4 ), -- These should be unnecessary
-    6 => to_std_logic( dbits >=   2 and AXI4_DATA_WIDTH >=   2 and MAX_SIZE_BEAT >=   2 )  -- These should be unnecessary
+    0 => to_std_logic( dbits >= 128 and AXI4_DATA_WIDTH >= 128 and MAX_SIZE_BURST >= 128 ),
+    1 => to_std_logic( dbits >=  64 and AXI4_DATA_WIDTH >=  64 and MAX_SIZE_BURST >=  64 ),
+    2 => to_std_logic( dbits >=  32 and AXI4_DATA_WIDTH >=  32 and MAX_SIZE_BURST >=  32 ), -- These should be unnecessary
+    3 => to_std_logic( dbits >=  16 and AXI4_DATA_WIDTH >=  16 and MAX_SIZE_BURST >=  16 ), -- These should be unnecessary
+    4 => to_std_logic( dbits >=   8 and AXI4_DATA_WIDTH >=   8 and MAX_SIZE_BURST >=   8 ), -- These should be unnecessary
+    5 => to_std_logic( dbits >=   4 and AXI4_DATA_WIDTH >=   4 and MAX_SIZE_BURST >=   4 ), -- These should be unnecessary
+    6 => to_std_logic( dbits >=   2 and AXI4_DATA_WIDTH >=   2 and MAX_SIZE_BURST >=   2 )  -- These should be unnecessary
     );
 
   -----------------------------------------------------------------------------
@@ -75,7 +75,7 @@ architecture rtl of axi4_manager is
   -----------------------------------------------------------------------------
   --
   -- This interface, when idle, accepts read and write transaction requests from the BM bus, listening the starting address 
-  -- and the total transfer size of the operation (this last must be lower or equal to the set by MAX_SIZE_BEAT-1).
+  -- and the total transfer size of the operation (this last must be lower or equal to the set by MAX_SIZE_BURST-1).
   -- Once the request has been granted (deasserting new requests until finished), it processes the information to check if 
   -- the total transfer surpasses the 4kB address boundary, splitting the transaction in two bursts in such situations.
   -- The interface sets up the correspondent AXI control data for the first or only trasaction burst, including burst mode,
@@ -246,7 +246,7 @@ architecture rtl of axi4_manager is
     variable addr2  : std_logic_vector(6 downto 0) := (others => '0');
   begin
     -- Check if size is greater or equal than 128, 64, 32, 16, 8, 4, 2, while also
-    -- tacking into account if dbits, AXI4_DATA_WIDTH, MAX_SIZE_BEAT allow it.
+    -- tacking into account if dbits, AXI4_DATA_WIDTH, MAX_SIZE_BURST allow it.
     n(0) := or_vector(size_bm(size_bm'length-1 downto 7)) and size_mode_appl(0); -- 128 bytes
     n(1) := ( size_bm(6) or n(0) ) and size_mode_appl(1); -- 64 bytes
     n(2) := ( size_bm(5) or n(1) ) and size_mode_appl(2); -- 32 bytes
