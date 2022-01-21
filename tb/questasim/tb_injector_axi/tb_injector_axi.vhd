@@ -70,7 +70,7 @@ architecture rtl of tb_injector_axi is
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(               9, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
+    write_descriptor(               3, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
     write_descriptor(               2, 31,  RD,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes --WRT
     write_descriptor(               3, 15,  RD,  action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes -- RD
     write_descriptor(               4,  7,  RD,  action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes -- RD

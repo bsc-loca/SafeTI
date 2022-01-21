@@ -124,12 +124,14 @@ package axi4_pkg is
   -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
   function log_2            (max_size : integer) return integer;
 
-  -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
+  -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght and integer
   function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
   function sub_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
   function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
   function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
   function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
+  function add_vector       (A, B : std_logic_vector) return integer;
+  function add_vector       (A : std_logic_vector; B : integer) return integer;
 
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
@@ -175,7 +177,7 @@ package body axi4_pkg is
     return res(len - 1 downto 0);
   end add_vector;
 
-  -- Addition function between std_logic_vector and integer, outputs with length assigned
+  -- Addition function between std_logic_vector and integer, returns vector with length assigned
   function add_vector(
     A : std_logic_vector;
     B : integer;
@@ -186,6 +188,24 @@ package body axi4_pkg is
     res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, res'length), res'length));
     return res(len - 1 downto 0);
   end add_vector;
+
+  -- Addition function between two std_logic_vector, returns an integer.
+  function add_vector(
+    A, B : std_logic_vector) 
+  return integer is
+  begin
+    return to_integer(unsigned(add_vector(A, B, 31)));
+  end add_vector;
+
+  -- Addition function between std_logic_vector and integer, returns integer.
+  function add_vector(
+    A : std_logic_vector;
+    B : integer) 
+  return integer is
+  begin
+    return to_integer(unsigned(add_vector(A, B, 31)));
+  end add_vector;
+
 
   -- Subtract function between std_logic_vectors, outputs with length assigned
   function sub_vector(
