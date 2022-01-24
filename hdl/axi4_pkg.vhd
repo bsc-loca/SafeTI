@@ -18,7 +18,7 @@ package axi4_pkg is
 
     -- AXI bus generics
   constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
-  constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus
+  constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 32; -- Data's width at AXI bus
     -- Common generics (They must match with BM component package)
   constant BM_BURST_WIDTH     : integer range  3 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
 
@@ -113,6 +113,7 @@ package axi4_pkg is
   end record;
 
   type array_integer          is array (natural range <>) of integer;
+  type array_128vector        is array (natural range <>) of std_logic_vector(127 downto 0);
 
   -------------------------------------------------------------------------------
   -- Subprograms
@@ -120,6 +121,9 @@ package axi4_pkg is
 
   -- Returns maximum value from an array of integers.
   function max              (A : array_integer) return integer;
+
+  -- IF function for when VHDL can not use if (like at constants).
+  function sel              (A, B : integer; sel : boolean) return integer;
 
   -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
   function log_2            (max_size : integer) return integer;
@@ -130,8 +134,6 @@ package axi4_pkg is
   function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
   function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
   function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
-  function add_vector       (A, B : std_logic_vector) return integer;
-  function add_vector       (A : std_logic_vector; B : integer) return integer;
 
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
@@ -185,25 +187,7 @@ package body axi4_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, res'length), res'length));
-    return res(len - 1 downto 0);
-  end add_vector;
-
-  -- Addition function between two std_logic_vector, returns an integer.
-  function add_vector(
-    A, B : std_logic_vector) 
-  return integer is
-  begin
-    return to_integer(unsigned(add_vector(A, B, 31)));
-  end add_vector;
-
-  -- Addition function between std_logic_vector and integer, returns integer.
-  function add_vector(
-    A : std_logic_vector;
-    B : integer) 
-  return integer is
-  begin
-    return to_integer(unsigned(add_vector(A, B, 31)));
+    return add_vector(A, std_logic_vector(to_unsigned(B, res'length)), res'length);
   end add_vector;
 
 
@@ -286,6 +270,14 @@ package body axi4_pkg is
     end loop;
     return temp;
   end max;
+
+  -- IF function that outputs the first input if the boolean is true, the second if false.
+  function sel(A, B : integer; sel : boolean) return integer is
+  begin
+    if sel then return A;
+    else return B;
+    end if;
+  end sel;
 
 
 end package body axi4_pkg;
