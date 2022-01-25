@@ -70,7 +70,7 @@ architecture rtl of tb_injector_axi is
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(               3, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
+    write_descriptor(              17, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
     write_descriptor(               2, 31,  RD,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes --WRT
     write_descriptor(               3, 15,  RD,  action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes -- RD
     write_descriptor(               4,  7,  RD,  action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes -- RD
@@ -452,7 +452,7 @@ begin  -- rtl
   generic map (
     C_S00_AXI_ID_WIDTH      => axi4mo.aw_id'length,
     C_S00_AXI_DATA_WIDTH    => axi4mo.w_data'length,
-    C_S00_AXI_ADDR_WIDTH    => 10, --13, --axi4mo.aw_addr'length,
+    C_S00_AXI_ADDR_WIDTH    => 13, --13, --axi4mo.aw_addr'length,
     C_S00_AXI_AWUSER_WIDTH  => 1,
     C_S00_AXI_ARUSER_WIDTH  => 1,
     C_S00_AXI_WUSER_WIDTH   => 1,
@@ -463,7 +463,7 @@ begin  -- rtl
     s00_AXI_aclk      => clk,
     s00_AXI_aresetn   => rstn,
     s00_AXI_awid      => axi4mo.aw_id,
-    s00_AXI_awaddr    => axi4mo.aw_addr(9 downto 0),
+    s00_AXI_awaddr    => axi4mo.aw_addr(12 downto 0),
     s00_AXI_awlen     => axi4mo.aw_len,
     s00_AXI_awsize    => axi4mo.aw_size,
     s00_AXI_awburst   => axi4mo.aw_burst,
@@ -487,7 +487,7 @@ begin  -- rtl
     s00_AXI_bvalid    => axi4mi.b_valid,
     s00_AXI_bready    => axi4mo.b_ready,
     s00_AXI_arid      => axi4mo.ar_id,
-    s00_AXI_araddr    => axi4mo.ar_addr(9 downto 0),
+    s00_AXI_araddr    => axi4mo.ar_addr(12 downto 0),
     s00_AXI_arlen     => axi4mo.ar_len,
     s00_AXI_arsize    => axi4mo.ar_size,
     s00_AXI_arburst   => axi4mo.ar_burst,
