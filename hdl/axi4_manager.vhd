@@ -21,10 +21,10 @@ use bsc.axi4_pkg.all;
 entity axi4_manager is
   generic (
     -- Bus Manager configuration
-    dbits           : integer range 32 to  128  := 32;      -- BM data bus width (must be a power of 2)
+    dbits           : integer range 32 to  128  := 32;      -- BM data bus width [Only power of 2s are allowed]
     -- AXI Manager configuration
     axi_id          : integer                   := 0;       -- AXI master index
-    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;    -- Maximum size of a BM transaction. (default=4096)
+    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;    -- Maximum size of a BM transaction. [Only power of 2s are allowed]
     -- Injector configuration
     ASYNC_RST       : boolean                   := FALSE    -- Allow asynchronous reset
   );
@@ -139,37 +139,47 @@ architecture rtl of axi4_manager is
   type transf_state is (idle, compute1, compute2, compute3, handshake, transfer1, transfer2, transfer3);
 
   type transfer_rd_operation is record
-    state       : transf_state; -- State of the operation
-    bm_grant    : std_logic;    -- Grant signals to BM component
-    bm_error    : std_logic;    -- Error (at the moment, inside of the manager)
+    state         : transf_state; -- State of the operation
+    bm_grant      : std_logic;    -- Grant signals to BM component
+    bm_error      : std_logic;    -- Error (at the moment, inside of the manager)
 
-    axi_mode    : std_logic_vector(1 downto 0); -- AXI parameter: burst mode (FIXED, INC, WRAP)
-    axi_size    : std_logic_vector(2 downto 0); -- AXI parameter: size mode of each beat in the burst
-    axi_len     : std_logic_vector(7 downto 0); -- AXI parameter: number of beats in the burst
-    axi_strobe  : std_logic_vector(AXI4_DATA_WIDTH/8 - 1 downto 0); -- What AXI lanes to use at transfer
-    axi_valid   : std_logic;                    -- AXI parameter: valid addr/data/control
-    axi_ready   : std_logic;                    -- AXI parameter: ready to read data/data has been written
-    axi_last    : std_logic;                    -- AXI parameter: last transaction of the burst
-    axi_addr    : std_logic_vector(31 downto 0);-- Address register (BM requested at first, then changes to AXI starting address)
+    axi_mode      : std_logic_vector(1 downto 0); -- AXI parameter: burst mode (FIXED, INC, WRAP)
+    axi_size      : std_logic_vector(2 downto 0); -- AXI parameter: size mode of each beat in the burst
+    axi_len       : std_logic_vector(7 downto 0); -- AXI parameter: number of beats in the burst
+    axi_strobe    : std_logic_vector(AXI4_DATA_WIDTH/8 - 1 downto 0); -- What AXI lanes to use at transfer
+    axi_valid     : std_logic;                    -- AXI parameter: valid addr/data/control
+    axi_ready     : std_logic;                    -- AXI parameter: ready to read data/data has been written
+    axi_last      : std_logic;                    -- AXI parameter: last transaction of the burst
+    axi_addr      : std_logic_vector(31 downto 0);-- Address register (BM requested at first, then changes to AXI starting address)
 
-    first_beat  : std_logic; -- Flag asserted when computing first beat of the first burst
-    two_burst   : std_logic; -- Need to slice transfer in two bursts due to surpassing the 4KB boundary. Flushed after first burst
+    first_beat    : std_logic; -- Flag asserted when computing first beat of the first burst
+    two_burst     : std_logic; -- Need to slice transfer in two bursts due to surpassing the 4KB boundary. Flushed after first burst
+    addr_end      : std_logic_vector(11 downto 0);-- Last address to access. Only used to separate logic between computation1 and 2 stages.
+    two_axi_width : std_logic; -- Asserted when two AXI4_DATA_WIDTH spaces are accessed (use only when axi_mode applied doesn't use the whole AXI data width)
 
-    bm_size     : std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Original size being requested by BM component, and then first burst size
-    rem_size    : std_logic_vector(INT_BURST_WIDTH - 2 downto 0); -- Remaining size for second burst (4KB outbounds access)
+    bm_size       : std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Original size being requested by BM component, and then first burst size
+    rem_size      : std_logic_vector(INT_BURST_WIDTH - 2 downto 0); -- Remaining size for second burst (4KB outbounds access)
 
-    axi_data_tmp: std_logic_vector(AXI4_DATA_WIDTH - 1 downto 0); -- AXI data bus register used to separate AXI network from interface.
-    axi_data_bus: rd_data_buffer(rd_n_buffer_regs  - 1 downto 0); -- AXI data bus registers which filters narrow reads from data_tmp.
-    buffer_index: std_logic_vector(log_2(rd_n_buffer_regs) - 1 downto 0); -- Unsigned index of axi_data_bus registers.
-    buffer_full : std_logic_vector(rd_n_buffer_regs- 1 downto 0); -- When asserted, the axi_data_bus(buffer_index) is full or at a BM transfer.
-    data_fbus   : std_logic_vector(AXI4_DATA_WIDTH + dbits - 1 downto 0); -- Full AXI+BM data bus used to BM data transfer.
-    start_strb  : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Number of right-bytes to skip when reading or writing data_bus at start of BM transfer.
-    end_strb    : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Number of bytes to read from data_bus at the last BM transfer.
-    counter_axi : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Used to count the number of bytes transfered/discarded from AXI or BM.
-    counter_bm  : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Used to count the number of bytes transfered/discarded from AXI or BM.
-    bm_mask     : std_logic_vector(dbits/8 - 1 downto 0);         -- What dbits byte lanes to use at BM transfer
-    bm_valid    : std_logic;                                      -- Valid read data to transfer into BM bus from data_bus(dbits-1 downto 0)
-    bm_done     : std_logic;                                      -- Last bm_valid asserted clock cycle of the whole transfer also asserts bm_done.
+    axi_data_tmp  : std_logic_vector(AXI4_DATA_WIDTH - 1 downto 0); -- AXI data bus register used to separate AXI network from interface.
+    axi_data_bus  : rd_data_buffer(rd_n_buffer_regs  - 1 downto 0); -- AXI data bus registers which filters narrow reads from data_tmp.
+    axi_index     : std_logic_vector(log_2(rd_n_buffer_regs) - 1 downto 0); -- Unsigned index of axi_data_bus registers for the AXI side.
+    buffer_full   : std_logic_vector(rd_n_buffer_regs- 1 downto 0); -- When asserted, the axi_data_bus(axi_index) is full or at a BM transfer.
+    bm_index      : std_logic_vector(log_2(rd_n_buffer_regs) - 1 downto 0); -- Unsigned index of axi_data_bus registers for the BM side.
+    data_fbus     : std_logic_vector(AXI4_DATA_WIDTH + dbits - 1 downto 0); -- Full AXI+BM data bus used to BM data transfer.
+    start_strb    : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Number of right-bytes to skip when reading or writing data_bus at start of BM transfer.
+    end_strb      : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Number of bytes to read from data_bus at the last BM transfer.
+    counter_axi   : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Used to count the number of bytes transfered/discarded from AXI or BM.
+    counter_bm    : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Used to count the number of bytes transfered/discarded from AXI or BM.
+    bm_mask       : std_logic_vector(dbits/8 - 1 downto 0);         -- What dbits byte lanes to use at BM transfer
+    bm_valid      : std_logic;                                      -- Valid read data to transfer into BM bus from data_bus(dbits-1 downto 0)
+    bm_done       : std_logic;                                      -- Last bm_valid asserted clock cycle of the whole transfer also asserts bm_done.
+
+    axi_bmask_tmp     : unsigned(AXI4_DATA_WIDTH/8 - 1 downto 0); -- Base read mask to be shifted and filter narrow AXI read transfers.
+    axi_valid_buffer  : std_logic;                                -- AXI subordinate r_valid buffer used as delayed signal.
+    axi_next_index    : std_logic_vector(log_2(rd_n_buffer_regs) - 1 downto 0); -- Addition made in transfer1 so the index is not cycling on transfer2.
+    bm_data_buffer    : std_logic_vector(dbits     - 1 downto 0); -- BM data output buffer to maximize frequency of operation.
+    bm_valid_buffer   : std_logic;                                -- BM valid signal output delayed to be in sync with bm_data_buffer.
+    bm_done_buffer    : std_logic;                                -- BM done signal output delayed to be in sync with bm_data_buffer.
   end record;
 
   type transfer_wr_operation is record
@@ -200,33 +210,42 @@ architecture rtl of axi4_manager is
   end record;
 
   constant RST_TRANSF_OP : transfer_rd_operation := (
-    state       => idle,
-    bm_grant    => '1',
-    bm_error    => '0',
-    axi_mode    => (others => '0'),
-    axi_size    => (others => '0'),
-    axi_len     => (others => '0'),
-    axi_strobe  => (others => '0'),
-    axi_valid   => '0',
-    axi_ready   => '0',
-    axi_last    => '0',
-    axi_addr    => (others => '0'),
-    first_beat  => '1',
-    two_burst   => '0',
-    bm_size     => (others => '0'),
-    rem_size    => (others => '0'),
-    axi_data_tmp=> (others => '0'),
-    axi_data_bus=> (others => (others => '0')),
-    buffer_index=> (others => '0'),
-    buffer_full => (others => '0'),
-    data_fbus   => (others => '0'),
-    start_strb  => (others => '0'),
-    end_strb    => (others => '0'),
-    counter_axi => (others => '0'),
-    counter_bm  => (others => '0'),
-    bm_mask     => (others => '0'),
-    bm_valid    => '0',
-    bm_done     => '0'
+    state             => idle,
+    bm_grant          => '1',
+    bm_error          => '0',
+    axi_mode          => (others => '0'),
+    axi_size          => (others => '0'),
+    axi_len           => (others => '0'),
+    axi_strobe        => (others => '0'),
+    axi_valid         => '0',
+    axi_ready         => '0',
+    axi_last          => '0',
+    axi_addr          => (others => '0'),
+    first_beat        => '1',
+    two_burst         => '0',
+    addr_end          => (others => '0'),
+    two_axi_width     => '0',
+    bm_size           => (others => '0'),
+    rem_size          => (others => '0'),
+    axi_data_tmp      => (others => '0'),
+    axi_data_bus      => (others => (others => '0')),
+    axi_index         => (others => '0'),
+    buffer_full       => (others => '0'),
+    bm_index          => (others => '0'),
+    data_fbus         => (others => '0'),
+    start_strb        => (others => '0'),
+    end_strb          => (others => '0'),
+    counter_axi       => (others => '0'),
+    counter_bm        => (others => '0'),
+    bm_mask           => (others => '0'),
+    bm_valid          => '0',
+    bm_done           => '0',
+    axi_bmask_tmp     => (others => '0'),
+    axi_valid_buffer  => '0',
+    axi_next_index    => (others => '0'),
+    bm_data_buffer    => (others => '0'),
+    bm_valid_buffer   => '0',
+    bm_done_buffer    => '0'
   );
 
   -----------------------------------------------------------------------------
@@ -237,13 +256,6 @@ architecture rtl of axi4_manager is
   signal wr : transfer_wr_operation;
   signal rd : transfer_rd_operation;
 
-  -- Buffer signals for AXI transfer at read transactions
-  signal rd_AXI_bmask_tmp     : unsigned(AXI4_DATA_WIDTH/8-1 downto 0);
-  signal rd_AXI_valid_delayed : std_logic;
-  -- Buffer signals for BM transfer at read transactions
-  signal rd_bm_data_delayed   : std_logic_vector(dbits - 1 downto 0);
-  signal rd_bm_valid_delayed  : std_logic;
-  signal rd_bm_done_delayed   : std_logic;
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -264,28 +276,29 @@ architecture rtl of axi4_manager is
   procedure decide_size(
     size_bm   : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Size requested by BM-1
     addr_bm   : in  std_logic_vector(AXI4_DATA_BYTE  - 1 downto 0); -- LSB Address being requested by BM
-    size_axi  : out std_logic_vector(2 downto 0); -- Size mode to set
+    size_axi  : out std_logic_vector(2 downto 0);                   -- Size mode to set
     addr_axi  : out std_logic_vector(AXI4_DATA_BYTE  - 1 downto 0)  -- LSB Address to request at AXI
   ) is
     variable n      : std_logic_vector(0 to 6); -- 128, 64, 32, 16, 8, 4 and 2 byte size modes flags
-    variable addr1  : std_logic_vector(6 downto 0) := (others => '0');
-    variable addr2  : std_logic_vector(6 downto 0) := (others => '0');
+    variable addr1  : std_logic_vector(6 downto 0);
+    variable addr2  : std_logic_vector(6 downto 0);
   begin
     -- Check if size is greater or equal than 128, 64, 32, 16, 8, 4, 2, while also
     -- taking into account if AXI4_DATA_WIDTH and MAX_SIZE_BURST allow it.
-    n(0) := or_vector(size_bm(size_bm'length-1 downto 6));  -- 128 bytes
-    n(1) := ( size_bm(5) or n(0) );                         -- 64 bytes
-    n(2) := ( size_bm(4) or n(1) );                         -- 32 bytes
-    n(3) := ( size_bm(3) or n(2) );                         -- 16 bytes
-    n(4) := ( size_bm(2) or n(3) );                         --  8 bytes
-    n(5) := ( size_bm(1) or n(4) );                         --  4 bytes
-    n(6) := ( size_bm(0) or n(5) );                         --  2 bytes
+    n(0)  := or_vector(size_bm(size_bm'length-1 downto 6));  -- 128 bytes
+    n(1)  := ( size_bm(5) or n(0) );                         -- 64 bytes
+    n(2)  := ( size_bm(4) or n(1) );                         -- 32 bytes
+    n(3)  := ( size_bm(3) or n(2) );                         -- 16 bytes
+    n(4)  := ( size_bm(2) or n(3) );                         --  8 bytes
+    n(5)  := ( size_bm(1) or n(4) );                         --  4 bytes
+    n(6)  := ( size_bm(0) or n(5) );                         --  2 bytes
 
-    addr1(addr_bm'range) := addr_bm;
+    addr1 := (addr1'length - addr_bm'length - 1 downto 0 => '0') & addr_bm;
 
     -- Set the AXI mode size as: AXI mode to apply >= bytes to BM transfer > next lower power of 2.
     -- For example, for a BM transfer of 16 bytes (bm_in.rd_size = 15), size_axi is b'100 (16 bytes).
     -- For a transfer of 15 bytes is still b'100, while for a transfer of 17 bytes is b'101 (32 bytes).
+    -- Of course, this is only if AXI4_DATA_WIDTH/8 is equal or greater than 32. If not, is it will be b'100.
     -- Also, create the AXI address aligned with the AXI size mode using bm_in.rd_addr.
     if   (n(0) = '1' and size_mode_appl(0) = '1') then
       size_axi  := "111"; -- 128 bytes size mode
@@ -318,39 +331,41 @@ architecture rtl of axi4_manager is
   end procedure decide_size;
 
 
-  -- To decide the number of beats at the burst, the number of bytes requested by the BM component 
-  -- is used, by applying a right shift to it a number equal to the AXI's size mode (the actual 
-  -- codification, no it's actual size meaning). In addition, size values between power of 2s and 
-  -- multiple of 128 require a +1 to compute the correct number of beats required to execute.
+  -- The number of bytes to burst is used to decide the number of beats at the burst. This is computed
+  -- by applying a number of right-shifts equal to the AXI's size mode (the codification, no its actual
+  -- decoded size meaning) to the size to burst. 
   --
-  -- However, the AXI's codification of the number of beats is the actual number of beats -1. So
-  -- at the end, the actual calculation subtracts 1 to those that are equal to a power of 2 or 
-  -- multiple of 128. This is checked by an OR that affects depending the size_mode being set.
+  -- In addition, if the burst will access to two different AXI4_DATA_WIDTH spaces of the same subordinate, 
+  -- due to unaligned address request, while the size mode being applied doesn't use the whole data bus width,
+  -- the numbers of beats must be increased by one. This is because the right-shifting algorithm already manages 
+  -- the length of the burst for size modes that use the whole AXI data bus width.
 
   procedure decide_len(
-    size      : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Transfer size requested by BM
+    size      : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Transfer size of the burst (actual num needs +1)
     size_mode : in  std_logic_vector(2 downto 0); -- AXI size mode being set
+    two_width : in  std_logic;                    -- Access to two AXI4_DATA_WIDTH spaces of the same subordinate.
     burst_len : out std_logic_vector(7 downto 0)  -- AXI burst length (actual num of beats needs +1)
     ) is
       variable len_temp : std_logic_vector(size'range); -- Temp var because VHDL is really strong /typed/
       variable len      : std_logic_vector(8 downto 0); -- The max number of beats allowed at AXI4 is 256
-      variable one      : std_logic_vector(7 downto 0); -- Vector identifying if size is not multiple of...
+      variable one      : std_logic;                    -- +1 if the 
   begin
-    -- Number of beats required = size requested >> size_mode (-1 if size = size_array(size_mode) or multiple)
+    -- Number of beats required = bytes to transfer-1 >> size_mode
+    -- This is only true because the size mode is always greater or equal to the size being requested, 
+    -- with the exception of when the size being requested is greater than AXI4_DATA_WIDTH. That exception 
+    -- is what makes this algorithm to work, since only the maximum size mode applicable will have burst 
+    -- lengths of more than one beat, with the expection that is taken into account next.
     len_temp  := std_logic_vector(shift_right( unsigned(size), to_integer(unsigned(size_mode)) ));
-    len       := len_temp(len'range);
 
-    -- However, sizes equal to the AXI size mode being applied (the decoded value) must decrease once its len value.
-    one(0) := size(0);                                      -- Size is   1 byte  when asserted
-    one(1) := size(1) and not(size(0));                     -- Size is   2 bytes when asserted
-    one(2) := size(2) and not(or_vector(size(1 downto 0))); -- Size is   4 bytes when asserted
-    one(3) := size(3) and not(or_vector(size(2 downto 0))); -- Size is   8 bytes when asserted
-    one(4) := size(4) and not(or_vector(size(3 downto 0))); -- Size is  16 bytes when asserted
-    one(5) := size(5) and not(or_vector(size(4 downto 0))); -- Size is  32 bytes when asserted
-    one(6) := size(6) and not(or_vector(size(5 downto 0))); -- Size is  64 bytes when asserted
-    one(7) := size(7) and not(or_vector(size(6 downto 0))); -- Size is 128 bytes when asserted
+    -- The size modes that do not user the whole AXI data bus width can require two beats (the maximum  
+    -- in such cases) only if they access two different AXI4_DATA_WIDTH memory spaces and they're from 
+    -- the same subordinate. Thus, the flag not(two_burst) is used to determine if they're from the same
+    -- subordinate, while the access to two AXI4_DATA_WIDTH memory spaces is done by comparing starting 
+    -- and ending addresses. This is because size modes that do not use the whole AXI data bus width can 
+    -- only access two AXI4_DATA_WIDTH memory spaces as maximum, or it changes to the next higher size mode.
+    one       := to_std_logic(two_width = '1' and size_array(to_integer(unsigned(size_mode))) /= AXI4_DATA_WIDTH);
 
-    burst_len := sub_vector(len, '0' & one(to_integer(unsigned(size_mode))), burst_len'length);
+    burst_len := add_vector(len_temp, '0' & one, burst_len'length);
   end procedure decide_len;
 
 
@@ -440,9 +455,9 @@ begin -- rtl
   --bm_in.rd_size;  -- used because input
   --bm_in.rd_req;   -- used because input
   bm_out.rd_req_grant <= rd.bm_grant;
-  bm_out.rd_data      <= (rd_bm_data_delayed & (127-dbits downto 0 => '0'));
-  bm_out.rd_valid     <= rd_bm_valid_delayed;
-  bm_out.rd_done      <= rd_bm_done_delayed;
+  bm_out.rd_data      <= (rd.bm_data_buffer & (127-dbits downto 0 => '0'));
+  bm_out.rd_valid     <= rd.bm_valid_buffer;
+  bm_out.rd_done      <= rd.bm_done_buffer;
   bm_out.rd_err       <= rd.bm_error;
 
   
@@ -458,20 +473,17 @@ begin -- rtl
     variable axi_size   : std_logic_vector( rd.axi_size'range             );-- AXI size mode
     variable axi_len    : std_logic_vector( rd.axi_len'range              );-- AXI burst length
     variable rd_next_AXI_counter  : std_logic_vector(rd.counter_axi'range );-- Next AXI counter
-    variable rd_next_index        : std_logic_vector(rd.buffer_index'range);-- Next buffer index
+    variable rd_next_index        : std_logic_vector(rd.axi_index'range   );-- Next buffer index
     variable rd_next_BM_counter   : std_logic_vector(rd.counter_bm'range  );-- Next BM counter
     variable rd_data_empty        : boolean;                                -- data_bus emptied flag
     variable data_bm    : std_logic_vector( rd.data_fbus'range            );-- Shifted full bus data for BM transfer
   begin
     if (rstn = '0' and ASYNC_RST) then
       rd                    <= RST_TRANSF_OP;
-      rd_AXI_valid_delayed  <= '0';
     elsif rising_edge(clk) then
       if (rstn = '0') then
         rd                  <= RST_TRANSF_OP;
-        rd_AXI_valid_delayed<= '0';
       else
-        rd_AXI_valid_delayed<= '0'; -- By default, do not compute an AXI read data shift.
         case rd.state is
           when idle => -- Worst delay path: BM component output
             -- Reset registers
@@ -480,16 +492,17 @@ begin -- rtl
             -- Load request information from BM
             if (bm_in.rd_req = '1' and rd.bm_grant = '1') then
               rd.bm_grant   <= '0';           -- Deassert granting requests for BM component
-              rd.axi_addr   <= bm_in.rd_addr; -- Load starting address
+              rd.axi_addr   <= bm_in.rd_addr; -- Load starting address request
               rd.bm_size    <= bm_in.rd_size; -- Load BM size to transfer (real is +1)
               -- Next, check 4kB out of bounds access
               rd.state      <= compute1;
             end if;
           
           
-          when compute1 => -- Worst delay path: ADD 11+12, SUB 13-12
+          when compute1 => -- Worst delay path: ADD 12+12, SUB 13-13
             -- Check if transaction will access two 4KB address regions
             addr_end        := add_vector(rd.bm_size, rd.axi_addr(11 downto 0), addr_end'length);
+            rd.addr_end     <= addr_end(11 downto 0);
             rd.two_burst    <= addr_end(12);
           
             -- If transaction must be split in two bursts, due to 4KB overflow boundary, calculate...
@@ -497,7 +510,7 @@ begin -- rtl
               -- first burst size (-1 from real size)  MAX=4095, MIN=0
               rd.bm_size    <= sub_vector(x"FFF", rd.axi_addr(11 downto 0), rd.bm_size'length);
               -- second burst size (-1 from real size) MAX=4094, MIN=0
-              rd.rem_size   <= sub_vector(addr_end, x"FFE", rd.rem_size'length);
+              rd.rem_size   <= sub_vector(addr_end, x"1000", rd.rem_size'length);
             end if;
           
             -- Number of bytes to transfer at the last BM transfer = LSB of last address + 1 + BM data bytes width
@@ -508,33 +521,37 @@ begin -- rtl
           
           
           when compute2 => -- Worst delay path: DECIDE_SIZE
-            -- Decide AXI size mode and update starting address with aligned address to that size mode
+            -- Decide AXI size mode and update starting address with aligned address to that size mode.
             decide_size(rd.bm_size, rd.axi_addr(AXI4_DATA_BYTE-1 downto 0), axi_size, addr_strt);
             rd.axi_size     <= axi_size;
             rd.axi_addr(AXI4_DATA_BYTE-1 downto 0) <= addr_strt;
-            rd.bm_size      <= add_vector(rd.bm_size, 1, rd.bm_size'length); -- Update size to be real size.
           
-            if(rd.first_beat = '1') then
-              -- Number of right-bytes to discard unrequested data at first BM transfer = LSB BM unaligned address + BM data bytes width
+            if(rd.first_beat = '1') then -- If() used to differentiate between first and posible second bursts.
+              -- Number of right-bytes to discard unrequested data at first BM transfer = LSB BM unaligned address + BM data bytes width.
+              -- On second burst, the number of right-bytes to discard at first BM transfer = rd.start_strb from previous burst.
               rd.start_strb <= add_vector(rd.axi_addr(AXI4_DATA_BYTE-1 downto 0), dbits/8, rd.start_strb'length);
               rd.first_beat <= '0';
-              -- On second burst, the number of right-bytes to discard at first BM transfer = rd.start_strb from previous burst
             end if;
+
+            -- Check if this burst acceses two different AXI4_DATA_WIDTH memories spaces on the actual subordinate.
+            -- This is used on compute3 to increment the length of the burst (number of beats). Only relevant on first bursts.
+            rd.two_axi_width <= to_std_logic(rd.two_burst = '0' and ( rd.axi_addr(11 downto AXI4_DATA_BYTE) /= rd.addr_end(11 downto AXI4_DATA_BYTE) ));
           
             -- Next compute state
             rd.state        <= compute3;
           
           
           when compute3 => -- Worst delay path: DECIDE_LEN(MUX 8to1, ORx6, SUB 9-1)
-            -- Compute how many beats will be necessary to transfer due to axi_size mode
-            decide_len(rd.bm_size, rd.axi_size, axi_len);
+            -- Compute how many beats will be necessary to transfer due to axi_size mode.
+            decide_len(rd.bm_size, rd.axi_size, rd.two_axi_width, axi_len);
             rd.axi_len      <= axi_len;
+            rd.bm_size      <= add_vector(rd.bm_size, 1, rd.bm_size'length); -- Update size to be real size.
           
-            -- Set the burst transfer mode
+            -- Set the burst transfer mode.
             rd.axi_mode     <= INC;
           
-            -- Next, the handshake step
-            rd.axi_valid    <= '1'; -- Request AXI read
+            -- Next, the handshake step.
+            rd.axi_valid    <= '1'; -- Request AXI read burst.
             rd.state        <= handshake;
           
           
@@ -550,7 +567,7 @@ begin -- rtl
               rd.counter_axi   <= (rd.counter_axi'length-AXI4_DATA_BYTE-1 downto 0 => '0') & rd.axi_addr(AXI4_DATA_BYTE-1 downto 0);
 
               -- Create the LSB mask to be shifted on transfer1 to generate the byte mask for the AXI read transfer.
-              rd_AXI_bmask_tmp <= unsigned(mask_array(to_integer(unsigned(rd.axi_size)))(rd_AXI_bmask_tmp'range));
+              rd.axi_bmask_tmp <= unsigned(mask_array(to_integer(unsigned(rd.axi_size)))(rd.axi_bmask_tmp'range));
             
               -- Next, beat transfers
               rd.state      <= transfer1;
@@ -574,13 +591,14 @@ begin -- rtl
               rd.counter_axi      <= rd_next_AXI_counter;
 
               -- Using the actual counter, set the mask to filter the byte lanes to read from at the following clock cycle.
-              rd.axi_strobe  <= std_logic_vector(shift_left(rd_AXI_bmask_tmp, to_integer(unsigned(rd.counter_axi))));
+              rd.axi_strobe  <= std_logic_vector(shift_left(rd.axi_bmask_tmp, to_integer(unsigned(rd.counter_axi))));
             
               -- Be it the last beat of the burst or axi_data_bus register is full, pause AXI transfer and proceed to BM transfer.
               if(axi4mi.r_last = '1' or rd_next_AXI_counter(AXI4_DATA_BYTE) = '1') then 
                 -- Next, the BM transfer step
-                rd.state      <= transfer2;
+                rd.axi_next_index <= add_vector(rd.axi_index, 1, rd.axi_index'length); -- Overflows are allowed and expected.
                 rd.axi_ready  <= '0'; -- Pause or finish AXI transfer
+                rd.state      <= transfer2;
               end if;
 
               -- rd.counter should always be lower or equal than the number of bytes the AXI data bus has, at least during an AXI read. 
@@ -593,20 +611,22 @@ begin -- rtl
 
           when transfer2 => -- Single clock cycle delay to execute the last read from rd.data_tmp -> rd.axi_data_bus --
             -- Increment index to change the register to store the next AXI read and mark the actual one as full to BM transfer.
-            rd_next_index   := add_vector(rd.buffer_index, 1, rd.buffer_index'length); -- Overflows are allowed and expected.
-            rd.buffer_index <= rd_next_index;
-            rd.buffer_full(to_integer(unsigned(rd.buffer_index))) <= '1';
+            rd.axi_index    <= rd.axi_next_index;
+            --rd.buffer_full(to_integer(unsigned(rd.axi_index))) <= '1';  -- UNCOMMENT AFTER DEBUGGING
 
             if(rd.axi_last = '1') then      -- Check if is the last AXI beat of the burst.
               if(or_vector(rd.buffer_full) = '0') then -- Check if all BM transfers have been done.
                 if(rd.two_burst = '1') then -- If it is, check if there is another burst.
-                  rd.state    <= compute2;  -- If there is, compute the data for the handshake of the burst.
+                  rd.two_burst<= '0';       -- If there is, compute the data for the handshake of the second burst.
+                  rd.bm_size  <= '0' & rd.rem_size;
+                  rd.axi_addr <= add_vector(rd.axi_addr(31 downto AXI4_DATA_BYTE), 1, 32-AXI4_DATA_BYTE) & (AXI4_DATA_BYTE-1 downto 0 => '0');
+                  rd.state    <= compute2;
                 else
                   rd.state    <= idle;      -- If the transaction has been completed, return to idle.
                 end if;
               end if;
             else  -- In case it is not the last AXI beat, check if the next buffer register can be used for another read beat.
-              if( rd.buffer_full(to_integer(unsigned(rd_next_index))) = '0' ) then
+              if( rd.buffer_full(to_integer(unsigned(rd.axi_next_index))) = '0' ) then
                 rd.axi_ready  <= '1';       -- If there's empty registers in the buffer, use them to read another beat.
                 rd.counter_axi<= (others => '0');
                 rd.state      <= transfer1;
@@ -652,6 +672,7 @@ begin -- rtl
                   rd.bm_size    <= rd.rem_size; -- deassert the rd.two_burst flag and return to compute2.
                   rd.axi_addr   <= add_vector(rd.axi_addr(31 downto AXI4_DATA_BYTE), 1, 32-AXI4_DATA_BYTE) & (AXI4_DATA_BYTE-1 downto 0 => '0');
                   rd.two_burst  <= '0';
+                  rd.two_axi_width <= '0';
                   rd.state      <= compute2;
                 else  -- If this is the last AXI burst of the whole transaction, shift all data left to read to 0
                       -- position, set the mask to only read the requested data, assert bm_done flag and return to idle.
@@ -669,9 +690,9 @@ begin -- rtl
             -- Update counter decreasing the bytes that have been read or skipped.
             rd_next_BM_counter  := sub_vector(rd.counter_bm, unsg_skip, rd.counter_bm'length);
             if(rd_data_empty and rd.axi_last = '0') then
-              rd.counter_bm     <= (others => '0');
+              rd.counter_bm   <= (others => '0');
             else
-              rd.counter_bm     <= rd_next_BM_counter;
+              rd.counter_bm   <= rd_next_BM_counter;
             end if;
             
             -- Save the number of bytes that have been already read, to skip on next starting BM transfers while keeping unread data.
@@ -685,12 +706,10 @@ begin -- rtl
 
         end case;
 
-
-
         -- During each AXI data read, filter the data to only read the expected byte lanes at that clock cycle.
-        if(rd_AXI_valid_delayed = '1') then
+        if(rd.axi_valid_buffer = '1') then
           for k in rd.axi_strobe'range loop
-            rd.axi_data_bus(to_integer(unsigned(rd.buffer_index)))(k*8+7 downto k*8) 
+            rd.axi_data_bus(to_integer(unsigned(rd.axi_index)))(k*8+7 downto k*8) 
               <= rd.axi_data_tmp(k*8+7 downto k*8) and (7 downto 0 => rd.axi_strobe(k));
           end loop;
         end if;
@@ -704,12 +723,12 @@ begin -- rtl
           end if;
         end loop;
 
-        -- Registration of delayed signals for read transactions
-        rd_AXI_valid_delayed<= axi4mi.r_valid;
-        rd_bm_valid_delayed <= rd.bm_valid;
-        rd_bm_done_delayed  <= rd.bm_done;
+        -- Registration of buffer signals for read transactions
+        rd.axi_valid_buffer<= axi4mi.r_valid;
+        rd.bm_valid_buffer <= rd.bm_valid;
+        rd.bm_done_buffer  <= rd.bm_done;
         for k in dbits/8 - 1 downto 0 loop
-          rd_bm_data_delayed(8*k+7 downto 8*k) <= rd.data_fbus(8*k+7 downto 8*k) and (7 downto 0 => rd.bm_mask(k));
+          rd.bm_data_buffer(8*k+7 downto 8*k) <= rd.data_fbus(8*k+7 downto 8*k) and (7 downto 0 => rd.bm_mask(k));
         end loop;
 
 

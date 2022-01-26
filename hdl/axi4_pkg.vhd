@@ -18,10 +18,10 @@ package axi4_pkg is
 
     -- AXI bus generics
   constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
-  constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus
-  constant rd_n_buffer_regs   : integer range  1 to    8  := 2;   -- Number of buffer registers to use at AXI read transactions
+  constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus. [Only power of 2s are allowed]
+  constant rd_n_buffer_regs   : integer range  1 to    8  := 2;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
     -- Common generics (They must match with BM component package)
-  constant BM_BURST_WIDTH     : integer range  3 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
+  constant BM_BURST_WIDTH     : integer range  5 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
 
   -- User parameters END --
 
@@ -136,7 +136,7 @@ package axi4_pkg is
   function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
   function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
 
-  -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
+  -- OR_REDUCE substitude function, it returns a std_logic of the OR function of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
   
   -- Boolean to std_logic
@@ -176,7 +176,7 @@ package body axi4_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) + unsigned(B), res'length));
+    res := std_logic_vector(unsigned(A) + resize(unsigned(B), res'length));
     return res(len - 1 downto 0);
   end add_vector;
 
@@ -188,9 +188,9 @@ package body axi4_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    return add_vector(A, std_logic_vector(to_unsigned(B, res'length)), res'length);
+    res := std_logic_vector(resize(unsigned(A), res'length) + to_unsigned(B, res'length));
+    return res(len - 1 downto 0);
   end add_vector;
-
 
   -- Subtract function between std_logic_vectors, outputs with length assigned
   function sub_vector(
@@ -199,7 +199,7 @@ package body axi4_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - resize(unsigned(B), res'length), res'length));
+    res := std_logic_vector(resize(unsigned(A), res'length) - resize(unsigned(B), res'length));
     return res(len - 1 downto 0);
   end sub_vector;
 
@@ -211,7 +211,7 @@ package body axi4_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, res'length), res'length));
+    res := std_logic_vector(resize(unsigned(A), res'length) - to_unsigned(B, res'length));
     return res(len - 1 downto 0);
   end sub_vector;
 

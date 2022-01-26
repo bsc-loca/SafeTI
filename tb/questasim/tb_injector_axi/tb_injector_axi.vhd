@@ -56,7 +56,7 @@ architecture rtl of tb_injector_axi is
   constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
   constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0FEF";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -70,7 +70,7 @@ architecture rtl of tb_injector_axi is
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(              17, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
+    write_descriptor(               3, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
     write_descriptor(               2, 31,  RD,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes --WRT
     write_descriptor(               3, 15,  RD,  action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes -- RD
     write_descriptor(               4,  7,  RD,  action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes -- RD
@@ -275,7 +275,7 @@ begin  -- rtl
       -- Change BM connections to AXI manager, to establish AXI communication and transaction.
     wait until rising_edge(clk);
     AXI_com   <= TRUE;
-    wait for 100 ns;
+    wait for 150 ns;
     stop;
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
@@ -455,9 +455,7 @@ begin  -- rtl
     C_S00_AXI_ADDR_WIDTH    => 13, --13, --axi4mo.aw_addr'length,
     C_S00_AXI_AWUSER_WIDTH  => 1,
     C_S00_AXI_ARUSER_WIDTH  => 1,
-    C_S00_AXI_WUSER_WIDTH   => 1,
-    C_S00_AXI_RUSER_WIDTH   => 1,
-    C_S00_AXI_BUSER_WIDTH   => 1
+    C_S00_AXI_WUSER_WIDTH   => 1
   )
   port map (
     s00_AXI_aclk      => clk,

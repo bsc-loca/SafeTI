@@ -32,7 +32,7 @@ package injector_pkg is
     constant AHB_TEST_WIDTH     : integer :=   4;   -- ahb_master_in testin width
 
     -- Common generics
-    constant dbits              : integer range 32 to  128 := 32;   -- Data width of BM and FIFO at injector
+    constant dbits              : integer range 32 to  128 := 32;   -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     constant MAX_SIZE_BURST     : integer range 32 to 4096 := 4096; -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
     constant BM_BURST_WIDTH     : integer range  5 to   12 := 12;   -- Bus width for burst size. Change it manually to be log2(MAX_SIZE_BURST).
     constant numTech            : integer :=  67;   -- Target technology
@@ -710,7 +710,7 @@ package body injector_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) + unsigned(B), res'length));
+    res := std_logic_vector(unsigned(A) + resize(unsigned(B), res'length));
     return res(len - 1 downto 0);
   end add_vector;
 
@@ -722,7 +722,7 @@ package body injector_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) + to_unsigned(B, res'length), res'length));
+    res := std_logic_vector(resize(unsigned(A), res'length) + to_unsigned(B, res'length));
     return res(len - 1 downto 0);
   end add_vector;
 
@@ -733,7 +733,7 @@ package body injector_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - resize(unsigned(B), res'length), res'length));
+    res := std_logic_vector(resize(unsigned(A), res'length) - resize(unsigned(B), res'length));
     return res(len - 1 downto 0);
   end sub_vector;
 
@@ -745,7 +745,7 @@ package body injector_pkg is
   return std_logic_vector is
     variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
   begin
-    res := std_logic_vector(resize(unsigned(A) - to_unsigned(B, res'length), res'length));
+    res := std_logic_vector(resize(unsigned(A), res'length) - to_unsigned(B, res'length));
     return res(len - 1 downto 0);
   end sub_vector;
 
