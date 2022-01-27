@@ -120,7 +120,8 @@ begin
       axi4mi          => axi4mi,
       axi4mo          => axi4mo,
       bm_in           => bm_in_manager,
-      bm_out          => bm_out_manager
+      bm_out          => bm_out_manager,
+      skip_BM_transf  => '0'
     );
 
 end architecture rtl;

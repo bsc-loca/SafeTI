@@ -159,7 +159,8 @@ package axi4_pkg is
       axi4mi          : in  axi4_in_type;
       axi4mo          : out axi4_out_type;
       bm_in           : in  bm_in_type;
-      bm_out          : out bm_out_type
+      bm_out          : out bm_out_type;
+      skip_BM_transf  : in  std_logic
     );
   end component axi4_manager;
 

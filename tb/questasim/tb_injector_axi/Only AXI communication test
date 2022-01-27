@@ -1,0 +1,47 @@
+Output size mode, length, byte mask (first and last, if they're the same, there's only one) and initial pointer (aligned addresses are ommited) that have been tested.
+
+rd_addr = x0000_0FE0 (AXI4_DATA_WIDTH aligned)
+        |        F I R S T   B U R S T        |     S E C O N D   B U R S T         |
+TB size | AXI size mode | AXI len | AXI bmask | AXI size mode | AXI len | AXI bmask |
+     34 |     b100      | x01     | xFFFF     |     b001      | x00     | x0003     |
+     33 |     b100      | x01     | xFFFF     |     b000      | x00     | x0001     |
+     32 |     b100      | x01     | xFFFF     |   N O   S E C O N D   B U R S T     |
+     31 |     b100      | x01     | xFFFF     |   N O   S E C O N D   B U R S T     |
+     17 |     b100      | x01     | xFFFF     |   N O   S E C O N D   B U R S T     |
+     16 |     b100      | x00     | xFFFF     |   N O   S E C O N D   B U R S T     |
+     15 |     b100      | x00     | xFFFF     |   N O   S E C O N D   B U R S T     |
+      9 |     b100      | x00     | xFFFF     |   N O   S E C O N D   B U R S T     |
+      8 |     b011      | x00     | x00FF     |   N O   S E C O N D   B U R S T     |
+      7 |     b011      | x00     | x00FF     |   N O   S E C O N D   B U R S T     |
+      5 |     b011      | x00     | x00FF     |   N O   S E C O N D   B U R S T     |
+      4 |     b010      | x00     | x000F     |   N O   S E C O N D   B U R S T     |
+      3 |     b010      | x00     | x000F     |   N O   S E C O N D   B U R S T     |
+      2 |     b001      | x00     | x0003     |   N O   S E C O N D   B U R S T     |
+      1 |     b000      | x00     | x0001     |   N O   S E C O N D   B U R S T     |
+
+
+rd_addr = x0000_0FEF (AXI4_DATA_WIDTH unaligned, produce two length at most sizes)
+        |        F I R S T   B U R S T                       |     S E C O N D   B U R S T         |
+TB size | AXI size mode | AXI len | AXI bmask | AXI LSB addr | AXI size mode | AXI len | AXI bmask |
+     34 |     b100      | x02     | xFFFF     |    xFE0      |     b100      | x01     | xFFFF     |
+     33 |     b100      | x02     | xFFFF     |    xFE0      |     b100      | x00     | xFFFF     |
+     32 |     b100      | x02     | xFFFF     |    xFE0      |     b100      | x00     | xFFFF     |
+     31 |     b100      | x02     | xFFFF     |    xFE0      |     b100      | x00     | xFFFF     |
+     18 |     b100      | x02     | xFFFF     |    xFE0      |     b000      | x00     | x0001     |
+     17 |     b100      | x02     | xFFFF     |    xFE0      |   N O   S E C O N D   B U R S T     |
+     16 |     b100      | x01     | xFFFF     |    xFE0      |   N O   S E C O N D   B U R S T     |
+     15 |     b100      | x01     | xFFFF     |    xFE0      |   N O   S E C O N D   B U R S T     |
+      9 |     b100      | x01     | xFFFF     |    xFE0      |   N O   S E C O N D   B U R S T     |
+      8 |     b011      | x01     | xFF00/00FF|    xFE8      |   N O   S E C O N D   B U R S T     |
+      7 |     b011      | x01     | xFF00/00FF|    xFE8      |   N O   S E C O N D   B U R S T     |
+      5 |     b011      | x01     | xFF00/00FF|    xFE8      |   N O   S E C O N D   B U R S T     |
+      4 |     b010      | x01     | xF000/000F|    xFEC      |   N O   S E C O N D   B U R S T     |
+      3 |     b010      | x01     | xF000/000F|    xFEC      |   N O   S E C O N D   B U R S T     |
+      2 |     b001      | x01     | xC000/0003|    xFEE      |   N O   S E C O N D   B U R S T     |
+      1 |     b000      | x00     | x8000     |    xFEF      |   N O   S E C O N D   B U R S T     |
+
+
+rd_addr = x0000_0FFF (AXI4_DATA_WIDTH unaligned, produce second burst at most sizes)
+        |        F I R S T   B U R S T        |     S E C O N D   B U R S T         |
+TB size | AXI size mode | AXI len | AXI bmask | AXI size mode | AXI len | AXI bmask |
+     33 |     b      | x     | x     |    x      |     b      | x     | x     |

@@ -68,15 +68,19 @@ architecture rtl of tb_injector_axi is
   -- Test 2 configuration: (Queue mode disabled), enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
+  -- AXI TEST READ
+  --constant size_vector    : array_integer(0 to 1) := (34, 2);
+  constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
+
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(               3, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes --WRT
-    write_descriptor(               2, 31,  RD,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes --WRT
-    write_descriptor(               3, 15,  RD,  action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes -- RD
-    write_descriptor(               4,  7,  RD,  action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes -- RD
-    write_descriptor(              64,  3,  RD,  action_addr, '0', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes --WRT
-    write_descriptor(             128,  1,  RD,  action_addr, '0', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes --WRT
-    write_descriptor(             256,  0,  RD,  action_addr, '0', add_vector(descr_addr1,  140, 32), '1' )  --  1  read transaction  of 256 bytes -- RD
+    write_descriptor(               4, 63, WRT,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes
+    write_descriptor(               8, 31, WRT,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes
+    write_descriptor(              16, 15,  RD,  action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes
+    write_descriptor(              32,  7,  RD,  action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes
+    write_descriptor(              64,  3, WRT,  action_addr, '0', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes
+    write_descriptor(             128,  1, WRT,  action_addr, '0', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes
+    write_descriptor(             256,  0,  RD,  action_addr, '0', add_vector(descr_addr1,  140, 32), '1' )  --  1  read transaction  of 256 bytes
   );
 
   -- Descriptors to load into injector's fifo for test 2 write (size, count, action, addr, addrfix, nextraddr, last)
@@ -127,7 +131,11 @@ architecture rtl of tb_injector_axi is
   signal bm_out : bsc.injector_pkg.bm_out_type := DEF_INJ_BM;
 
   -- Selector between Injector BM to AXI manager (TRUE) or testbench (FALSE)
-  signal AXI_com : boolean := FALSE;
+  signal AXI_com  : boolean := FALSE;
+  signal test_vect: descriptor_bank(0 to 0);
+
+  -- AXI Manager interface configuration signals
+  signal bm_skip  : std_logic := '0';
 
   -- APB configuration
   signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
@@ -253,30 +261,39 @@ begin  -- rtl
   test : process
   begin
 
-    apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
-    AXI_com   <= FALSE;
-    wait until rising_edge(clk);
-    -- Change BM connections to testbench, so no AXI communication is established
-    rstn      <= '1';
-
     ----------------------------------------
     --               TEST 1               --
     ----------------------------------------
+    for j in size_vector'range loop
 
-    -- Configure injector for test 1
-    report "Test 1: Load configuration and start injector!";
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_config1, apbo, apbi);
+      apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
+      AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
+      bm_skip   <= '1';     -- Skip BM transfers to only test AXI communication requested by the injector
+      test_vect(0) <= write_descriptor( size_vector(j),  0,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '1' );
+      wait until rising_edge(clk);
+      rstn      <= '1';
 
-    -- Load descriptors for test 1
-    report "Test 1: Loading descriptor batch!";
-    load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
+      -- Configure injector for test 1
+      report "Test 1: Load configuration and start injector!";
+      configure_injector(clk, apb_inj_addr, descr_addr1, inj_config1, apbo, apbi);
 
-    -- Test all descriptors from TEST 1 once
-      -- Change BM connections to AXI manager, to establish AXI communication and transaction.
-    wait until rising_edge(clk);
-    AXI_com   <= TRUE;
-    wait for 150 ns;
+      -- Load descriptors for test 1
+      report "Test 1: Loading descriptor batch!";
+      load_descriptors(clk, test_vect, descr_addr1, bm_in, bm_out);
+
+      -- Test all descriptors from TEST 1 once
+        -- Change BM connections to AXI manager, to establish AXI communication and transaction.
+      wait until rising_edge(clk);
+      AXI_com   <= TRUE;
+
+      wait until rising_edge(bm_out_injector.rd_done); -- Wait for interface to complete transaction
+      wait for 20 ns;
+      rstn      <= '0';
+
+    end loop;
+
     stop;
+
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
     --test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
@@ -444,7 +461,8 @@ begin  -- rtl
     axi4mi          => axi4mi,
     axi4mo          => axi4mo,
     bm_in           => bm_in_manager,
-    bm_out          => bm_out_manager
+    bm_out          => bm_out_manager,
+    skip_BM_transf  => bm_skip
   );
 
   -- AXI4 subordinate memory 1024 bytes
