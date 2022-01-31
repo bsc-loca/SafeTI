@@ -17,11 +17,12 @@ package axi4_pkg is
   -- User parameters START --
 
     -- AXI bus generics
-  constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
-  constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus. [Only power of 2s are allowed]
-  constant rd_n_buffer_regs   : integer range  1 to    8  := 2;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
+    constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
+    constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus. [Only power of 2s are allowed]
+    constant rd_n_buffer_regs   : integer range  2 to    8  := 2;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
+
     -- Common generics (They must match with BM component package)
-  constant BM_BURST_WIDTH     : integer range  5 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
+    constant BM_BURST_WIDTH     : integer range  5 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
 
   -- User parameters END --
 
@@ -114,33 +115,33 @@ package axi4_pkg is
   end record;
 
   type array_integer          is array (natural range <>) of integer;
-  type array_128vector        is array (natural range <>) of std_logic_vector(127 downto 0);
+  type array_128vector        is array (natural range <>) of std_logic_vector(AXI4_DATA_WIDTH-1 downto 0);
 
   -------------------------------------------------------------------------------
   -- Subprograms
   -------------------------------------------------------------------------------
+
+  -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of 'len' lenght.
+  function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
+  function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  function sub_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
+  function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
+  function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
+
+  -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute constants and buses widths.
+  function log_2            (max_size : integer) return integer;
+
+  -- OR_REDUCE substitude function. It returns a std_logic of the OR function of all the bits from a std_logic_vector.
+  function or_vector        (vect : std_logic_vector) return std_logic;
+  
+  -- Boolean to std_logic. Just because VHDL is too strong.
+  function to_std_logic     (wool : boolean) return std_logic;
 
   -- Returns maximum value from an array of integers.
   function max              (A : array_integer) return integer;
 
   -- IF function for when VHDL can not use if (like at constants).
   function sel              (A, B : integer; sel : boolean) return integer;
-
-  -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
-  function log_2            (max_size : integer) return integer;
-
-  -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght and integer
-  function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
-  function sub_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
-  function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
-  function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
-  function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
-
-  -- OR_REDUCE substitude function, it returns a std_logic of the OR function of all the bits from a std_logic_vector
-  function or_vector        (vect : std_logic_vector) return std_logic;
-  
-  -- Boolean to std_logic
-  function to_std_logic     (wool : boolean) return std_logic;
 
   -----------------------------------------------------------------------------
   -- Component instantiation

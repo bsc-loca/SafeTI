@@ -42,6 +42,22 @@ TB size | AXI size mode | AXI len | AXI bmask | AXI LSB addr | AXI size mode | A
 
 
 rd_addr = x0000_0FFF (AXI4_DATA_WIDTH unaligned, produce second burst at most sizes)
-        |        F I R S T   B U R S T        |     S E C O N D   B U R S T         |
-TB size | AXI size mode | AXI len | AXI bmask | AXI size mode | AXI len | AXI bmask |
-     33 |     b      | x     | x     |    x      |     b      | x     | x     |
+        |        F I R S T   B U R S T                       |     S E C O N D   B U R S T         |
+TB size | AXI size mode | AXI len | AXI bmask | AXI LSB addr | AXI size mode | AXI len | AXI bmask |
+     34 |     b000      | x00     | x8000     |    xFFF      |     b100      | x02     | xFFFF     |
+     33 |     b000      | x00     | x8000     |    xFFF      |     b100      | x01     | xFFFF     |
+     32 |     b000      | x00     | x8000     |    xFFF      |     b100      | x01     | xFFFF     |
+     31 |     b000      | x00     | x8000     |    xFFF      |     b100      | x01     | xFFFF     |
+     18 |     b000      | x00     | x8000     |    xFFF      |     b100      | x01     | xFFFF     |
+     17 |     b000      | x00     | x8000     |    xFFF      |     b100      | x00     | xFFFF     |
+     16 |     b000      | x00     | x8000     |    xFFF      |     b100      | x00     | xFFFF     |
+     15 |     b000      | x00     | x8000     |    xFFF      |     b100      | x00     | xFFFF     |
+      9 |     b000      | x00     | x8000     |    xFFF      |     b011      | x00     | x00FF     |
+      8 |     b000      | x00     | x8000     |    xFFF      |     b011      | x00     | x00FF     |
+      7 |     b000      | x00     | x8000     |    xFFF      |     b011      | x00     | x00FF     |
+      5 |     b000      | x00     | x8000     |    xFFF      |     b010      | x00     | x000F     |
+      4 |     b000      | x00     | x8000     |    xFFF      |     b010      | x00     | x000F     |
+      3 |     b000      | x00     | x8000     |    xFFF      |     b001      | x00     | x0003     |
+      2 |     b000      | x00     | x8000     |    xFFF      |     b000      | x00     | x0001     |
+      1 |     b000      | x00     | x8000     |    xFFF      |   N O   S E C O N D   B U R S T     |
+

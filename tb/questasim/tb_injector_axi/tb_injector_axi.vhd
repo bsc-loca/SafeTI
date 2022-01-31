@@ -56,7 +56,7 @@ architecture rtl of tb_injector_axi is
   constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
   constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0FEF";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -69,8 +69,8 @@ architecture rtl of tb_injector_axi is
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
   -- AXI TEST READ
-  --constant size_vector    : array_integer(0 to 1) := (34, 2);
-  constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
+  constant size_vector    : array_integer(0 to 6) := (5, 32, 33, 64, 65, 128, 129);
+  --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
