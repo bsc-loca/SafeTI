@@ -69,7 +69,7 @@ architecture rtl of tb_injector_axi is
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
   -- AXI TEST READ
-  constant size_vector    : array_integer(0 to 6) := (5, 32, 33, 64, 65, 128, 129);
+  constant size_vector    : array_integer(0 to 6) := (32, 32, 33, 64, 65, 128, 129);
   --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
