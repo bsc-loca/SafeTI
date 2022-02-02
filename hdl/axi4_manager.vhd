@@ -173,6 +173,7 @@ architecture rtl of axi4_manager is
     bm_counter    : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Used to count the number of bytes to BM transfer.
     start_strb    : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Number of right-bytes to skip when reading or writing data_bus at start of BM transfer.
     end_strb      : std_logic_vector(AXI4_FDATA_BYTE     downto 0); -- Number of bytes to read from data_bus at the last BM transfer.
+    bm_unsg_mask  : std_logic_vector(log_2(dbits/8)  - 1 downto 0); -- Unsigned number to generate the last BM transfer mask.
     bm_mask       : std_logic_vector(dbits/8 - 1 downto 0);         -- What dbits byte lanes to use at BM transfer (all, except in the last transfer).
     bm_valid      : std_logic;                                      -- Valid read data to transfer into BM bus from data_bus(dbits-1 downto 0).
     bm_done       : std_logic;                                      -- Asserted at the last rd.bm_valid pulse of the whole transfer.
@@ -183,7 +184,6 @@ architecture rtl of axi4_manager is
     axi_ready_buffer  : std_logic;                                  -- Manager r_ready buffer used as delayed signal.
     axi_index_buffer  : std_logic_vector(log_2(rd_n_buffer_regs) - 1 downto 0); -- AXI fifo index buffer.
     fifo_full_buffer  : std_logic_vector(rd_n_buffer_regs - 1 downto 0);    -- fifo_full buffered register.
-    fifo_last_buffer  : std_logic_vector(rd_n_buffer_regs - 1 downto 0);    -- fifo_last buffered register.
     bm_data           : std_logic_vector(dbits     - 1 downto 0);   -- BM data register used to separate shifting from the bm_data_buffer.
     bm_data_buffer    : std_logic_vector(dbits     - 1 downto 0);   -- BM data output buffer to maximize frequency of operation.
     bm_valid_buffer   : std_logic;                                  -- BM valid signal output delayed to be in sync with bm_data_buffer.
@@ -242,10 +242,11 @@ architecture rtl of axi4_manager is
     axi_index         => (others => '0'),
     bm_index          => (others => '0'),
     bm_first          => '1',
-    bm_counter        => std_logic_vector(to_unsigned(AXI4_DATA_WIDTH/8, AXI4_FDATA_BYTE + 1)),
+    bm_counter        => (others => '0'),
     start_strb        => (others => '0'),
     end_strb          => (others => '0'),
-    bm_mask           => (others => '0'),
+    bm_unsg_mask      => (others => '0'),
+    bm_mask           => (others => '1'),
     bm_valid          => '0',
     bm_done           => '0',
     axi_data_tmp      => (others => '0'),
@@ -254,7 +255,6 @@ architecture rtl of axi4_manager is
     axi_ready_buffer  => '0',
     axi_index_buffer  => (others => '0'),
     fifo_full_buffer  => (others => '0'),
-    fifo_last_buffer  => (others => '0'),
     bm_data           => (others => '0'),
     bm_data_buffer    => (others => '0'),
     bm_valid_buffer   => '0',
@@ -492,11 +492,12 @@ begin -- rtl
     variable rd_axi_next_counter  : std_logic_vector(rd.axi_counter'range         );-- Next AXI counter
     variable rd_axi_next_index    : std_logic_vector(rd.axi_index'range           );-- Next buffer index
 
-    variable rd_data_fwidth: std_logic_vector(AXI4_DATA_WIDTH + dbits - 1 downto 0);-- AXI LSB starting address
+    variable rd_data_fwidth: std_logic_vector(AXI4_DATA_WIDTH + dbits - 1 downto 0);-- BM full shifted data bus
+    variable rd_bm_counter        : std_logic_vector(rd.bm_counter'range          );-- Next BM counter
     variable rd_bm_shift          : std_logic                                      ;-- BM shift flag
-    variable rd_data_empty        : boolean;                                        -- rd.fifo(bm_index) register depleted flag
+    variable rd_data_empty        : boolean                                        ;-- rd.fifo(bm_index) register depleted flag
     variable rd_bm_next_index     : std_logic_vector(rd.bm_index'range            );-- Next AXI counter
-    --variable fifo_full    : std_logic;
+    variable rd_bm_done           : std_logic                                      ;-- Last BM transfer, generate BM mask.
     
   begin
     if (rstn = '0' and ASYNC_RST) then
@@ -536,8 +537,11 @@ begin -- rtl
               rd.rem_size   <= rd_addr_end(rd.rem_size'range);
             end if;
           
-            -- Number of bytes to transfer at the last BM transfer = LSB of last address + 1 + BM data bytes width
-            rd.end_strb     <= add_vector(rd_addr_end(AXI4_DATA_BYTE-1 downto 0), 1 + dbits/8, rd.end_strb'length);
+            -- Number of bytes to transfer at the last BM transfer = LSB of last address + 1
+            rd.end_strb     <= add_vector(rd_addr_end(AXI4_DATA_BYTE-1 downto 0), 1, rd.end_strb'length);
+
+            -- Save the mask value to apply at the last BM transfer from the total requested size from the BM component
+            rd.bm_unsg_mask <= rd.bm_size(rd.bm_unsg_mask'range);
           
             -- Next, compute size mode
             rd.state        <= compute2;
@@ -553,9 +557,9 @@ begin -- rtl
             -- AXI4_DATA_WIDTH spaces from the same subordinate are required to be accessed.
             rd.addr_end     <= add_vector(rd.bm_size, rd.bm_addr(11 downto 0), rd.addr_end'length);
           
-            -- Save the number of bytes to discard unrequested data at the first BM transfer = LSB BM unaligned address
+            -- Save the number of bytes to discard unrequested data at the first BM transfer = LSB BM unaligned address + BM data bus width bytes
             if(rd.first_beat = '1') then
-              rd.start_strb   <= (rd.start_strb'length - AXI4_DATA_BYTE - 1 downto 0 => '0' ) & rd.bm_addr(AXI4_DATA_BYTE-1 downto 0);
+              rd.start_strb <= add_vector(rd.bm_addr(AXI4_DATA_BYTE-1 downto 0), dbits/8, rd.start_strb'length);
             end if;
           
             -- Next compute state
@@ -638,24 +642,22 @@ begin -- rtl
             -- space in fifo or subordinate is not sending valid data yet.
 
               -- If the AXI burst has finished (rd.axi_ready must be deasserted by now), set the control data for a second
-              -- burst if it is necessary (rd.two_burst = 1) or return to idle, only when the BM logic has transfered everything it has.
+              -- burst if it is necessary (rd.two_burst = 1) or wait until the last BM transfer and the reset of the whole read block.
               if(rd.axi_last = '1') then
-                if(or_vector(rd.fifo_full & rd.fifo_full_buffer) = '0') then
+                if(or_vector(rd.fifo_full) = '0') then
                   if(rd.two_burst = '1') then
                     rd.two_burst  <= '0';
                     rd.first_beat <= '0';
-                    rd.axi_last <= '0';
-                    rd.bm_size  <= rd.rem_size;
-                    rd.bm_addr  <= add_vector(rd.bm_addr(31 downto 12), 1, 20) & (11 downto 0 => '0');
-                    rd.state    <= compute2;
-                  else
-                    rd.state    <= idle;
+                    rd.axi_last   <= '0';
+                    rd.bm_size    <= rd.rem_size;
+                    rd.bm_addr    <= add_vector(rd.bm_addr(31 downto 12), 1, 20) & (11 downto 0 => '0');
+                    rd.state      <= compute2;
                   end if;
                 end if;
-              else  -- In case it is not the last AXI beat, check if the actual fifo register can be used for another read beat.
+              else  -- In case it is not the last AXI beat, check if the present fifo register can be used for another read beat.
                 if( rd.fifo_full(to_integer(unsigned(rd.axi_index))) = '0' ) then
-                  rd.axi_ready  <= '1';       -- If there's empty registers in the buffer, use them to read another beat.
-                  rd.axi_counter<= (others => '0');
+                  rd.axi_ready    <= '1'; -- If there's empty registers in the buffer, use them to read another beat.
+                  rd.axi_counter  <= (others => '0');
                 end if;
               end if;
 
@@ -682,173 +684,178 @@ begin -- rtl
       -----------------------
       -- BM TRANSFER LOGIC --
       -----------------------
-      -- The BM transfer logic transfers from the RD FIFO to the BM component at a dbits per clock cycle throughput with one clock cycle of 
-      -- pause to change the fifo register, unless the AXI transfer cannot provide enough data to the RD FIFO. This is achieved by shifting 
-      -- the rd.fifo + rd.bm_data register to flush already read data or unrequested data by the BM component.
-      -- The counter in this step implies the number of bytes it must transfer or skip (rd_fdata_shift) in the register rd.fifo + dbits.
+      -- The BM transfer logic transfers from the RD FIFO to the BM component at dbits bits per clock cycle throughput without pause, unless  
+      -- there's not enough data in the fifo to BM transfer. This is achieved by shifting rd.fifo(bm_index) onto itself and the rd.bm_data 
+      -- used as output (after masking for last BM transfer), until there's not enough data in the present fifo register. Then, the next  
+      -- fifo register is used with rd.fifo(bm_next_index) with also the remaining data on present fifo register. After fully reading a fifo 
+      -- register, this one is set free to be used at new AXI beat readings.
 
-        -- Check if there's data to BM transfer
+        -- Initialize rd.bm_counter before any BM transfer with AXI data bytes or with the ending strobe if there's only one single BM transfer.
+        -- Using rd.fifo_last instead of rd.fifo_last_buffer in order to detect the last BM transfer one cycle in advance of the transfer itself.
+        if(rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1' and rd.bm_first = '1') then
+          rd.bm_counter <= rd.end_strb;
+        else
+          rd.bm_counter <= std_logic_vector(to_unsigned(AXI4_DATA_WIDTH/8, rd.bm_counter'length));
+        end if;
+
+        -- Set combinational variables --
+        -- Check if this is the last BM transfer before rd.fifo(bm_index) is depleted after a transfer of dbits bits.
+        rd_data_empty     := rd.bm_counter <= std_logic_vector(to_unsigned(dbits/8, rd.bm_counter'length));
+        rd_bm_next_index  := add_vector(rd.bm_index, 1, rd.bm_index'length);
+
+        -- Check if there's data to BM transfer. Delayed with a buffer register so the last AXI beat transfer is finished on this fifo register.
         if(rd.fifo_full_buffer(to_integer(unsigned(rd.bm_index))) = '1') then
-          
-          -- Check if this is the last BM transfer before rd.fifo(bm_index) is depleted for a dbits transfer.
-          rd_data_empty     := rd.bm_counter < std_logic_vector(to_unsigned(dbits/8, rd.bm_counter'length));
-          rd_bm_next_index  := add_vector(rd.bm_index, 1, rd.bm_index'length);
+
+          -- Deassert the first BM transfer flag, since it's only required to shift rd.start_strb once at the first BM transfer.
           rd.bm_first       <= '0';
 
-          -- Shifting logic to maintain full throughput if possible.
-          if(rd_data_empty) then
-            if(rd.fifo_full(to_integer(unsigned(rd_bm_next_index))) = '1') then
-
-              for k in AXI4_DATA_WIDTH/8 + dbits/8 - 1 downto 0 loop
-                if( rd.bm_counter > std_logic_vector(to_unsigned(k, rd.bm_counter'length)) ) then
-                  rd_data_fwidth(8*k+7 downto 8*k) := rd.fifo(to_integer(unsigned(rd.bm_index)))
-                                                    (8*k+7 downto 8*k);
-                else
-                  rd_data_fwidth(8*k+7 downto 8*k) := rd.fifo(to_integer(unsigned(rd_bm_next_index)))
-                                                    (       8*to_integer(unsigned(sub_vector(k - dbits/8, rd.bm_counter, rd.bm_counter'length)))+7 
-                                                    downto  8*to_integer(unsigned(sub_vector(k - dbits/8, rd.bm_counter, rd.bm_counter'length))) );
-                end if;
-              end loop;
-
-              rd.fifo_full(to_integer(unsigned(rd.bm_index))) <= '0';
-              rd.bm_index   <= rd_bm_next_index;
-              rd_bm_shift   := '1';
-
-            else
-
-              if(rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1') then
-                rd_data_fwidth    := (dbits - 1 downto 0 => '0') & rd.fifo(to_integer(unsigned(rd.bm_index)));
-                rd.bm_done  <= '1';
-                rd_bm_shift := '1';
-              else
-                rd_bm_shift := '0';
-              end if;
-
-            end if;
-          else
-            --
-            if(rd.bm_first = '1') then
-              rd_data_fwidth:= (8*to_integer(unsigned(rd.start_strb)) + dbits - 1 downto 0 => '0')
-                                    & rd.fifo(to_integer(unsigned(rd.bm_index)))(AXI4_DATA_WIDTH - 1 downto 8*to_integer(unsigned(rd.start_strb)));
-            else
-              rd_data_fwidth:= (dbits - 1 downto 0 => '0') & rd.fifo(to_integer(unsigned(rd.bm_index)));
-            end if;
-
+          -- Shifting logic to maintain full throughput if possible (enough fifo data) --
+            -- On the first BM transfer, shift rd.start_strb.
+          if(rd.bm_first = '1') then
+            rd_data_fwidth  := (8*to_integer(unsigned(rd.start_strb)) - 1 downto 0 => '0')
+                                  & rd.fifo(to_integer(unsigned(rd.bm_index)))(AXI4_DATA_WIDTH - 1 downto 8*to_integer(unsigned(rd.start_strb)) - dbits);
+            rd_bm_counter   := sub_vector(rd.bm_counter, rd.start_strb, rd.bm_counter'length);
+            rd.bm_counter   <= rd_bm_counter;
             rd_bm_shift     := '1';
-          end if;
+
+            -- If this fifo register is the last and this clock cycle will read more or equal to the bytes requested, end transfer.
+            if( rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1' and to_integer(unsigned(rd_bm_counter)) >= AXI4_DATA_WIDTH/8 ) then
+              rd_bm_done      := '1';
+              rd.bm_done      <= '1';
+              rd_bm_shift     := '1';
+              rd.state    <= idle;
+            end if;
+
+          else
+
+            if(rd_data_empty) then
+              if(rd.fifo_full(to_integer(unsigned(rd_bm_next_index))) = '1') then
+
+              -- In case this cycle will deplete the present fifo register (rd_data_empty = 1) and the next fifo register is prepared 
+              -- to be transfered, use the remaining data (rd.bm_counter lower or equal to AXI data bus bytes) as LSB and take the 
+              -- lacking bytes to fill dbits from the next fifo register, while also shifting its content for posterior transfers.
+              -- (since the shifting index k surpasses the bytes available in the next fifo register on unaligned starting transfers, 
+              -- fill the remaining byte positions with zeros, that, in number of bytes, will be always lower than the bytes in dbits)
+                for k in AXI4_DATA_WIDTH/8 + dbits/8 - 1 downto 0 loop
+                  if( rd.bm_counter > std_logic_vector(to_unsigned(k, rd.bm_counter'length)) ) then
+                    rd_data_fwidth(8*k+7 downto 8*k) := rd.fifo(to_integer(unsigned(rd.bm_index)))
+                                                      (8*k+7 downto 8*k);
+                  else
+                    if( to_integer(unsigned(sub_vector(k, rd.bm_counter, rd.bm_counter'length))) < AXI4_DATA_WIDTH/8) then
+                      rd_data_fwidth(8*k+7 downto 8*k) := rd.fifo(to_integer(unsigned(rd_bm_next_index)))
+                                                        (       8*to_integer(unsigned(sub_vector(k, rd.bm_counter, rd.bm_counter'length)))+7 
+                                                        downto  8*to_integer(unsigned(sub_vector(k, rd.bm_counter, rd.bm_counter'length))) );
+                    else
+                      rd_data_fwidth(8*k+7 downto 8*k) := x"00";
+                    end if;
+                  end if;
+                end loop;
+
+                -- Set the present fifo register to be prepared for new AXI transfer and change the fifo register rd.bm_index.
+                rd.fifo_full(to_integer(unsigned(rd.bm_index))) <= '0';
+                rd.bm_index     <= rd_bm_next_index;
+                rd_bm_shift     := '1';
+
+                -- Compute the number of bytes that'll be left to read on the next fifo register.
+                -- In case where the next fifo register is the last, counter = end_strb - ( dbits/8 - bm_counter ) = ( end_strb + bm_counter ) - dbits/8
+                -- Otherwise, it must be taken the whole AXI data bus, counter = AXI_DATA/8 - ( dbits/8 - bm_counter ) = bm_counter + AXI_DATA/8 - dbits/8
+                if(rd.fifo_last(to_integer(unsigned(rd_bm_next_index))) = '1') then
+                  rd.bm_counter <= sub_vector(add_vector(rd.end_strb, rd.bm_counter, rd.bm_counter'length), dbits/8, rd.bm_counter'length);
+
+                  -- In addition, if the number of bytes read on this clock cycle from rd.fifo(rd_axi_next_index) include all the data required 
+                  -- by rd.end_strb, end the transfer on the next clock cycle. (done, mask and return to idle)
+                  if(sub_vector(dbits/8, rd.bm_counter, rd.bm_counter'length) <= rd.end_strb) then
+                    rd_bm_done  := '1';
+                    rd.bm_done  <= '1';
+                    rd_bm_shift := '1';
+                    rd.state    <= idle;
+                  end if;
+
+                else
+                  rd.bm_counter <= add_vector(rd.bm_counter, AXI4_DATA_WIDTH/8 - dbits/8, rd.bm_counter'length);
+                end if;              
+
+              else   -- rd.fifo_full(rd_bm_next_index) = 0 check
+
+              -- In case there's not enough data to read from the fifo, check if this is the last BM transfer. If it is, push the 
+              -- remaining data to the LSB position and end the transfer on the next clock cycle. Otherwise, do nothing and wait.
+                if(rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1') then
+                  rd.fifo_full(to_integer(unsigned(rd.bm_index))) <= '0';
+                  rd_data_fwidth:= (dbits - 1 downto 0 => '0') & rd.fifo(to_integer(unsigned(rd.bm_index)));
+                  rd_bm_done    := '1';
+                  rd.bm_done    <= '1';
+                  rd_bm_shift   := '1';
+                  rd.state      <= idle;
+                else
+                  rd_bm_shift   := '0';
+                end if;
+
+              end if; -- rd.fifo_full(rd_bm_next_index) end of check
+            else  -- rd_empty_data = 0 check
+
+            -- In case there's still data on the present fifo register for a dbits transfer (more than dbits), shift dbits.
+            rd_data_fwidth  := (dbits - 1 downto 0 => '0') & rd.fifo(to_integer(unsigned(rd.bm_index)));
+            rd.bm_counter   <= sub_vector(rd.bm_counter, dbits/8, rd.bm_counter'length);
+            rd_bm_shift     := '1';
+
+            end if; -- rd_empty_data end of check
+          end if;   -- bm_first end of check
 
           rd.bm_data        <= rd_data_fwidth(dbits - 1 downto 0);
           rd.bm_valid       <= rd_bm_shift;
 
           if(rd_bm_shift = '1') then
-            if(rd_data_empty) then
-              if(rd.fifo_last(to_integer(unsigned(rd_bm_next_index))) = '1') then
-                rd.bm_counter <= rd.end_strb;
+            if(rd.bm_first = '1') then
+              rd.fifo(to_integer(unsigned(rd.bm_index)))        <= rd_data_fwidth(rd_data_fwidth'high downto dbits);
+            else
+              if(rd_data_empty) then
                 rd.fifo(to_integer(unsigned(rd_bm_next_index))) <= rd_data_fwidth(rd_data_fwidth'high downto dbits);
               else
-                rd.bm_counter <= sub_vector(AXI4_DATA_WIDTH/8, rd.bm_counter, rd.bm_counter'length);
                 rd.fifo(to_integer(unsigned(rd.bm_index)))      <= rd_data_fwidth(rd_data_fwidth'high downto dbits);
               end if;
-            else
-              rd.bm_counter <= sub_vector(rd.bm_counter, dbits/8, rd.bm_counter'length);
-              rd.fifo(to_integer(unsigned(rd.bm_index)))        <= rd_data_fwidth(rd_data_fwidth'high downto dbits);
             end if;
-          end if;
-
-        else
-
-          -- Initialize rd.bm_counter before any BM transfer
-          if(rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1') then
-            rd.bm_counter <= rd.end_strb;
-          else
-            rd.bm_counter <= std_logic_vector(to_unsigned(AXI4_DATA_WIDTH/8, rd.bm_counter'length));
           end if;
 
         end if;
 
-
-
-          --- REWORKING... again ---
-
-          -- On the first clock before each BM transfer, set the shift to flush already read data or unrequested data from the BM component, 
-          -- but requested on the AXI bus by the manager, and assert the rd.bm_valid flag for the next clock cycle.
-        --  if(rd_data_empty) then
-        --    rd_fdata_shift  := rd.start_strb;
-        --    rd.bm_index     <= add_vector(rd.bm_index, 1, rd.bm_index'length);
-        --    rd.fifo_full(to_integer(unsigned(rd.bm_index))) <= '0';
-        --    rd.bm_valid     <= '0';
-        --    if(rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1' and rd.two_burst = '0') then
-        --      rd_fdata_shift:= rd.bm_counter(rd_fdata_shift'range);
-        --    else
-        --      rd_fdata_shift:= sub_vector(rd.bm_counter, dbits/8, rd_fdata_shift'length);
-        --    end if;
-        --  else
-        --    -- During the BM transfer, shift dbits if there's enough data on the present rd.fifo register. Otherwise, shift so the left unread 
-        --    -- data is positioned at the MSB of the dbits for the next BM transfer. If it's the last BM transfer, set the last data to the LSB.
-        --    -- In addition, update the index to fetch the next rd.fifo register and mark the actual one to be overwritten with an AXI read.
-        --    -- Furthermore, assert the 
-        --    if(rd_data_empty) then
---
-        --    else
-        --      rd_fdata_shift    := std_logic_vector(to_unsigned(dbits/8, rd_fdata_shift'length));
-        --    end if;
-        --  end if;
-        --  
-        --  -- Initilize rd.bm_counter with the number of bits to parse on this BM transfer (AXI4_DATA_WIDTH + dbits) minus the shift done 
-        --  -- previous to the start of the BM transfer. During the BM transfer, update the counter by subtracting the number of bytes shifted.
-        --  if(rd_data_empty) then
-        --    rd.bm_counter <= sub_vector(AXI4_DATA_WIDTH/8 + dbits/8, rd_fdata_shift, rd.bm_counter'length);
-        --    rd.fifo_full(to_integer(unsigned(rd.bm_index))) <= '0';
-        --    rd.bm_index   <= add_vector(rd.bm_index, 1, rd.bm_index'length);
-        --  else
-        --    rd.bm_counter <= sub_vector(rd.bm_counter, rd_fdata_shift, rd.bm_counter'length);
-        --  end if;
---
-        --  -- Assert the rd.bm_done flag in the last BM transfer of the whole transaction.
-        --  if(rd_data_empty and rd.fifo_last(to_integer(unsigned(rd.bm_index))) = '1' and rd.two_burst = '0') then
-        --    rd.bm_done      <= '1';
-        --  end if;
---
-        --  -- Save the number of bytes that have been already read, to skip on next starting BM transfers while keeping unread data.
-        --  rd.start_strb     <= sub_vector(dbits/8, rd_fdata_shift, rd.start_strb'length);
---
---
-        --  
-        --  -- Overwrite the present fifo register and the bm_data.
-        --  rd.fifo(to_integer(unsigned(rd.bm_index)))  <= rd_data_fwidth( rd_data_fwidth'length - 1 downto dbits );
-        --  rd.bm_data                                  <= rd_data_fwidth( dbits                 - 1 downto     0 );
-        --  
-        --end if;
-
         -- Generate the BM byte mask to only deliver the bytes requested.
-        for k in 0 to rd.bm_mask'length - 1 loop
-          if(rd.bm_counter > std_logic_vector(to_unsigned(k, rd.bm_counter'length))) then
-            rd.bm_mask(k) <= '1';
-          else 
-            rd.bm_mask(k) <= '0';
-          end if;
-        end loop;
+        if(rd_bm_done = '1') then
+          for k in 0 to rd.bm_mask'length - 1 loop
+            if(rd.bm_unsg_mask >= std_logic_vector(to_unsigned(k, log_2(dbits/8)))) then
+              rd.bm_mask(k) <= '1';
+            else 
+              rd.bm_mask(k) <= '0';
+            end if;
+          end loop;
+        end if;
         
         -- Apply the BM byte mask to the read data output of the BM component.
         for k in dbits/8 - 1 downto 0 loop
           rd.bm_data_buffer(8*k+7 downto 8*k) <= rd.bm_data(8*k+7 downto 8*k) and (7 downto 0 => rd.bm_mask(k));
         end loop;
 
+
       ----------------------
       -- BUFFER REGISTERS --
       ----------------------
-        -- Registration of buffer signals for read transactions
-        rd.axi_valid_buffer<= axi4mi.r_valid;
-        rd.axi_ready_buffer<= rd.axi_ready;
-        rd.axi_index_buffer<= rd.axi_index;
-        rd.fifo_full_buffer<= rd.fifo_full;
-        rd.fifo_last_buffer<= rd.fifo_last;
-        rd.bm_valid_buffer <= rd.bm_valid;
-        
-        --if(rd.bm_skip = '0') then
-          rd.bm_done_buffer<= rd.bm_done;
-        --end if;
 
+        -- Reset of buffer signals and state at last BM transfer.
+        if(rd.bm_done_buffer = '1') then
+          rd.axi_valid_buffer <= '0';
+          rd.axi_ready_buffer <= '0';
+          rd.axi_index_buffer <= (others => '0');
+          rd.fifo_full_buffer <= (others => '0');
+          rd.bm_valid_buffer  <= '0';
+          rd.bm_done_buffer   <= '0';
+        else
+        -- Registration of buffer signals for read transactions.
+          rd.axi_valid_buffer <= axi4mi.r_valid; -- Delayed to mask the last AXI beat transfer from the previous axi_index.
+          rd.axi_ready_buffer <= rd.axi_ready;   -- Delayed to mask the last AXI beat transfer from the previous axi_index.
+          rd.axi_index_buffer <= rd.axi_index;   -- Delayed to mask the last AXI beat transfer from the previous axi_index.
+          rd.fifo_full_buffer <= rd.fifo_full;   -- Delayed full vector so BM transfers are executed a cycle after the AXI transfer.
+          rd.bm_valid_buffer  <= rd.bm_valid;    -- Delayed BM valid data flag so the mask and output is separated from BM transfer logic.
+          rd.bm_done_buffer   <= rd.bm_done;
+        end if;
 
 
       end if;
