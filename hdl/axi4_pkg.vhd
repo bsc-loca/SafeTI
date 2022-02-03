@@ -115,7 +115,7 @@ package axi4_pkg is
   end record;
 
   type array_integer          is array (natural range <>) of integer;
-  type array_128vector        is array (natural range <>) of std_logic_vector(AXI4_DATA_WIDTH-1 downto 0);
+  type array_128vector        is array (natural range <>) of std_logic_vector(127 downto 0);
 
   -------------------------------------------------------------------------------
   -- Subprograms

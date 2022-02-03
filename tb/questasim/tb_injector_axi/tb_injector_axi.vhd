@@ -62,24 +62,24 @@ architecture rtl of tb_injector_axi is
   -- Injector reset
   constant inj_rst        : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "000010";
 
-  -- Test 1 configuration: Queue mode enabled, enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
-  constant inj_config1    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "111001";
+  -- Test 1 configuration: Queue mode disabled, enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
+  constant inj_config1    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
   
   -- Test 2 configuration: (Queue mode disabled), enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
   -- AXI TEST READ
-  constant size_vector    : array_integer(0 to 6) := (32, 32, 33, 64, 65, 128, 129);
+  constant size_vector    : array_integer(0 to 6) := (65, 32, 33, 64, 65, 128, 129);
   --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(               4, 63, WRT,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes
-    write_descriptor(               8, 31, WRT,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes
+    write_descriptor(               4, 63,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes
+    write_descriptor(               8, 31,  RD,  action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes
     write_descriptor(              16, 15,  RD,  action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes
     write_descriptor(              32,  7,  RD,  action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes
-    write_descriptor(              64,  3, WRT,  action_addr, '0', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes
-    write_descriptor(             128,  1, WRT,  action_addr, '0', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes
+    write_descriptor(              64,  3,  RD,  action_addr, '0', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes
+    write_descriptor(             128,  1,  RD,  action_addr, '0', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes
     write_descriptor(             256,  0,  RD,  action_addr, '0', add_vector(descr_addr1,  140, 32), '1' )  --  1  read transaction  of 256 bytes
   );
 
@@ -262,7 +262,7 @@ begin  -- rtl
   begin
 
     ----------------------------------------
-    --               TEST 1               --
+    --               TEST X               --
     ----------------------------------------
     for j in size_vector'range loop
 
@@ -273,12 +273,10 @@ begin  -- rtl
       wait until rising_edge(clk);
       rstn      <= '1';
 
-      -- Configure injector for test 1
-      report "Test 1: Load configuration and start injector!";
+      -- Configure injector for test X
       configure_injector(clk, apb_inj_addr, descr_addr1, inj_config1, apbo, apbi);
 
-      -- Load descriptors for test 1
-      report "Test 1: Loading descriptor batch!";
+      -- Load descriptors for test X
       load_descriptors(clk, test_vect, descr_addr1, bm_in, bm_out);
 
       -- Test all descriptors from TEST 1 once
@@ -292,13 +290,49 @@ begin  -- rtl
 
     end loop;
 
-    stop;
+      
+    -- Reset injector
+    AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
+    configure_injector(clk, apb_inj_addr, descr_addr1, inj_rst, apbo, apbi);
+
+    -- Check if reset has worked
+    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
+    apbi.en     <= '1';
+    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
+    apbi.write  <= '0';
+    wait until rising_edge(clk); wait until rising_edge(clk);
+    if(or_vector(apbo.rdata) = '1') then
+      assert FALSE report "Test X: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
+    else           report "Test X: Injector has been reset successfully!";
+    end if;
+    apbi.en     <= '0';
+    wait for 1 us;
+
+    -- To reset loaded descriptors, it is required to use the reset low input
+    rstn        <= '0';
+    wait until rising_edge(clk);  wait until rising_edge(clk);
+    rstn        <= '1';
+
+
+
+    ----------------------------------------
+    --               TEST 1               --
+    ----------------------------------------
+
+    -- Configure injector for test 1
+    report "Test 1: Load configuration and start injector!";
+    AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
+    configure_injector(clk, apb_inj_addr, descr_addr1, inj_config1, apbo, apbi);
+
+    -- Load descriptors for test 1
+    report "Test 1: Loading descriptor batch!";
+    load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
+    AXI_com   <= TRUE;   -- Change BM connections to AXI subordinate
 
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully twice!";
-
 
 
     -- Reset injector
@@ -321,6 +355,8 @@ begin  -- rtl
     rstn        <= '0';
     wait until rising_edge(clk);  wait until rising_edge(clk);
     rstn        <= '1';
+
+    stop;
 
     ----------------------------------------
     --               TEST 2               --
