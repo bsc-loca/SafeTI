@@ -19,7 +19,8 @@ package axi4_pkg is
     -- AXI bus generics
     constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
     constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus. [Only power of 2s are allowed]
-    constant rd_n_buffer_regs   : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
+    constant rd_n_fifo_regs     : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
+    constant wr_n_fifo_regs     : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
 
     -- Common generics (They must match with BM component package)
     constant BM_BURST_WIDTH     : integer range  5 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).

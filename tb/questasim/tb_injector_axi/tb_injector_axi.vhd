@@ -20,8 +20,8 @@ use std.env.all; -- VHDL2008
 -----------------------------------------------------------------------------
 -- Top level testbench entity for AXI4 manager interface.
 --
--- 
---
+-- This testbench setting is not thought to be used as an automated testing tool, since the tb logic 
+-- is not prepared yet to fetch for AXI manager's BM control signals.
 -- Some generics may not work for different values from the default ones. 
 -- 
 -----------------------------------------------------------------------------
@@ -56,7 +56,7 @@ architecture rtl of tb_injector_axi is
   constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
   constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_000E";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -69,7 +69,7 @@ architecture rtl of tb_injector_axi is
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
   -- AXI TEST READ
-  constant size_vector    : array_integer(0 to 6) := (65, 32, 33, 64, 65, 128, 129);
+  constant size_vector    : array_integer(0 to 6) := (4, 32, 33, 64, 65, 128, 129);
   --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
@@ -125,6 +125,7 @@ architecture rtl of tb_injector_axi is
   signal bm_out_injector  : bsc.injector_pkg.bm_out_type;
   signal bm_in_manager    : bsc.axi4_pkg.bm_in_type;
   signal bm_out_manager   : bsc.axi4_pkg.bm_out_type;
+  signal bm_out_test      : bsc.injector_pkg.bm_out_type;
 
   -- Testbench BM I/O
   signal bm_in  : bsc.injector_pkg.bm_in_type;
@@ -224,7 +225,7 @@ begin  -- rtl
   -- Clock generation
   clk <= not clk after T/2;
 
-  -- BM interconnect switch used to load descriptors.
+  -- BM interconnect switch used to load descriptors from testbench.
   bm_in_manager.rd_addr         <= bm_in_injector.rd_addr when AXI_com else (others => '0');
   bm_in_manager.rd_size         <= bm_in_injector.rd_size when AXI_com else (others => '0');
   bm_in_manager.rd_req          <= bm_in_injector.rd_req  when AXI_com else '0';
@@ -252,6 +253,8 @@ begin  -- rtl
   bm_out_injector.wr_done       <= bm_out_manager.wr_done      when AXI_com else bm_out.wr_done     ;
   bm_out_injector.wr_err        <= bm_out_manager.wr_err       when AXI_com else bm_out.wr_err      ;
 
+  bm_out_test.rd_valid          <= bm_out_manager.rd_valid;
+  bm_out_test.rd_done           <= bm_out_manager.rd_done;
 
   
   -----------------------------------------------------------------------------
@@ -269,7 +272,7 @@ begin  -- rtl
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
       bm_skip   <= '1';     -- Skip BM transfers to only test AXI communication requested by the injector
-      test_vect(0) <= write_descriptor( size_vector(j),  0,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '1' );
+      test_vect(0) <= write_descriptor( size_vector(j),  0,  WRT,  action_addr, '0', add_vector(descr_addr1,   20, 32), '1' );
       wait until rising_edge(clk);
       rstn      <= '1';
 
@@ -290,6 +293,7 @@ begin  -- rtl
 
     end loop;
 
+    stop;
       
     -- Reset injector
     AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
