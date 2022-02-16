@@ -123,7 +123,7 @@ architecture rtl of axi4_manager is
   -----------------------------------------------------------------------------
   --
   -- This interface, when idle, accepts read and write transaction requests from the BM bus, listening the starting address 
-  -- and the total transfer size of the operatio. This last must be lower or equal to the set by MAX_SIZE_BURST-1 and it 
+  -- and the total transfer size of the operation. This last must be lower or equal to the set by MAX_SIZE_BURST-1 and it 
   -- is encoded as an unsigned integer decremented by one respect the real size, so 0 means 1 byte transfer.
   --
   -- Once the request has been granted (deasserting new requests until finished), it processes the information to check if 
@@ -432,43 +432,23 @@ architecture rtl of axi4_manager is
   end procedure decide_size;
 
 
-  -- The number of bytes to burst is used to decide the number of beats at the burst. This is computed
-  -- by applying a number of right-shifts equal to the AXI's size mode (the codification, no its actual
-  -- decoded size meaning) to the size to burst. 
-  --
-  -- In addition, if the burst will access to two different AXI4_DATA_WIDTH spaces of the same subordinate, 
-  -- due to unaligned address request, the numbers of beats must be increased by one. Furthermore, the AXI mode
-  -- that use the whole AXI data bus width also requires an additional beat on unaligned address requests.
+  -- To compute the number required of beats in the burst, the size requested is added to the LSB of the 
+  -- starting address requested. This sum, contains the number of beats on the MSB.
+  -- The line that determines LSB and MSB is defined by the size mode being set. However, since this one 
+  -- is fixed (it's always AXI4_DATA_WIDTH), this logic is also fixed.
 
   procedure decide_len(
-    size      : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Transfer size of the burst (actual num needs +1)
-    size_mode : in  std_logic_vector(2 downto 0); -- AXI size mode being set
+    bm_size   : in  std_logic_vector(INT_BURST_WIDTH - 1 downto 0); -- Transfer size of the burst (actual num needs +1)
     bm_addr   : in  std_logic_vector(rd.bm_addr'high downto 0);-- LSB of the BM request address access
-    addr_end  : in  std_logic_vector(rd.addr_end'range);-- LSB of the ending address of the present burst
     burst_len : out std_logic_vector(7 downto 0)  -- AXI burst length (actual num of beats needs +1)
     ) is
-      variable len_temp : std_logic_vector(size'range); -- Temp var because VHDL is really strong /typed/
-      variable len      : std_logic_vector(8 downto 0); -- The max number of beats allowed at AXI4 is 256
-      variable one      : std_logic;                    -- +1 beat under special conditions
+      variable len_temp : std_logic_vector(11 downto 0);
   begin
-    -- Number of beats required = bytes to transfer-1 >> size_mode
-    -- This is only true for aligned address access and works because the size mode applied is always
-    -- equal or greater than the real size (bm_size + 1).
-    len_temp  := std_logic_vector(shift_right( unsigned(size), to_integer(unsigned(size_mode)) ));
+    -- Number of beats required = MSB(LSB of the starting BM address + number of bytes to BM transfer)
+    -- Since the size mode applied is always the same, this can be static (no need of a shifter).
+    len_temp  := add_vector(bm_addr(AXI4_DATA_BYTE - 1 downto 0), bm_size, len_temp'length);
 
-    -- However, in unaligned transactions, sizes lower than AXI4_DATA_WIDTH may require two bursts if 
-    -- they write onto two different AXI4_DATA_WIDTH spaces. Thus, this is signaled by the two_width 
-    -- input flag, computed by calculating the ending address with the size of the present burst.
-    --
-    -- Furthermore, unaligned address access with an AXI mode that use the whole AXI data bus width 
-    -- also requires an additional beat, since there will be an additional AXI4_DATA_WIDTH memory access.
-    if(size_array(to_integer(unsigned(size_mode))) = AXI4_DATA_WIDTH/8) then
-      one := to_std_logic( bm_addr(AXI4_DATA_BYTE - 1 downto 0) /= (AXI4_DATA_BYTE - 1 downto 0 => '0') );
-    else
-      one := to_std_logic( rd.bm_addr(11 downto AXI4_DATA_BYTE) /= addr_end(11 downto AXI4_DATA_BYTE) );
-    end if;
-
-    burst_len := add_vector(len_temp, '0' & one, burst_len'length);
+    burst_len := std_logic_vector(resize(unsigned(len_temp(len_temp'high downto AXI4_DATA_BYTE)), burst_len'length));
 
   end procedure decide_len;
 
@@ -549,10 +529,10 @@ begin -- rtl
   --bm_in.wr_size;  -- used as input
   --bm_in.wr_req;   -- used as input
   --bm_in.wr_data;
-  --bm_out.wr_req_grant;
-  --bm_out.wr_full <= not(wr.bm_ready);
-  --bm_out.wr_done;
-  --bm_out.wr_err;
+  bm_out.wr_req_grant <= wr.bm_grant;
+  bm_out.wr_full      <= not(wr.bm_ready);
+  bm_out.wr_done      <= wr.bm_ready;
+  bm_out.wr_err       <= wr.bm_error;
 
   -- Read channel
   --bm_in.rd_addr;  -- used as input
@@ -651,38 +631,27 @@ begin -- rtl
             rd.state        <= compute2;
           
           
-          when compute2 => -- Worst delay path: DECIDE_SIZE()
-            -- Decide AXI size mode and update starting address with aligned address to that size mode.
-            decide_size(rd.bm_size, rd.bm_addr(AXI4_DATA_BYTE-1 downto 0), rd_axi_size, rd_addr_strt);
-            rd.axi_size     <= rd_axi_size;
-            rd.axi_addr     <= rd.bm_addr(rd.bm_addr'high downto AXI4_DATA_BYTE) & rd_addr_strt;
+          when compute2 =>
+            -- Set AXI size mode to AXI4_DATA_WIDTH and align the starting address with the AXI4_DATA_WIDTH slot.
+            rd.axi_size     <= std_logic_vector(to_unsigned(AXI4_DATA_BYTE, rd.axi_size'length));
+            rd.axi_addr     <= rd.bm_addr(rd.bm_addr'high downto AXI4_DATA_BYTE) & (AXI4_DATA_BYTE - 1 downto 0 => '0');
 
-            -- Compute the ending address of this burst (using the BM pointer) with the BM size of this burst to check if two different 
-            -- AXI4_DATA_WIDTH spaces from the same subordinate are required to be accessed.
-            rd.addr_end     <= add_vector(rd.bm_size, rd.bm_addr(11 downto 0), rd.addr_end'length);
+            -- Set the burst transfer mode.
+            rd.axi_mode     <= INC;
+
+            -- Compute how many beats will be necessary to transfer due to axi_size mode.
+            decide_len(rd.bm_size, rd.bm_addr, rd_axi_len);
+            rd.axi_len      <= rd_axi_len;
           
             -- Save the number of bytes to discard unrequested data at the first BM transfer = LSB BM unaligned address + BM data bus width bytes
             if(rd.first_beat = '1') then
-              rd.start_strb <= ((rd.start_strb'length - AXI4_DATA_BYTE - 1) downto 0 => '0') & rd.bm_addr(AXI4_DATA_BYTE-1 downto 0);
+              rd.start_strb <= ((rd.start_strb'length - AXI4_DATA_BYTE - 1) downto 0 => '0') & rd.bm_addr(AXI4_DATA_BYTE - 1 downto 0);
             end if;
-          
-            -- Next compute state
-            rd.state        <= compute3;
-          
-          
-          when compute3 => -- Worst delay path: DECIDE_LEN()
-            -- Compute how many beats will be necessary to transfer due to axi_size mode.
-            decide_len(rd.bm_size, rd.axi_size, rd.bm_addr, rd.addr_end, rd_axi_len);
-            rd.axi_len      <= rd_axi_len;
-            rd.bm_size      <= add_vector(rd.bm_size, 1, rd.bm_size'length); -- Update size to be real size.
-          
-            -- Set the burst transfer mode.
-            rd.axi_mode     <= INC;
           
             -- Next, the handshake step.
             rd.axi_valid    <= '1'; -- Request AXI read burst.
             rd.state        <= handshake;
-          
+            
           
           when handshake =>
             -- Having all computation steps and proper registration separated allows maximum 
@@ -691,12 +660,6 @@ begin -- rtl
             if (axi4mi.ar_ready = '1') then
               rd.axi_valid  <= '0'; -- At request being granted, deassert request
               rd.axi_ready  <= '1'; -- Read data from AXI bus flag
-            
-              -- Initilize counter with the byte lane it is starting the AXI read operation
-              rd.axi_counter   <= (rd.axi_counter'length-AXI4_DATA_BYTE-1 downto 0 => '0') & rd.axi_addr(AXI4_DATA_BYTE-1 downto 0);
-
-              -- Create the LSB mask to be shifted on transfer stage to generate the byte mask for the AXI read transfer.
-              rd.axi_bmask_tmp <= unsigned(mask_array(to_integer(unsigned(rd.axi_size)))(rd.axi_bmask_tmp'range));
             
               -- Next, beat transfers
               rd.state      <= transfer;
@@ -715,32 +678,22 @@ begin -- rtl
             if (axi4mi.r_valid = '1' and axi4mi.r_id = std_logic_vector(to_unsigned(axi_id, axi4mi.r_id'length)) and rd.axi_ready = '1') then
 
               -- Register inputs to separate AXI bus from further computation.
-              rd.axi_data_buffer     <= axi4mi.r_data;
+              rd.axi_data_buffer  <= axi4mi.r_data;
               rd.axi_last         <= axi4mi.r_last;
               rd.bm_error         <= axi4mi.r_resp(1);
-            
-              -- Count how many bytes are being read into a fifo register. Increase the counter in AXI size mode steps.
-              rd_axi_next_counter := add_vector(rd.axi_counter, size_array(to_integer(unsigned(rd.axi_size))), rd.axi_counter'length);
-              rd.axi_counter      <= rd_axi_next_counter;
 
-              -- Using the next counter, set the mask to filter the byte lanes to read from at the following clock cycle.
-              rd.axi_strobe       <= std_logic_vector(shift_left(rd.axi_bmask_tmp, to_integer(unsigned(rd.axi_counter))));
-            
-              -- Be it the last beat of the burst or fifo register is full, change the fifo index for the next AXI transfer.
-              if(axi4mi.r_last = '1' or rd_axi_next_counter(AXI4_DATA_BYTE) = '1') then 
-                -- Compute next fifo index.
-                rd_axi_next_index := add_vector(rd.axi_index, 1, rd.axi_index'length);
-                rd.axi_index      <= rd_axi_next_index;
+              -- Compute next fifo index.
+              rd_axi_next_index := add_vector(rd.axi_index, 1, rd.axi_index'length);
+              rd.axi_index      <= rd_axi_next_index;
 
-                -- Deassert the ready flag to finish AXI burst if it is the last beat or if there is not enough space in the fifo.
-                rd.axi_ready      <= not( axi4mi.r_last or rd.fifo_full(to_integer(unsigned(rd_axi_next_index))) );
-                
-                -- Signal the present rd.fifo register as prepared for BM transfer, for whenever it is due to buffers.
-                rd.fifo_full(to_integer(unsigned(rd.axi_index))) <= '1';
-                
-                -- The last AXI transfer of the whole transaction will set the proper rd.fifo_last bit, so the BM transfer logic knows when to end.
-                rd.fifo_last(to_integer(unsigned(rd.axi_index))) <= not(rd.two_burst) and axi4mi.r_last;
-              end if;
+              -- Deassert the ready flag to finish AXI burst if it is the last beat or if there is not enough space in the fifo at the moment.
+              rd.axi_ready      <= not( axi4mi.r_last or rd.fifo_full(to_integer(unsigned(rd_axi_next_index))) );
+              
+              -- Signal the present rd.fifo register as prepared for BM transfer, for whenever it is due to buffers.
+              rd.fifo_full(to_integer(unsigned(rd.axi_index))) <= '1';
+              
+              -- The last AXI transfer of the whole transaction will set the proper rd.fifo_last bit, so the BM transfer logic knows when to end.
+              rd.fifo_last(to_integer(unsigned(rd.axi_index))) <= not(rd.two_burst) and axi4mi.r_last;
 
             else
             -- When the manager is not listening to new data, be it the AXI burst has finished, there is not enough 
@@ -775,12 +728,9 @@ begin -- rtl
       -------------
       -- RD FIFO --
       -------------
-        -- During each AXI data read, filter the data to only read the expected byte lanes at that clock cycle.
+        -- After each AXI data read, put the data to the next available fifo register.
         if(rd.axi_valid_buffer = '1' and rd.axi_ready_buffer = '1') then
-          for k in rd.axi_strobe'range loop
-            rd.fifo(to_integer(unsigned(rd.axi_index_buffer)))(k*8+7 downto k*8) 
-              <= rd.axi_data_buffer(k*8+7 downto k*8) and (7 downto 0 => rd.axi_strobe(k));
-          end loop;
+            rd.fifo(to_integer(unsigned(rd.axi_index_buffer))) <= rd.axi_data_buffer;
         end if;
 
 
@@ -1053,7 +1003,7 @@ begin -- rtl
           
           when compute3 => -- Worst delay path: DECIDE_LEN()
             -- Compute how many beats will be necessary to transfer due to axi_size mode.
-            decide_len(wr.bm_size, wr.axi_size, wr.bm_addr, wr.addr_end, wr_axi_len);
+            decide_len(wr.bm_size, wr.bm_addr, wr_axi_len);
             wr.axi_len      <= wr_axi_len;
 
             -- Add to the BM size the offset on the AXI4_DATA_WIDTH slot, so it can be used as high cap for the AXI strobe.

@@ -17,10 +17,17 @@ package axi4_pkg is
   -- User parameters START --
 
     -- AXI bus generics
-    constant AXI4_ID_WIDTH      : integer                   := 4;   -- AXI ID's bus width
-    constant AXI4_DATA_WIDTH    : integer range 32 to 1024  := 128; -- Data's width at AXI bus. [Only power of 2s are allowed]
-    constant rd_n_fifo_regs     : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
-    constant wr_n_fifo_regs     : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
+    constant ID_R_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
+    constant ID_W_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
+    constant ADDR_WIDTH             : integer range  1 to   32  := 32;  -- AXI address bus width.
+    constant DATA_WIDTH             : integer range  8 to 1024  := 128; -- AXI data bus width. [Only power of 2s are allowed]
+    constant USER_REQ_WIDTH         : integer range  0 to  128  := 0;   -- AXI user bus width.
+    constant USER_DATA_WIDTH        : integer range  0 to DATA_WIDTH/2 := 0;   -- AXI user data bus width.
+    constant USER_RESP_WIDTH        : integer range  0 to   16  := 0;   -- AXI user response bus width.
+    constant Max_Transaction_Bytes  : integer range  0 to 4096  := 4096;-- Number of bytes allowed to be requested for each BM transaction.
+
+    constant rd_n_fifo_regs : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
+    constant wr_n_fifo_regs : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
 
     -- Common generics (They must match with BM component package)
     constant BM_BURST_WIDTH     : integer range  5 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
@@ -34,8 +41,8 @@ package axi4_pkg is
   -- AXI4 interface bus output
   type axi4_out_type is record
     -- Write address channel
-    aw_id           : std_logic_vector( AXI4_ID_WIDTH-1     downto 0 );
-    aw_addr         : std_logic_vector( 31 downto 0 );
+    aw_id           : std_logic_vector( ID_W_WIDTH-1   downto 0 );
+    aw_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0 );
     aw_len          : std_logic_vector(  7 downto 0 );
     aw_burst        : std_logic_vector(  1 downto 0 );
     aw_lock         : std_logic;
@@ -46,15 +53,15 @@ package axi4_pkg is
     aw_region       : std_logic_vector(  3 downto 0 );
     aw_valid        : std_logic;
     -- Write data channel
-    w_data          : std_logic_vector( AXI4_DATA_WIDTH-1   downto 0 );
-    w_strb          : std_logic_vector( AXI4_DATA_WIDTH/8-1 downto 0 );
+    w_data          : std_logic_vector( DATA_WIDTH-1   downto 0 );
+    w_strb          : std_logic_vector( DATA_WIDTH/8-1 downto 0 );
     w_last          : std_logic;
     w_valid         : std_logic;
     -- Write response channel
     b_ready         : std_logic;
     -- Read address channel
-    ar_id           : std_logic_vector( AXI4_ID_WIDTH-1     downto 0 );
-    ar_addr         : std_logic_vector( 31 downto 0 );
+    ar_id           : std_logic_vector( ID_R_WIDTH-1   downto 0 );
+    ar_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0 );
     ar_len          : std_logic_vector(  7 downto 0 );
     ar_size         : std_logic_vector(  2 downto 0 );
     ar_burst        : std_logic_vector(  1 downto 0 );
@@ -75,14 +82,14 @@ package axi4_pkg is
     -- Write data channel
     w_ready         : std_logic;
     -- Write response channel
-    b_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
+    b_id            : std_logic_vector ( ID_W_WIDTH-1  downto 0 );
     b_resp          : std_logic_vector (  1 downto 0 );
     b_valid         : std_logic;
     -- Read address channel
     ar_ready        : std_logic;
     -- Read data channel
-    r_id            : std_logic_vector ( AXI4_ID_WIDTH-1     downto 0 );
-    r_data          : std_logic_vector ( AXI4_DATA_WIDTH-1   downto 0 );
+    r_id            : std_logic_vector ( ID_R_WIDTH-1  downto 0 );
+    r_data          : std_logic_vector ( DATA_WIDTH-1  downto 0 );
     r_resp          : std_logic_vector (  1 downto 0 );
     r_last          : std_logic;
     r_valid         : std_logic;
