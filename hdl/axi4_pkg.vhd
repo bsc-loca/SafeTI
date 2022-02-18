@@ -19,20 +19,19 @@ package axi4_pkg is
     -- AXI bus generics
     constant ID_R_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
     constant ID_W_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
-    constant ADDR_WIDTH             : integer range  1 to   32  := 32;  -- AXI address bus width.
-    constant DATA_WIDTH             : integer range  8 to 1024  := 128; -- AXI data bus width. [Only power of 2s are allowed]
+    constant ADDR_WIDTH             : integer range  1 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
+    constant DATA_WIDTH             : integer range  8 to 1024  := 64; -- AXI data bus width. [Only power of 2s are allowed]
     constant USER_REQ_WIDTH         : integer range  0 to  128  := 0;   -- AXI user bus width.
     constant USER_DATA_WIDTH        : integer range  0 to DATA_WIDTH/2 := 0;   -- AXI user data bus width.
     constant USER_RESP_WIDTH        : integer range  0 to   16  := 0;   -- AXI user response bus width.
-    constant Max_Transaction_Bytes  : integer range  0 to 4096  := 4096;-- Number of bytes allowed to be requested for each BM transaction.
 
     constant rd_n_fifo_regs : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
     constant wr_n_fifo_regs : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
 
-    -- Common generics (They must match with BM component package)
-    constant BM_BURST_WIDTH     : integer range  5 to   12  := 12;  -- Bus width for bursts. Change it manually to be log2(MAX_SIZE_BURST).
-
   -- User parameters END --
+
+  -- Informative parameters (DO NOT MODIFY, BUT NOTICE THEM)
+    constant Max_Transaction_Bytes  : integer                    := 4096; -- Maximum number of bytes that can be requested per BM transaction.
 
   -----------------------------------------------------------------------------
   -- Records and types
@@ -112,12 +111,12 @@ package axi4_pkg is
 
   type bm_in_type is record  --Output from injector_ctrl to bus master interface input
     -- Read channel
-    rd_addr         : std_logic_vector(31 downto 0);
-    rd_size         : std_logic_vector(BM_BURST_WIDTH-1 downto 0);
+    rd_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0);
+    rd_size         : std_logic_vector(11 downto 0);
     rd_req          : std_logic;
     -- Write channel
-    wr_addr         : std_logic_vector(31 downto 0);
-    wr_size         : std_logic_vector(BM_BURST_WIDTH-1 downto 0);
+    wr_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0);
+    wr_size         : std_logic_vector(11 downto 0);
     wr_req          : std_logic;
     wr_data         : std_logic_vector(127 downto 0);
   end record;
