@@ -56,7 +56,7 @@ architecture rtl of tb_injector_axi is
   constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
   constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0003";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -68,8 +68,8 @@ architecture rtl of tb_injector_axi is
   -- Test 2 configuration: (Queue mode disabled), enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
-  -- AXI TEST READ
-  constant size_vector    : array_integer(0 to 6) := (4092, 32, 33, 64, 65, 128, 129);
+  -- AXI TEST X
+  constant size_vector    : array_integer(0 to 6) := (4096, 32, 33, 64, 65, 128, 129);
   --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
@@ -272,7 +272,7 @@ begin  -- rtl
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
       bm_skip   <= '1';     -- Skip BM transfers to only test AXI communication requested by the injector
-      test_vect(0) <= write_descriptor( size_vector(j),  0,  RD,  action_addr, '0', add_vector(descr_addr1,   20, 32), '1' );
+      test_vect(0) <= write_descriptor( size_vector(j),  0,  WRT,  action_addr, '0', add_vector(descr_addr1,   20, 32), '1' );
       wait until rising_edge(clk);
       rstn      <= '1';
 
