@@ -56,7 +56,7 @@ architecture rtl of tb_injector_axi is
   constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
   constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0005";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -502,7 +502,7 @@ begin  -- rtl
     axi4mo          => axi4mo,
     bm_in           => bm_in_manager,
     bm_out          => bm_out_manager,
-    skip_BM_transf  => bm_skip
+    bypass_rd_bm    => bm_skip
   );
 
   -- AXI4 subordinate memory 1024 bytes

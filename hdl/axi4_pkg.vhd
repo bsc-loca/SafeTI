@@ -20,17 +20,23 @@ package axi4_pkg is
     constant ID_R_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
     constant ID_W_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
     constant ADDR_WIDTH             : integer range  1 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
-    constant DATA_WIDTH             : integer range  8 to 1024  := 64; -- AXI data bus width. [Only power of 2s are allowed]
-    constant USER_REQ_WIDTH         : integer range  0 to  128  := 0;   -- AXI user bus width.
-    constant USER_DATA_WIDTH        : integer range  0 to DATA_WIDTH/2 := 0;   -- AXI user data bus width.
-    constant USER_RESP_WIDTH        : integer range  0 to   16  := 0;   -- AXI user response bus width.
+    constant DATA_WIDTH             : integer range  8 to 1024  := 64;  -- AXI data bus width. [Only power of 2s are allowed]
 
-    constant rd_n_fifo_regs : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
-    constant wr_n_fifo_regs : integer range  2 to   32  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
+    constant rd_n_fifo_regs : integer range  2 to  128  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
+    constant wr_n_fifo_regs : integer range  2 to  128  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
+
+    -- Special features
+
+      -- The Injector_implementation flag allows, when TRUE, to skip the blottleneck at the BM data bus by discarding read data and sending '0' to write 
+      -- with the characteristics of a normal transaction. In addition, it saves the resources spent on the BM transfer side of the write tranfer logic.
+      -- The read transaction logic is maintained so the injector can still use the interface to read the descriptors allocated on the AXI memory space.
+      -- However, the bottleneck on read transactions can still be bypassed asserting the "bypass_rd_bm" input signal on the Manager interface when 
+      -- requesting a transaction.
+    constant Injector_implementation: boolean                   := TRUE;
 
   -- User parameters END --
 
-  -- Informative parameters (DO NOT MODIFY, BUT NOTICE THEM)
+  -- Informative specification parameters (DO NOT MODIFY, BUT NOTICE THEM)
     constant Max_Transaction_Bytes  : integer                    := 4096; -- Maximum number of bytes that can be requested per BM transaction.
 
   -----------------------------------------------------------------------------
@@ -168,7 +174,7 @@ package axi4_pkg is
       axi4mo          : out axi4_out_type;
       bm_in           : in  bm_in_type;
       bm_out          : out bm_out_type;
-      skip_BM_transf  : in  std_logic
+      bypass_rd_bm    : in  std_logic
     );
   end component axi4_manager;
 
