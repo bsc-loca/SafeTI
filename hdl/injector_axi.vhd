@@ -111,7 +111,6 @@ begin
     generic map (
       dbits           => dbits,
       axi_id          => 0,
-      MAX_SIZE_BURST  => MAX_SIZE_BURST,
       ASYNC_RST       => FALSE
     )
     port map (
@@ -121,7 +120,7 @@ begin
       axi4mo          => axi4mo,
       bm_in           => bm_in_manager,
       bm_out          => bm_out_manager,
-      bypass_rd_bm    => '0'
+      bm_in_bypass_rd => '0'
     );
 
 end architecture rtl;

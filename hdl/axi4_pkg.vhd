@@ -32,12 +32,17 @@ package axi4_pkg is
       -- The read transaction logic is maintained so the injector can still use the interface to read the descriptors allocated on the AXI memory space.
       -- However, the bottleneck on read transactions can still be bypassed asserting the "bypass_rd_bm" input signal on the Manager interface when 
       -- requesting a transaction.
-    constant Injector_implementation: boolean                   := TRUE;
+    constant Injector_implementation: boolean                   := TRUE; -- If don't know what to set it, FALSE is the best option for normal operation.
 
   -- User parameters END --
 
   -- Informative specification parameters (DO NOT MODIFY, BUT NOTICE THEM)
-    constant Max_Transaction_Bytes  : integer                    := 4096; -- Maximum number of bytes that can be requested per BM transaction.
+    constant Max_Transaction_Bytes  : integer                   := 4096; -- Maximum number of bytes that can be requested per BM transaction.
+
+
+    constant FIX                    : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes: FIXED
+    constant INC                    : std_logic_vector(1 downto 0) := "01"; --                  INCREMENTAL
+    constant WRAP                   : std_logic_vector(1 downto 0) := "10"; --                  WRAP
 
   -----------------------------------------------------------------------------
   -- Records and types
@@ -164,7 +169,6 @@ package axi4_pkg is
     generic (
       dbits           : integer range 32 to  128  := 32;
       axi_id          : integer                   := 0;
-      MAX_SIZE_BURST  : integer range 64 to 4096  := 4096;
       ASYNC_RST       : boolean                   := FALSE
     );
     port (
@@ -174,7 +178,7 @@ package axi4_pkg is
       axi4mo          : out axi4_out_type;
       bm_in           : in  bm_in_type;
       bm_out          : out bm_out_type;
-      bypass_rd_bm    : in  std_logic
+      bm_in_bypass_rd : in  std_logic
     );
   end component axi4_manager;
 
