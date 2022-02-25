@@ -1,28 +1,78 @@
 -----------------------------------------------------------------------------   
 -- Entity:      axi4_manager
 -- File:        axi4_manager.vhd
--- Author:      Francis Fuentes Diaz (BSC-CNS)
--- Description: AXI4 full manager entity.
+-- Author:      Francisco Javier Fuentes Diaz (BSC-CNS)
+-- Description: AXI4 FULL Manager entity.
+------------------------------------------------------------------------------ 
+--  Changelog:
+--              - v0.8 Feb 25, 2022. 
+--                First deliver of the AXI Manager interface as a working module.
+--                It has passed manual debugging. There may be errors not found, 
+--                specially on write transactions. Contact the author through GitLab 
+--                opening an issue ticket specifying the request data and the problem.
+--                Synthesis optimization is yet to be done.
+--
 ------------------------------------------------------------------------------ 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 library bsc;
-use bsc.axi4_pkg.all;
+use bsc.axi4_pkg.all; -- <- It contains the configuration of the interface.
 
 -----------------------------------------------------------------------------
--- AXI4 FULL Manager - generic bus manager bridge
+-- AXI4 FULL Manager - bus manager bridge
 --
--- Manager specifications and considerations during integration:
+-- Manager interface features:
 --
--- - AXI4_DATA_WIDTH >= dbits.
--- - dbits <= 128.
--- - BM size requests <= 4096 (4kB, limited by AXI4 addressing rule).
--- - Little endian data structure
--- - Only INC burst mode is implemented.
--- - Unaligned access is supported by aligning the address with AXI4_DATA_WIDTH and 
---   delivering only the requested data on reads and using the write strobe on AXI writes.
+-- - Only INC burst mode is available.
+-- - Full support for unaligned address requests. This includes even if two subordinates are accessed in a 
+--   single transaction request.
+-- - Number of bytes per BM transcation requests allowed is 4096 (encoded as 0xFFF).
+-- - BM done output flag assertion at the end of every transaction on its appropiated bus (reads or writes).
+-- - Extensible BM component data bus width 8, 16, 32, 64 and 128 bits (read further considerations for limits).
+-- - Extensible AXI data bus width 8, 16, 32, 64, 128, 256, 512 and 1024 bits (read further considerations for limits).
+-- - Continuous data transmission if there's enough throughput from the least data bus bottleneck.
+-- - Special "Injector_implementation" option to save synthesis resources and reduce bottlenecks 
+--   during transactions (read documentation for more info).
+--
+--
+-- Manager interface and considerations during integration:
+--
+-- - AXI4_DATA_WIDTH >= dbits. The AXI data bus width must be greater or equal to the BM data bus.
+--
+-- - dbits <= 128. The BM data bus must be lower or equal to 128 bits in width.
+--
+-- - BM size requests <= 4096 (4kB, limited by AXI4 addressing rule). The maximum number of bytes 
+--   per BM transaction is 4096 (encoded as 0xFFF).
+--
+-- - Little endian data structure. Higher bit position links to higher memory positions.
+--
+-- - Only INC burst mode is implemented. This is the mode where the addressing increases every beat 
+--   at AXI data width bytes steps.
+--
+-- - Unaligned access by BM requests are supported through aligning the address with AXI data bus width,
+--   while delivering only the requested data on read transactions and using the write strobe on AXI 
+--   write transactions.
+--
 -- - The Manager only execute bursts with the AXI size that use the whole AXI data bus width.
+--
+-- - This interface requires the signaling of the last AXI beat to be at the correct beat on read 
+--   transactions, or unrequested data could be read instead of the requested.
+--
+-- - The interface may send control and data when the valid flag is not asserted. These signals 
+--   must be discarded since the valid flag is low.
+--
+-- - The "bm_in_bypass_rd" input signal must be set to low if it's not used. However, in order to be used, 
+--   it is necessary to set "Injector_implementation" option to TRUE on the axi4_pkg.vhd package file.
+--   When it is set to TRUE, the BM transfer side of the write transactions logic will not be synthesized,
+--   bypassing the bottleneck of the lower width of the BM data bus respect the AXI data bus width, and
+--   the interface will only write zeros where it is requested.
+--   Meanwhile, the counterpart on the read transactions logic will work as normal if, during the BM read 
+--   request, the "bm_in_bypass_rd" input is low. If it is high, all read data will be discarded, bypassing 
+--   the bottleneck between the BM and AXI data bus widts.
+--   Both transactions will assert the respective "bm_done" output signal when the operation finishes even 
+--   when these options are being active.
+--
 --
 -- This AXI4 Manager interface translates and manage the requests made by the BM component,
 -- using the BM input and output buses, to the AXI4 network, using the AXI4 input and output buses.
@@ -31,26 +81,17 @@ use bsc.axi4_pkg.all;
 -- it only receives the data that it has been requested. Be it requests with unaligned or even multiple 
 -- subordinates access (only 2 as maximum), the interface filters it to deliver only the requested data.
 -- 
--- All I/O ports are buffered on registers to promote higher maximum frequency of operation at 
--- implementation, with minimum logic between register and BM or AXI bus.
+-- Most I/O ports are buffered on registers to promote higher maximum frequency of operation at 
+-- implementation, with minimum logic between register and BM or AXI bus. In any case, there is not
+-- a direct I/O path that could greatly impact the fMAX once the interface is integrated on the project.
 -- 
--- The interface may send control and data when the valid flag is not asserted. These signals 
--- must be discarded since the valid flag is low.
+-- If the BM request implies access to two different subordinates, the Manager interface will 
+-- generate two batches of data that are distribuited in two or multiple bursts, with the appropiated
+-- addressing and burst length (number of beats in the burst) for each burst. Two or multiple bursts 
+-- depends on the AXI data bus width, since implemenations with an AXI data bus width lower than 128 bits 
+-- require multiple bursts to the same subordinate to be able to access the 4kB of data (4096 addresses) 
+-- it can allocate (limit listed by the AXI4 protocol).
 -- 
--- The minimum latency for read transactions is:
---  1 clock cycle  for the BM component request being active. (BM control is registered)
---  3 clock cycles for computing and buffering the AXI control data for the handshake.
---  1 clock cycle  for executing the handshake with an AXI subordinate.
---  1 clock cycle  for reading first AXI beat.
---  4 clock cycles for buffering (AXI input, BM output) and managing the data.
---  1 clock cycle  for delivering the first BM transfer.
--- From requesting a read transaction to receiving the first BM transfer, the execution has a latency of
--- 11 clock cycles, including both request and data send clock cycles. Further data transfer occurs without 
--- interruption if the AXI subordinate is able to transfer enough data to sustain the interface transfering 
--- to the BM component.
--- Of course, this performance can only be achieved on direct communication with subordinates that have an 
--- active grant read request by default, transmit first beat of data on the clock cycle after the handshake 
--- process and on that beat, there's enough data to execute a BM transfer of dbits bits.
 -- 
 -----------------------------------------------------------------------------
 
@@ -127,34 +168,46 @@ architecture rtl of axi4_manager is
   --             Also, split the total byte size of the transfer in both first and last batches taking into account the 4kB boundary.
   --          RD:Register the number of bytes to transfer at the last BM transfer of the whole transaction. This value is used to generate
   --             the mask applied on this last BM transfer, so unrequested data is not sent to the BM component.
-  -- COMPUTE2 -> Set the AXI size mode to use the whole AXI data bus width (log2(AXI4_DATA_WIDTH/8)). 
+  -- COMPUTE2 -> Set the AXI size mode to use the whole AXI data bus width (encoded as log2(AXI4_DATA_WIDTH/8)). 
   --             Also, generate an aligned address with the AXI4_DATA_WIDTH slot to be used at the AXI network handshake.
-  --             Set the burst mode (at the moment, there's only INC).
+  --             Set the burst mode (at the moment, this interface does only apply INC bursts).
   --             Decide burst length (number of beats) taking into the number of bytes to transfer and the address requested.
-  -- HANDSHAKE-> 
-  --          RD:Waits for "RREADY" to load data from the AXI data bus. Loads counter with LSB aligned starting address,
-  --             so the first AXI beat takes into account that it may be reading from an unaligned.
-  -- TRANSFER ->
-  --          RD:Reads the AXI data bus and register it onto a buffer register, which it is written onto a FIFO register.
-  --             In the case where all FIFO registers are full, it stops the read on the AXI data bus by deasserting rd.axi_ready.
-  --             Manages each AXI beat transfer logic by asserting the r_ready flag on
-  --          WR:Set the strobe bits for WRITE transaction.
-  -- TRANSFER2->
-  --          RD:Depending if it has been the last beat of the burst and if another burst must be made to complete the BM request,
-  --             it returns to idle, compute2 or transfer1. In the latter case, an index is increased to change the FIFO register,
-  --             so new read data does not overwrite previous data that has yet to be transfered to the BM component.
-  --             Every time transfer1 fills a FIFO register, the BM transfer logic starts to process the read data and delivers it 
-  --             to the BM component in order and only the data that it has been requested. once it finishes with the register, it deasserts 
-  --             a flag specific of that register indicating that more data can be read onto it. However, this process can be skipped if the 
-  --             skip_BM_transf input signal is asserted, discarding all remaining read data (WIP).
-  --          WR:
-  --
+  --             Assert the AX valid signal (X is R for read or W for write transactions) to process the handshake of the burst.
+  -- HANDSHAKE-> Waits for a AXI X ready input signal assertion so the handshake is executed and the AXI transfer can start.
+  -- TRANSFER -> On the end of a burst on both transaction types (read transactions require the assertion of the last beat input signal 
+  --             by part of the subordinate on the correct beat), the interface will check if any more data must be requested to the 
+  --             actual subordinate. In affirmative case, another burst will be generated with the leftover number of bytes to transfer
+  --             and the appropiated address. However, if it's not the case, be it because the BM size request is low enough or the 
+  --             AXI data bus width is greater than 64 bits (4kB access is achievable in a single burst), the interface will generate 
+  --             another burst to the next subordinate (next 4kB address space) with the leftover size requested. On both cases, this means 
+  --             to return to the COMPUTE2 state with a different bm_size and bm_addr. 
+  --             Once there's not leftover data to be transfered, it returns to the idle state, accepting new requests.
+  --          RD:Reads the AXI data bus and register it onto rd.axi_data_buffer if the AXI network reports valid data.
+  --             After each beat (AXI data bus read), a FIFO register loads the data buffer, while also setting the rd.fifo_full flag 
+  --             for that particular register and increments the FIFO index, so the next FIFO register loads another beat from the buffer.
+  --             In the case where all FIFO registers are full, the interface stops the read on the AXI data bus by deasserting rd.axi_ready.
+  --          WR:Set the strobe bits for WRITE transaction in accordance with the bytes that must be written on this beat.
+  --             Load into wr.axi_data_buffer the data stored on the FIFO register, while asserting the wr.axi_valid_data so a beat is 
+  --             transfered to the AXI network on the next clock cycle.
+  --             For each transfer between the FIFO register and the wr.axi_data_buffer, the counters of the number of bytes left of the 
+  --             batch and the number of beats of the burst are decremented appropiatedly.
   -- Outside of 
   -- the FSM ->
   --         RD:A FIFO memory is used to store each beat transfered from the AXI read transaction, no matter from which subordinate.
   --            The BM transfer logic checks out if any more data is available from the RD FIFO to BM transfer, sending the data and 
-  --            BM control signals bm_valid and bm_done. This last indicating the completion of the whole transaction.
+  --            BM control signals bm_valid and bm_done. This last indicating the completion of the whole transaction at the last BM transfer.
+  --            The BM transfer logic rearrenges the data to only transfer the data requested, even if the request is unaligned with 
+  --            the AXI data bus width. This also includes applying a byte mask on the last BM transfer.
+  --            Each BM transfer is done between the FIFO and the rd.bm_data_buffer (which in between is the byte mask), so the BM 
+  --            component connection has slack for a high fMAX synthesis. In addition, the rd.bm_valid flag is high only when this 
+  --            buffer contains valid data to be read by the BM component.
+  --         WR:The wr.bm_data_buffer is used to read from the BM component the data to transfer in the write transaction.
+  --            This is rearrenged and loaded into the FIFO register depending on the address it has been requested and how filled it is. 
+  --            In case where the FIFO is full, the interface will deassert the wr.bm_ready so the bm_out.data_full is high.
+  --            If there's not enough space on the present FIFO register, it will continue the write on the next. Due to this, it is 
+  --            more efficient to have at least 4 registers on the WR FIFO, where on the RD FIFO it doesn't matter if it's 2 registers.
   --            
+  --
 
   type rd_data_buffer is array (natural range <>) of std_logic_vector( AXI4_DATA_WIDTH - 1 downto 0 );
   type transf_state is (idle, compute1, compute2, compute3, handshake, transfer);
