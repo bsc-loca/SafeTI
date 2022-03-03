@@ -67,6 +67,7 @@ package tb_injector_pkg is
   -- Since we are working with many descriptors, it's better to use both types
   type descriptor_words is array (0 to 4) of std_logic_vector(31 downto 0); -- 5 word descriptor
   type descriptor_bank  is array (natural range <>) of descriptor_words;    -- X number of descriptors
+  type addr_bank        is array (natural range <>) of std_logic_vector(31 downto 0); -- X number of addresses
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -81,6 +82,9 @@ package tb_injector_pkg is
                             nextaddr  : std_logic_vector(31 downto 0);  -- Address to load from the next descriptor
                             last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words;
+
+  -- IF function for when VHDL can not use if (like at constants).
+  function sel              (A, B : integer; sel : boolean) return integer;
 
   -- Procedure used to configure and start injector through the APB bus (injector is APB slave, which requires the psel to be set)
   procedure configure_injector(
@@ -171,6 +175,13 @@ package body tb_injector_pkg is
     return descr_words;
   end function write_descriptor;
 
+  -- IF function that outputs the first input if the boolean is true, the second if false.
+  function sel(A, B : integer; sel : boolean) return integer is
+  begin
+    if sel then return A;
+    else return B;
+    end if;
+  end sel;
 
   procedure configure_injector(
     signal   clk              : in  std_ulogic;

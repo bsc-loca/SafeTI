@@ -1,0 +1,28 @@
+
+{signal: [
+  {name: 'clk', 					wave: 'P............'},
+  	['axi4_mosi',
+  		{name: 'ar_id[3:0]', 		wave: 'x4......|...x', 	data: ['generic ID               ']},
+  		{name: 'ar_addr[31:0]', 	wave: 'x4......|...x', 	data: ['aligned address               ']},
+  		{name: 'ar_len[7:0]',		wave: 'x4......|...x', 	data: ['burst length - 1               ']},
+  		{name: 'ar_size[2:0]', 		wave: 'x4......|...x', 	data: ['log2(DATA_WIDTH/8)               ']},
+  		{name: 'ar_burst[1:0]', 	wave: 'x4......|...x', 	data: ['INCREMENTAL               ']},
+  		{name: 'ar_valid', 			wave: '01..0...|....'}
+     ],
+  	['axi4_miso',
+  		{name: 'ar_ready', 			wave: '0..10...|....'}
+     ],
+    {	node: '.'},
+  	{	node: '.'},
+  	['axi4_mosi',
+     	{name: 'r_ready', 			wave: '0....1..|..0.'},
+     ],
+  	['axi4_miso         ',
+     	{name: 'r_data[63:0]', 		wave: 'x....444|44x.', 	data: ['']},
+       	{name: 'r_valid', 			wave: '0....1..|..0.'},
+        {name: 'r_last', 			wave: '0.......|.10.'}
+     ],
+],
+ edge: [''],
+ config: { hscale: 1, skin: 'default' }
+}

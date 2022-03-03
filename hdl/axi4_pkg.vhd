@@ -4,6 +4,17 @@
 -- Author:      Francis Fuentes (BSC_CNS)
 -- Description: Internal package for AXI4 components
 ------------------------------------------------------------------------------
+--  Changelog:
+--              - v0.8.1  Mar  1, 2022.
+--                I/O types for the BM component have been renamed to bm_miso and
+--                bm_mosi, while the AXI I/O types have been renamed axi4_miso and
+--                axi4_mosi. In this aspect, the design perspective is that the BM
+--                component is the "Manager" for the interface, while the interface is 
+--                the subordinate for the BM component. Thus, the BM componente outputs 
+--                MOSI signals to the interface, and the interface outputs MISO signals 
+--                to the BM component.
+--
+------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -17,39 +28,42 @@ package axi4_pkg is
   -- User parameters START --
 
     -- AXI bus generics
-    constant ID_R_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
-    constant ID_W_WIDTH             : integer                   := 4;   -- AXI ID's bus width.
-    constant ADDR_WIDTH             : integer range  1 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
+    constant ID_R_WIDTH             : integer range  1 to   32  := 1;   -- AXI ID's bus width.
+    constant ID_W_WIDTH             : integer range  1 to   32  := 1;   -- AXI ID's bus width.
+    constant ADDR_WIDTH             : integer range 12 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
     constant DATA_WIDTH             : integer range  8 to 1024  := 64;  -- AXI data bus width. [Only power of 2s are allowed]
 
-    constant rd_n_fifo_regs : integer range  2 to  128  := 4;   -- Number of buffer registers to use at AXI read transactions. [Only power of 2s are allowed]
-    constant wr_n_fifo_regs : integer range  2 to  128  := 4;   -- Number of buffer registers to use at AXI write transactions. [Only power of 2s are allowed]
+    constant rd_n_fifo_regs : integer range  2 to  256  := 4;   -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    constant wr_n_fifo_regs : integer range  2 to  256  := 4;   -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
 
     -- Special features
 
-      -- The Injector_implementation flag allows, when TRUE, to skip the blottleneck at the BM data bus by discarding read data and sending '0' to write 
-      -- with the characteristics of a normal transaction. In addition, it saves the resources spent on the BM transfer side of the write tranfer logic.
-      -- The read transaction logic is maintained so the injector can still use the interface to read the descriptors allocated on the AXI memory space.
-      -- However, the bottleneck on read transactions can still be bypassed asserting the "bypass_rd_bm" input signal on the Manager interface when 
-      -- requesting a transaction.
-    constant Injector_implementation: boolean                   := TRUE; -- If don't know what to set it, FALSE is the best option for normal operation.
+      -- The "Injector_implementation" flag allows, when TRUE, to skip the bottleneck at the BM data bus by discarding read data (when the "bm_in_bypass_rd"
+      -- input signal of the Manager interface is high during BM request) and sending '0' to write with the characteristics of a normal transaction.
+      -- In addition, the resources that implement the BM transfer side of the write tranfer logic is saved, since no writes are expected to be done when 
+      -- this mode is enabled. The read transaction logic is maintained so the traffic injector can use the interface to read the descriptors allocated 
+      -- on the AXI memory space by setting the "bm_in_bypass_rd" input signal of the Manager interface to low during the BM request.
+
+    constant Injector_implementation: boolean                   := TRUE;   -- For general purpose Manager interface, set it to FALSE.
 
   -- User parameters END --
 
   -- Informative specification parameters (DO NOT MODIFY, BUT NOTICE THEM)
-    constant Max_Transaction_Bytes  : integer                   := 4096; -- Maximum number of bytes that can be requested per BM transaction.
+    constant Max_Transaction_Bytes  : integer                   := 4096;    -- Maximum number of bytes that can be requested per BM transaction.
 
 
     constant FIX                    : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes: FIXED
     constant INC                    : std_logic_vector(1 downto 0) := "01"; --                  INCREMENTAL
-    constant WRAP                   : std_logic_vector(1 downto 0) := "10"; --                  WRAP
+    constant WRAP                   : std_logic_vector(1 downto 0) := "10"; --                  WRAPPING
+
+    constant zero_vect              : std_logic_vector(1024 downto 0) := (others => '0');
 
   -----------------------------------------------------------------------------
   -- Records and types
   -----------------------------------------------------------------------------
 
   -- AXI4 interface bus output
-  type axi4_out_type is record
+  type axi4_mosi is record
     -- Write address channel
     aw_id           : std_logic_vector( ID_W_WIDTH-1   downto 0 );
     aw_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0 );
@@ -86,7 +100,7 @@ package axi4_pkg is
   end record;
 
   -- AXI4 interface bus input
-  type axi4_in_type is record
+  type axi4_miso is record
     -- Write address channel
     aw_ready        : std_logic;
     -- Write data channel
@@ -106,7 +120,7 @@ package axi4_pkg is
   end record;
 
   -- BM specific types
-  type bm_out_type is record  --Input to injector_ctrl from bus master interface output
+  type bm_miso is record  -- BM component output, input to Manager interface.
     -- Read channel
     rd_data         : std_logic_vector(127 downto 0);
     rd_req_grant    : std_logic;
@@ -120,7 +134,7 @@ package axi4_pkg is
     wr_err          : std_logic;
   end record;
 
-  type bm_in_type is record  --Output from injector_ctrl to bus master interface input
+  type bm_mosi is record  -- BM component input, output from Manager interface.
     -- Read channel
     rd_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0);
     rd_size         : std_logic_vector(11 downto 0);
@@ -133,7 +147,6 @@ package axi4_pkg is
   end record;
 
   type array_integer          is array (natural range <>) of integer;
-  type array_128vector        is array (natural range <>) of std_logic_vector(127 downto 0);
 
   -------------------------------------------------------------------------------
   -- Subprograms
@@ -174,10 +187,10 @@ package axi4_pkg is
     port (
       rstn            : in  std_ulogic;
       clk             : in  std_ulogic;
-      axi4mi          : in  axi4_in_type;
-      axi4mo          : out axi4_out_type;
-      bm_in           : in  bm_in_type;
-      bm_out          : out bm_out_type;
+      axi4mi          : in  axi4_miso;
+      axi4mo          : out axi4_mosi;
+      bm_in           : in  bm_mosi;
+      bm_out          : out bm_miso;
       bm_in_bypass_rd : in  std_logic
     );
   end component axi4_manager;

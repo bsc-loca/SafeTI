@@ -15,7 +15,6 @@ use bsc.injector_pkg.typeTech;
 use bsc.injector_pkg.APB_IRQ_NMAX;
 use bsc.injector_pkg.injector;
 use bsc.injector_pkg.dbits;
-use bsc.injector_pkg.MAX_SIZE_BURST;
 use bsc.axi4_pkg.all;
 
 -----------------------------------------------------------------------------
@@ -43,8 +42,8 @@ entity injector_axi is
     apbi          : in  apb_slave_in_type;  -- APB slave input
     apbo          : out apb_slave_out_type; -- APB slave output
     -- AXI interface signals
-    axi4mi        : in  axi4_in_type;       -- AXI4 master input 
-    axi4mo        : out axi4_out_type       -- AXI4 master output
+    axi4mi        : in  axi4_miso;          -- AXI4 master input 
+    axi4mo        : out axi4_mosi           -- AXI4 master output
   );
 end entity injector_axi;
 
@@ -57,8 +56,8 @@ architecture rtl of injector_axi is
   -- I/O Injector and AXI interface
   signal bm_in_injector   : bsc.injector_pkg.bm_in_type;
   signal bm_out_injector  : bsc.injector_pkg.bm_out_type;
-  signal bm_in_manager    : bsc.axi4_pkg.bm_in_type;
-  signal bm_out_manager   : bsc.axi4_pkg.bm_out_type;
+  signal bm_in_manager    : bsc.axi4_pkg.bm_mosi;
+  signal bm_out_manager   : bsc.axi4_pkg.bm_miso;
 
 begin
 

@@ -18,6 +18,12 @@ compile: clean
 vsim-launch: compile
 	vsim -voptargs=+acc tb_injector_axi -do "do wave.do" -do "run -all"
 
+#Launches the simulation with the GUI and coverage enabled
+vsim-coverage: compile
+	vcom -coveropt 3 +cover +acc $(hdl)/axi4_manager.vhd
+	vsim -coverage -vopt tb_injector_axi -do "coverage save -onexit coverage.ucbd; run -all;" <<!
+	vcover report -details coverage.ucbd
+
 #Launches the simulation in batch mode
 vsim: compile
 	vsim -voptargs=+acc tb_injector_axi -do "run -all" <<! 

@@ -1,0 +1,28 @@
+
+{signal: [
+  {name: 'clk', 					wave: 'P............'},
+  	['axi4_mosi',
+  		{name: 'aw_id[3:0]', 		wave: 'x4......|...x', 	data: ['generic ID               ']},
+  		{name: 'aw_addr[31:0]', 	wave: 'x4......|...x', 	data: ['aligned address               ']},
+  		{name: 'aw_len[7:0]',		wave: 'x4...444|44.x', 	data: ['burst length - 1',,,,'0x00','0xFF']},
+  		{name: 'aw_size[2:0]', 		wave: 'x4......|...x', 	data: ['log2(DATA_WIDTH/8)               ']},
+  		{name: 'aw_burst[1:0]', 	wave: 'x4......|...x', 	data: ['INCREMENTAL               ']},
+  		{name: 'aw_valid', 			wave: '01..0...|....'}
+     ],
+  	['axi4_miso',
+  		{name: 'aw_ready', 			wave: '0..10...|....'}
+     ],
+    {	node: '.'},
+  	['axi4_mosi',
+  		{name: 'w_data[63:0]', 		wave: 'x....4.4|448x', 	data: ['wdata0']},
+  		{name: 'w_strb[7:0]',		wave: 'x....4.4|.4.x', 	data: ['initial strb','            0xFF','ending strb']},
+  		{name: 'w_valid', 			wave: '0....1..|..0.'},
+        {name: 'w_last', 			wave: '0.......|.10.'}
+     ],
+  	['axi4_miso',
+  		{name: 'w_ready', 			wave: '0.....1.|..0.'}
+     ],
+],
+ edge: [''],
+ config: { hscale: 1, skin: 'default' }
+}

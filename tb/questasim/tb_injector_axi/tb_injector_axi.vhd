@@ -12,8 +12,8 @@ use ieee.numeric_std.all;
 library bsc;
 use bsc.injector_pkg.all;
 use bsc.tb_injector_pkg.all;
-use bsc.axi4_pkg.axi4_in_type;
-use bsc.axi4_pkg.axi4_out_type;
+use bsc.axi4_pkg.axi4_miso;
+use bsc.axi4_pkg.axi4_mosi;
 use bsc.axi4_pkg.axi4_manager;
 use std.env.all; -- VHDL2008
 
@@ -56,7 +56,7 @@ architecture rtl of tb_injector_axi is
   constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
   constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0003";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -69,7 +69,9 @@ architecture rtl of tb_injector_axi is
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
   -- AXI TEST X
-  constant size_vector    : array_integer(0 to 6) := (64, 64, 33, 64, 65, 128, 129);
+  constant size_vector    : array_integer(0 to 1) := (4096, 0);
+  constant addr_vector    : addr_bank(0 to 15)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005",
+  X"0000_0006", X"0000_0007", X"0000_0008", X"0000_0009", X"0000_000A", X"0000_000B", X"0000_000C", X"0000_000D", X"0000_000E", X"0000_000F");
   --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
@@ -114,8 +116,8 @@ architecture rtl of tb_injector_axi is
   signal apbi   : apb_slave_in_type := DEF_INJ_APB;
   signal apbo   : apb_slave_out_type;
 
-  signal axi4mi : axi4_in_type;
-  signal axi4mo : axi4_out_type;
+  signal axi4mi : axi4_miso;
+  signal axi4mo : axi4_mosi;
 
   signal bm_axi_req_rd : std_logic;
   signal bm_axi_req_wr : std_logic;
@@ -123,8 +125,8 @@ architecture rtl of tb_injector_axi is
   -- I/O Injector and AXI interface
   signal bm_in_injector   : bsc.injector_pkg.bm_in_type;
   signal bm_out_injector  : bsc.injector_pkg.bm_out_type;
-  signal bm_in_manager    : bsc.axi4_pkg.bm_in_type;
-  signal bm_out_manager   : bsc.axi4_pkg.bm_out_type;
+  signal bm_in_manager    : bsc.axi4_pkg.bm_mosi;
+  signal bm_out_manager   : bsc.axi4_pkg.bm_miso;
   signal bm_out_test      : bsc.injector_pkg.bm_out_type;
 
   -- Testbench BM I/O
@@ -267,12 +269,14 @@ begin  -- rtl
     ----------------------------------------
     --               TEST X               --
     ----------------------------------------
-    for j in size_vector'range loop
+    for m in addr_vector'range loop -- addr_vector'range
+    for k in 1 to 1 loop -- 
+    for j in 0 to 0 loop -- size_vector'range
 
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
       bm_skip   <= '1';     -- Skip BM transfers to only test AXI communication requested by the injector
-      test_vect(0) <= write_descriptor( size_vector(j),  0,  WRT,  action_addr, '0', add_vector(descr_addr1,   20, 32), '1' );
+      test_vect(0) <= write_descriptor( size_vector(j), 0, std_logic_vector(to_unsigned(sel(0, 1, k=0), 3)), addr_vector(m), '0', add_vector(descr_addr1, 20, 32), '1');
       wait until rising_edge(clk);
       rstn      <= '1';
 
@@ -287,10 +291,16 @@ begin  -- rtl
       wait until rising_edge(clk);
       AXI_com   <= TRUE;
 
-      wait until rising_edge(bm_out_injector.rd_done); -- Wait for interface to complete transaction
+      if(k=0) then
+        wait until rising_edge(bm_out_injector.rd_done); -- Wait for interface to complete transaction
+      else
+        wait until rising_edge(bm_out_injector.wr_done); -- Wait for interface to complete transaction
+      end if;
       wait for 20 ns;
       rstn      <= '0';
 
+    end loop;
+    end loop;
     end loop;
 
     stop;
@@ -492,7 +502,7 @@ begin  -- rtl
   AXI4_M0 : axi4_manager
   generic map (
     dbits           => dbits,
-    axi_id          => 3
+    axi_id          => 0
   )
   port map (
     rstn            => rstn,

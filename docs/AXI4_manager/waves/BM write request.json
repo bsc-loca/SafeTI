@@ -1,0 +1,24 @@
+
+{signal: [
+  {name: 'clk', 			wave: 'P...........'},
+  	['   bm_mosi',
+  		{name: 'wr_addr[31:0]', 	wave: 'x.3..x......', data: ['initial address']},
+  		{name: 'wr_size[11:0]', 	wave: 'x.3..x......', data: ['size - 1']},
+  		{name: 'wr_req', 			wave: '0.1..0......'},
+   	],
+   	['bm_miso   ',
+  		{name: 'wr_req_grant', 		wave: '0...10......'},
+  	],
+    {	node: '.....A..B...'},
+  	['axi4_mosi',
+  		{name: 'aw_id[3:0]', 		wave: 'x.......4...', data: ['generic ID']},
+  		{name: 'aw_addr[31:0]', 	wave: 'x.......4...', data: ['aligned address']},
+  		{name: 'aw_len[7:0]',		wave: 'x.......4...', data: ['burst length - 1']},
+  		{name: 'aw_size[2:0]', 		wave: 'x.......4...', data: ['log2(DATA_WIDTH/8)']},
+  		{name: 'aw_burst[1:0]', 	wave: 'x.......4...', data: ['INCREMENTAL']},
+  		{name: 'aw_valid', 			wave: '0.......1...'}
+     ],
+],
+ edge: ['A+B 3 Clock cycles'],
+ config: { hscale: 1, skin: 'default' }
+}
