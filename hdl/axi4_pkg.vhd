@@ -5,6 +5,11 @@
 -- Description: Internal package for AXI4 components
 ------------------------------------------------------------------------------
 --  Changelog:
+--              - v0.8.2  Mar 11, 2022.
+--                Configurable parameters of the number of FIFO registers and injector 
+--                mode have been moved as generics, allowing multiple instances with 
+--                different properties. AXI infrastructure properties are still general, thou.
+--
 --              - v0.8.1  Mar  1, 2022.
 --                I/O types for the BM component have been renamed to bm_miso and
 --                bm_mosi, while the AXI I/O types have been renamed axi4_miso and
@@ -33,30 +38,14 @@ package axi4_pkg is
     constant ADDR_WIDTH             : integer range 12 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
     constant DATA_WIDTH             : integer range  8 to 1024  := 64;  -- AXI data bus width. [Only power of 2s are allowed]
 
-    constant rd_n_fifo_regs : integer range  2 to  256  := 4;   -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
-    constant wr_n_fifo_regs : integer range  2 to  256  := 4;   -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
-
-    -- Special features
-
-      -- The "Injector_implementation" flag allows, when TRUE, to skip the bottleneck at the BM data bus by discarding read data (when the "bm_in_bypass_rd"
-      -- input signal of the Manager interface is high during BM request) and sending '0' to write with the characteristics of a normal transaction.
-      -- In addition, the resources that implement the BM transfer side of the write tranfer logic is saved, since no writes are expected to be done when 
-      -- this mode is enabled. The read transaction logic is maintained so the traffic injector can use the interface to read the descriptors allocated 
-      -- on the AXI memory space by setting the "bm_in_bypass_rd" input signal of the Manager interface to low during the BM request.
-
-    constant Injector_implementation: boolean                   := TRUE;   -- For general purpose Manager interface, set it to FALSE.
-
   -- User parameters END --
 
-  -- Informative specification parameters (DO NOT MODIFY, BUT NOTICE THEM)
+  -- Informative specification parameters (DO NOT MODIFY since they do nothing, BUT NOTICE THEM)
     constant Max_Transaction_Bytes  : integer                   := 4096;    -- Maximum number of bytes that can be requested per BM transaction.
-
 
     constant FIX                    : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes: FIXED
     constant INC                    : std_logic_vector(1 downto 0) := "01"; --                  INCREMENTAL
     constant WRAP                   : std_logic_vector(1 downto 0) := "10"; --                  WRAPPING
-
-    constant zero_vect              : std_logic_vector(1024 downto 0) := (others => '0');
 
   -----------------------------------------------------------------------------
   -- Records and types
@@ -122,7 +111,7 @@ package axi4_pkg is
   -- BM specific types
   type bm_miso is record  -- BM component output, input to Manager interface.
     -- Read channel
-    rd_data         : std_logic_vector(127 downto 0);
+    rd_data         : std_logic_vector(1023 downto 0);
     rd_req_grant    : std_logic;
     rd_valid        : std_logic;
     rd_done         : std_logic;
@@ -143,7 +132,7 @@ package axi4_pkg is
     wr_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0);
     wr_size         : std_logic_vector(11 downto 0);
     wr_req          : std_logic;
-    wr_data         : std_logic_vector(127 downto 0);
+    wr_data         : std_logic_vector(1023 downto 0);
   end record;
 
   type array_integer          is array (natural range <>) of integer;
@@ -180,9 +169,12 @@ package axi4_pkg is
 
   component axi4_manager is
     generic (
-      dbits           : integer range 32 to  128  := 32;
-      axi_id          : integer                   := 0;
-      ASYNC_RST       : boolean                   := FALSE
+      dbits           : integer range  8 to DATA_WIDTH  := 32;
+      axi_id          : integer range  0 to max((ID_R_WIDTH, ID_R_WIDTH))**2-1 := 0;
+      rd_n_fifo_regs  : integer range  2 to  256  := 4;
+      wr_n_fifo_regs  : integer range  2 to  256  := 4;
+      ASYNC_RST       : boolean                   := FALSE;
+      Injector_implementation : boolean           := FALSE
     );
     port (
       rstn            : in  std_ulogic;

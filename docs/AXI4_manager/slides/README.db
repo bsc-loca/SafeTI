@@ -1,0 +1,4 @@
+The slides present on this folder are originally made in LibreOffice Impress (.odp). 
+However, it has been exported to .pdf and .pptx so other tools may open them, even though they may fail to show correctly.
+
+The "Outdated 0.7 Manager Interface slides" presentation may be useful to understand internal parts of the interface or for a basic explaination of the AXI protocol, but take into account it may not represent the actual state of the interface.

@@ -1,7 +1,7 @@
 
 {signal: [
   {name: 'clk', 					wave: 'P............'},
-  	['axi4_mosi',
+  	['bm_mosi',
   		{name: 'aw_id[3:0]', 		wave: 'x4......|...x', 	data: ['generic ID               ']},
   		{name: 'aw_addr[31:0]', 	wave: 'x4......|...x', 	data: ['aligned address               ']},
   		{name: 'aw_len[7:0]',		wave: 'x4...444|44.x', 	data: ['burst length - 1',,,,'0x00','0xFF']},
@@ -19,9 +19,14 @@
   		{name: 'w_valid', 			wave: '0....1..|..0.'},
         {name: 'w_last', 			wave: '0.......|.10.'}
      ],
-  	['axi4_miso',
-  		{name: 'w_ready', 			wave: '0.....1.|..0.'}
+  	['  axi4_miso',
+  		{name: 'w_ready', 			wave: '0.....1.|..0.'},
      ],
+     	{name: ''},
+    ['  bm_mosi',
+  		{name: 'wr_done', 			wave: '0.......|.10.'},
+      	{name: 'wr_grant_req',		wave: '0.......|.1..'}
+     ]
 ],
  edge: [''],
  config: { hscale: 1, skin: 'default' }

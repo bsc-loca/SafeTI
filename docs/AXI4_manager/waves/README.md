@@ -1,0 +1,2 @@
+These .json files are used to create the wavegraphs with WaveDrom.
+You can also check and modify them using WaveDrom available at their website https://wavedrom.com/ and they GitHub repository https://github.com/wavedrom/wavedrom .

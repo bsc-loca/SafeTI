@@ -71,9 +71,9 @@ begin
   bm_in_manager.wr_addr         <= bm_in_injector.wr_addr;
   bm_in_manager.wr_size         <= bm_in_injector.wr_size;
   bm_in_manager.wr_req          <= bm_in_injector.wr_req;
-  bm_in_manager.wr_data         <= bm_in_injector.wr_data;
+  bm_in_manager.wr_data         <= bm_in_injector.wr_data & (bm_in_manager.wr_data'high-bm_in_injector.wr_data'length downto 0 => '0');
 
-  bm_out_injector.rd_data       <= bm_out_manager.rd_data;
+  bm_out_injector.rd_data       <= bm_out_manager.rd_data(bm_out_manager.rd_data'high downto bm_out_manager.rd_data'high-bm_out_injector.rd_data'high);
   bm_out_injector.rd_req_grant  <= bm_out_manager.rd_req_grant;
   bm_out_injector.rd_valid      <= bm_out_manager.rd_valid;
   bm_out_injector.rd_done       <= bm_out_manager.rd_done;
@@ -110,7 +110,10 @@ begin
     generic map (
       dbits           => dbits,
       axi_id          => 0,
-      ASYNC_RST       => FALSE
+      rd_n_fifo_regs  => 4,
+      wr_n_fifo_regs  => 4,
+      ASYNC_RST       => FALSE,
+      Injector_implementation => TRUE
     )
     port map (
       rstn            => rstn,

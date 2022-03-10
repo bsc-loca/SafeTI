@@ -5,6 +5,11 @@
 -- Description: AXI4 FULL Manager entity.
 ------------------------------------------------------------------------------ 
 --  Changelog:
+--              - v0.8.2  Mar 11, 2022.
+--                Configurable parameters of the number of FIFO registers and injector 
+--                mode have been moved as generics, allowing multiple instances with 
+--                different properties. AXI infrastructure properties are still general, thou.
+--
 --              - v0.8.1  Mar  1, 2022.
 --                I/O types for the BM component have been renamed to bm_miso and
 --                bm_mosi, while the AXI I/O types have been renamed axi4_miso and
@@ -76,7 +81,7 @@ use bsc.axi4_pkg.all; -- <- It contains the configuration of the interface.
 --   must be discarded since the valid flag is low.
 --
 -- - The "bm_in_bypass_rd" input signal must be set to low if it's not used. However, in order to be used, 
---   it is necessary to set "Injector_implementation" option to TRUE on the axi4_pkg.vhd package file.
+--   it is necessary to set "Injector_implementation" option to TRUE.
 --   When it is set to TRUE, the BM transfer side of the write transactions logic will not be synthesized,
 --   bypassing the bottleneck of the lower width of the BM data bus respect the AXI data bus width, and
 --   the interface will only write zeros where it is requested.
@@ -111,24 +116,35 @@ use bsc.axi4_pkg.all; -- <- It contains the configuration of the interface.
 entity axi4_manager is
   generic (
     -- Bus Manager (BM) configuration
-    dbits           : integer range 32 to  128  := 32;      -- BM data bus width [Only power of 2s are allowed]
+    dbits           : integer range  8 to DATA_WIDTH := 32;      -- BM data bus width [Only power of 2s are allowed and <= AXI_DATA_WIDTH]
+
     -- AXI Manager configuration
-    axi_id          : integer                   := 0;       -- AXI manager index
-    -- Injector configuration
-    ASYNC_RST       : boolean                   := FALSE    -- Allow asynchronous reset
+    axi_id          : integer range  0 to max((ID_R_WIDTH, ID_R_WIDTH))**2-1 := 0;       -- AXI manager index
+    rd_n_fifo_regs  : integer range  2 to  256  := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs  : integer range  2 to  256  := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    ASYNC_RST       : boolean                   := FALSE;   -- Allow asynchronous reset
+
+    -- Special features
+      -- The "Injector_implementation" flag allows, when TRUE, to skip the bottleneck at the BM data bus by discarding read data (when the "bm_in_bypass_rd"
+      -- input signal of the Manager interface is high during BM read request) and sending '0' to write with the characteristics of a normal transaction.
+      -- In addition, the resources that implement the BM transfer side of the write transfer logic are saved, since no writes are expected to be done when 
+      -- this mode is enabled. The read transaction logic is maintained, so the traffic injector can use the interface to read the descriptors allocated 
+      -- on the AXI memory space by setting the "bm_in_bypass_rd" input signal of the Manager interface to low during the BM request.
+    Injector_implementation   : boolean         := FALSE   -- For general purpose Manager interface, set it to FALSE.
+    
   );
   port (
-    rstn            : in  std_ulogic;         -- Reset
-    clk             : in  std_ulogic;         -- Clock
+    rstn                      : in  std_ulogic; -- Reset
+    clk                       : in  std_ulogic; -- Clock
     -- AXI interface signals
-    axi4mi          : in  axi4_miso;          -- AXI4 manager input 
-    axi4mo          : out axi4_mosi;          -- AXI4 manager output
+    axi4mi                    : in  axi4_miso;  -- AXI4 manager input 
+    axi4mo                    : out axi4_mosi;  -- AXI4 manager output
     -- BM component signals
-    bm_in           : in  bm_mosi;            -- BM interface input
-    bm_out          : out bm_miso;            -- BM interface output
+    bm_in                     : in  bm_mosi;    -- BM interface input
+    bm_out                    : out bm_miso;    -- BM interface output
     -- Manager settings
-    bm_in_bypass_rd : in  std_logic           -- Skip BM transfers, discard all read data and write full zeros. 
-                                              -- Only checked when Injector_implementation = TRUE on axi4_pkg.vhd.
+    bm_in_bypass_rd           : in  std_logic   -- Skip BM bottleneck, discard all read data and write full zeros. 
+                                                -- Only used when Injector_implementation = TRUE. In doubt, set to '0' at instantation.
   );
 end entity axi4_manager;
 
@@ -495,7 +511,7 @@ begin -- rtl
   --bm_in.rd_size;  -- used as input
   --bm_in.rd_req;   -- used as input
   bm_out.rd_req_grant <= rd.bm_grant;
-  bm_out.rd_data      <= (rd.bm_data_buffer & (127-dbits downto 0 => '0'));
+  bm_out.rd_data      <= (rd.bm_data_buffer & (1023-dbits downto 0 => '0'));
   bm_out.rd_valid     <= rd.bm_valid_buffer;
   bm_out.rd_done      <= rd.bm_done_buffer;
   bm_out.rd_err       <= rd.bm_error;
@@ -1104,7 +1120,7 @@ begin -- rtl
       -- cycle since the FIFO BM index is increased.
       -- However, the logic will stall new reads (assert the bm_out.wr_full) to the wr.bm_data_buffer if the next FIFO register is 
       -- yet to be sent to the AXI interconnect, even though there may be enough space on the actual FIFO register. Thus, the  
-      -- bottleneck can be reduced by implementing 4 FIFO registers instead of the minimum 2 on wr_n_fifo_regs at axi4_pkg.vhd.
+      -- bottleneck can be reduced by implementing 4 FIFO registers instead of the minimum 2 on wr_n_fifo_regs.
       case wr.state is
         when compute1 =>
           wr.bm_counter <= ((wr.bm_counter'length - AXI4_DATA_BYTE - 1) downto 0 => '0') & wr.bm_addr(AXI4_DATA_BYTE - 1 downto 0);

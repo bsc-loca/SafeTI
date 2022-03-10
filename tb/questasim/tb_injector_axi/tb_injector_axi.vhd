@@ -270,7 +270,7 @@ begin  -- rtl
     --               TEST X               --
     ----------------------------------------
     for m in addr_vector'range loop -- addr_vector'range
-    for k in 1 to 1 loop -- 
+    for k in 1 to 1 loop -- 0 for reads, 1 for writes
     for j in 0 to 0 loop -- size_vector'range
 
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
