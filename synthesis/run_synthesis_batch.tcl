@@ -8,16 +8,17 @@ file mkdir $outputDir
 #
 # STEP#1: setup design sources and constraints
 #
-#read_vhdl -library bsc ../hdl/injector_pkg.vhd
-#read_vhdl ../hdl/injector_ahb.vhd  
-#read_vhdl ../hdl/injector.vhd
-#read_vhdl ../hdl/injector_apb.vhd
-#read_vhdl ../hdl/injector_ctrl.vhd
-#read_vhdl ../hdl/injector_read_if.vhd
-#read_vhdl ../hdl/injector_write_if.vhd
-#read_vhdl ../hdl/injector_delay_if.vhd
-#read_vhdl ../hdl/fifo.vhd
+read_vhdl -library bsc ../hdl/injector_pkg.vhd
+read_vhdl ../hdl/injector_ahb.vhd
+read_vhdl ../hdl/injector.vhd
+read_vhdl ../hdl/injector_apb.vhd
+read_vhdl ../hdl/injector_ctrl.vhd
+read_vhdl ../hdl/injector_read_if.vhd
+read_vhdl ../hdl/injector_write_if.vhd
+read_vhdl ../hdl/injector_delay_if.vhd
+read_vhdl ../hdl/fifo.vhd
 read_vhdl -library bsc ../hdl/axi4_pkg.vhd
+read_vhdl ../hdl/injector_axi.vhd
 read_vhdl ../hdl/axi4_manager.vhd
 
 #read_vhdl -library grlib /home/develop/selene-hardware/grlib/lib/grlib/stdlib/version.vhd
@@ -47,7 +48,9 @@ read_vhdl ../hdl/axi4_manager.vhd
 #
 # STEP#2: run synthesis, report utilization and timing estimates, write checkpoint design
 # Delete mode to allow bitstream  -mode out_of_context
-synth_design -top axi4_manager -part xcku040-ffva1156-3-e -mode out_of_context
+#synth_design -top injector_ahb -part xcku040-ffva1156-3-e -mode out_of_context
+synth_design -top injector_axi -part xcku040-ffva1156-3-e -mode out_of_context
+#synth_design -top axi4_manager -part xcku040-ffva1156-3-e -mode out_of_context
 # 10=100MHz 5=200MHz 4=250MHz 3=300MHz 2.5=400MHz 2=500MHz
 create_clock -name clk -period 4 [get_ports clk]
 

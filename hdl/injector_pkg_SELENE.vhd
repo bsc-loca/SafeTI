@@ -20,15 +20,17 @@ package injector_pkg_selene is
   -- AHB interface wrapper for SELENE platform
   component injector_ahb_SELENE is
     generic (
-      tech              : integer range 0 to NTECH          := inferred;
+      -- SafeTI configuration
+      dbits             : integer range 32 to  128      := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+      MAX_SIZE_BURST    : integer range 32 to 1024      := 1024;      -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
+      tech              : integer range 0 to NTECH      := inferred;  -- Target technology
       -- APB configuration  
-      pindex            : integer                           := 0;
-      paddr             : integer                           := 0;
-      pmask             : integer                           := 16#FFF#;
-      pirq              : integer range 0 to NAHBIRQ-1      := 0;
+      pindex            : integer                       := 0;
+      paddr             : integer                       := 0;
+      pmask             : integer                       := 16#FFF#;
+      pirq              : integer range 0 to NAHBIRQ-1  := 0;
       -- AHB configuration
-      hindex            : integer                           := 0;
-      max_burst_length  : integer range 2 to 256            := 128
+      hindex            : integer                       := 0
       );
     port (
       rstn              : in  std_ulogic;
@@ -41,6 +43,34 @@ package injector_pkg_selene is
       ahbmo             : out ahb_mst_out_type
       );
   end component injector_ahb_SELENE;
+
+  -- AXI interface wrapper for SELENE platform
+  component injector_axi4_SELENE is
+    generic (
+      -- SafeTI configuration
+      dbits             : integer range 32 to  128      := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+      MAX_SIZE_BURST    : integer range 32 to 4096      := 4096;    -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
+      tech              : integer range 0 to NTECH      := inferred;-- Target technology
+      -- APB configuration  
+      pindex            : integer                       := 0;       -- APB configuartion slave index
+      paddr             : integer                       := 0;       -- APB configuartion slave address
+      pmask             : integer                       := 16#FFF#; -- APB configuartion slave mask
+      pirq              : integer range 0 to NAHBIRQ-1  := 1;       -- APB configuartion slave irq
+      -- AXI Master configuration
+      axi_id            : integer                       := 0        -- AXI fixed burst index
+    );
+    port (
+      rstn              : in  std_ulogic;       -- Reset
+      clk               : in  std_ulogic;       -- Clock
+      -- APB interface signals
+      apbi              : in  apb_slv_in_type;  -- APB subordinate input to injector
+      apbo              : out apb_slv_out_type; -- APB subordinate output from injector
+      -- AXI4 interconnect SELENE bus
+      axi4mi            : in  axi_somi_type;    -- AXI4 manager input to injector
+      axi4mo            : out axi4_mosi_type    -- AXI4 manager output from injector
+    );
+  end component injector_axi4_SELENE;
+  
 
 end package injector_pkg_selene;
 

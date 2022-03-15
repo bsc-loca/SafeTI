@@ -48,7 +48,7 @@ package tb_injector_pkg is
   );
 
   -- BM output (injector input) default state
-  constant DEF_INJ_BM : bm_out_type := (
+  constant DEF_INJ_BM : bm_miso := (
     rd_data   => (others => '0'),
     rd_req_grant => '0',
     rd_valid  => '0',
@@ -101,15 +101,15 @@ package tb_injector_pkg is
     signal   clk              : in  std_ulogic;
     constant descriptor_bank  : in  descriptor_bank;  -- Descriptor batch to offer at rdata
     constant descriptor_addr  : in  std_logic_vector(31 downto 0); -- 1st descriptor address
-    signal   bm_in            : in  bm_in_type;       -- BM bus set by injector
-    signal   bm_out           : out bm_out_type       -- BM bus set by testbench
+    signal   bm_in            : in  bm_mosi;          -- BM bus set by injector
+    signal   bm_out           : out bm_miso           -- BM bus set by testbench
   );
 
   -- Procedure used to execute read/write transactions.
   procedure test_descriptor_batch(
     signal   clk              : in  std_ulogic;
-    signal   bmin             : in  bm_in_type;       -- BM bus set by injector
-    signal   bmout            : out bm_out_type;      -- BM bus set by testbench
+    signal   bmin             : in  bm_mosi;          -- BM bus set by injector
+    signal   bmout            : out bm_miso;          -- BM bus set by testbench
     constant descr_bnk        : in  descriptor_bank;  -- Descriptor batch to be executed
     constant MAX_BEAT         : in  integer;          -- Maximum length in bytes for a beat in burst
     signal   irq              : in  std_logic;        -- Descriptor completion flag
@@ -217,8 +217,8 @@ package body tb_injector_pkg is
     signal   clk              : in  std_ulogic;
     constant descriptor_bank  : in  descriptor_bank;
     constant descriptor_addr  : in  std_logic_vector(31 downto 0);
-    signal   bm_in            : in  bm_in_type;
-    signal   bm_out           : out bm_out_type
+    signal   bm_in            : in  bm_mosi;
+    signal   bm_out           : out bm_miso
   ) is 
     variable descriptor       :     descriptor_words;
     variable addr             :     std_logic_vector(31 downto 0);
@@ -264,8 +264,8 @@ package body tb_injector_pkg is
   -- facilitate any modification if future injector versions implement more differences between transfer modes.
   procedure test_descriptor_batch(
     signal   clk          : in  std_ulogic;
-    signal   bmin         : in  bm_in_type;
-    signal   bmout        : out bm_out_type;
+    signal   bmin         : in  bm_mosi;
+    signal   bmout        : out bm_miso;
     constant descr_bnk    : in  descriptor_bank;
     constant MAX_BEAT     : in  integer;
     signal   irq          : in  std_logic;

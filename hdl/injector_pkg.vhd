@@ -32,9 +32,6 @@ package injector_pkg is
     constant AHB_TEST_WIDTH     : integer :=   4;   -- ahb_master_in testin width
 
     -- Common generics
-    constant dbits              : integer range 32 to  128 := 32;   -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    constant MAX_SIZE_BURST     : integer range 32 to 4096 := 4096; -- Maximum size of a BM transaction. 1024/4096 for AHB/AXI4 (default=1024)
-    constant BM_BURST_WIDTH     : integer range  5 to   12 := 12;   -- Bus width for burst size. Change it manually to be log2(MAX_SIZE_BURST).
     constant numTech            : integer :=  67;   -- Target technology
     constant typeTech           : integer :=   0;
 
@@ -44,75 +41,75 @@ package injector_pkg is
 -- Parametric constants
 -------------------------------------------------------------------------------
 
-  constant INT_BURST_WIDTH    : integer range  4 to 13 := BM_BURST_WIDTH+1; -- For internal count of the bytes left to send in the burst
-  constant bm_bytes           : integer range  4 to 16 := dbits/8; -- Number of bytes in dbits.
-
 -------------------------------------------------------------------------------
 -- Types and records
 -------------------------------------------------------------------------------
 
   -- BM specific types
-  type bm_out_type is record  --Input to injector_ctrl from bus master interface output
+  type bm_miso is record  --Input to injector_ctrl from bus master interface output
     -- Read channel
-    rd_data      : std_logic_vector(127 downto 0);
-    rd_req_grant : std_logic;
-    rd_valid     : std_logic;
-    rd_done      : std_logic;
-    rd_err       : std_logic;
+    rd_data       : std_logic_vector(127 downto 0);
+    rd_req_grant  : std_logic;
+    rd_valid      : std_logic;
+    rd_done       : std_logic;
+    rd_err        : std_logic;
     -- Write channel
-    wr_req_grant : std_logic;
-    wr_full      : std_logic;
-    wr_done      : std_logic;
-    wr_err       : std_logic;
+    wr_req_grant  : std_logic;
+    wr_full       : std_logic;
+    wr_done       : std_logic;
+    wr_err        : std_logic;
   end record;
 
-  type bm_in_type is record  --Output from injector_ctrl to bus master interface input
+  type bm_mosi is record  --Output from injector_ctrl to bus master interface input
     -- Read channel
-    rd_addr : std_logic_vector(31 downto 0);
-    rd_size : std_logic_vector(BM_BURST_WIDTH-1 downto 0);
-    rd_req  : std_logic;
+    rd_addr       : std_logic_vector(31 downto 0);
+    rd_size       : std_logic_vector(11 downto 0);
+    rd_req        : std_logic;
+    rd_descr      : std_logic;
     -- Write channel
-    wr_addr : std_logic_vector(31 downto 0);
-    wr_size : std_logic_vector(BM_BURST_WIDTH-1 downto 0);
-    wr_req  : std_logic;
-    wr_data : std_logic_vector(127 downto 0);
+    wr_addr       : std_logic_vector(31 downto 0);
+    wr_size       : std_logic_vector(11 downto 0);
+    wr_req        : std_logic;
+    wr_data       : std_logic_vector(127 downto 0);
   end record;
 
   -- Reset value for Bus Master interface signals
-  constant BM_OUT_RST : bm_out_type := (
-    rd_data      => (others => '0'),
-    rd_req_grant => '0',
-    rd_valid     => '0',
-    rd_done      => '0',
-    rd_err       => '0',
+  constant BM_MISO_RST : bm_miso := (
+    rd_data       => (others => '0'),
+    rd_req_grant  => '0',
+    rd_valid      => '0',
+    rd_done       => '0',
+    rd_err        => '0',
     -- Write channel
-    wr_req_grant => '0',
-    wr_full      => '0',
-    wr_done      => '0',
-    wr_err       => '0'
+    wr_req_grant  => '0',
+    wr_full       => '0',
+    wr_done       => '0',
+    wr_err        => '0'
     );
 
-  constant BM_IN_RST : bm_in_type := (
+  constant BM_MOSI_RST : bm_mosi := (
     -- Read channel
-    rd_addr => (others => '0'),
-    rd_size => (others => '0'),
-    rd_req  => '0',
+    rd_addr   => (others => '0'),
+    rd_size   => (others => '0'),
+    rd_req    => '0',
+    rd_descr  => '0',
     -- Write channel
-    wr_addr => (others => '0'),
-    wr_size => (others => '0'),
-    wr_req  => '0',
-    wr_data => (others => '0')
+    wr_addr   => (others => '0'),
+    wr_size   => (others => '0'),
+    wr_req    => '0',
+    wr_data   => (others => '0')
     );  
 
   -- Reset value for Bus Master control registers
-  constant BM_CTRL_REG_RST : bm_in_type := (
-    rd_addr => (others => '0'),
-    rd_size => (others => '0'),
-    rd_req  => '0',
-    wr_addr => (others => '0'),
-    wr_size => (others => '0'),
-    wr_req  => '0',
-    wr_data => (others => '0')
+  constant BM_CTRL_REG_RST : bm_mosi := (
+    rd_addr   => (others => '0'),
+    rd_size   => (others => '0'),
+    rd_req    => '0',
+    rd_descr  => '0',
+    wr_addr   => (others => '0'),
+    wr_size   => (others => '0'),
+    wr_req    => '0',
+    wr_data   => (others => '0')
     );
 
   type apb_slave_in_type is record
@@ -449,6 +446,7 @@ package injector_pkg is
   function find_burst_size  (src_fixed_addr   : std_ulogic;
                              dest_fixed_addr  : std_ulogic;
                              max_bsize        : integer;
+                             bm_bytes         : integer;
                              total_size       : std_logic_vector(18 downto 0)
                              ) return std_logic_vector;
 
@@ -500,7 +498,8 @@ package injector_pkg is
   -- Control Module
   component injector_ctrl is
     generic (
-      fifo_size         : integer range 1 to 16   := 8;
+      dbits             : integer range 32 to 128 := 32;
+      fifo_size         : integer range  1 to  16 := 8;
       ASYNC_RST         : boolean                 := FALSE
       );
     port (
@@ -514,12 +513,12 @@ package injector_pkg is
       curr_desc_ptr     : out std_logic_vector(31 downto 0);
       status            : out status_out_type;
       irq_flag_sts      : out std_ulogic;
-      bm_in             : in  bm_out_type;
-      bm_out            : out bm_in_type;
-      read_if_bm_in     : in  bm_in_type;
-      read_if_bm_out    : out bm_out_type;
-      write_if_bm_in    : in  bm_in_type;
-      write_if_bm_out   : out bm_out_type;
+      bm_in             : in  bm_miso;
+      bm_out            : out bm_mosi;
+      read_if_bm_in     : in  bm_mosi;
+      read_if_bm_out    : out bm_miso;
+      write_if_bm_in    : in  bm_mosi;
+      write_if_bm_out   : out bm_miso;
       d_desc_out        : out data_dsc_strct_type;
       ctrl_rst          : out std_ulogic;
       err_sts_out       : out std_ulogic;
@@ -535,6 +534,8 @@ package injector_pkg is
   -- WRITE_IF
   component injector_write_if is
     generic (
+      dbits             : integer range 32 to  128  := 32;
+      MAX_SIZE_BURST    : integer range 32 to 4096  := 4096;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -545,14 +546,16 @@ package injector_pkg is
       write_if_start    : in  std_ulogic;
       d_des_in          : in  data_dsc_strct_type;
       status_out        : out d_ex_sts_out_type;
-      write_if_bmi      : in  bm_out_type;
-      write_if_bmo      : out bm_in_type
+      write_if_bmi      : in  bm_miso;
+      write_if_bmo      : out bm_mosi
       );
    end component injector_write_if;
 
    -- READ_IF
   component injector_read_if is
     generic (
+      dbits             : integer range 32 to  128  := 32;
+      MAX_SIZE_BURST    : integer range 32 to 4096  := 4096;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -563,8 +566,8 @@ package injector_pkg is
       read_if_start     : in  std_ulogic;
       d_des_in          : in  data_dsc_strct_type;
       status_out        : out d_ex_sts_out_type;
-      read_if_bmi       : in  bm_out_type;
-      read_if_bmo       : out bm_in_type
+      read_if_bmi       : in  bm_miso;
+      read_if_bmo       : out bm_mosi
       );
   end component injector_read_if;
 
@@ -606,6 +609,8 @@ package injector_pkg is
   -- Injector core
   component injector is
     generic (
+      dbits             : integer range 32 to  128          := 32;
+      MAX_SIZE_BURST    : integer range 32 to 4096          := 4096;
       pindex            : integer                           := 0;
       paddr             : integer                           := 0;
       pmask             : integer                           := 16#FF8#;
@@ -617,14 +622,16 @@ package injector_pkg is
       clk               : in  std_ulogic;
       apbi              : in  apb_slave_in_type;
       apbo              : out apb_slave_out_type;
-      bm0_in            : out bm_in_type;
-      bm0_out           : in  bm_out_type
+      bm0_mosi          : out bm_mosi;
+      bm0_miso          : in  bm_miso
       );
   end component injector;
 
   -- INJECTOR AHB top level interface
   component injector_ahb is
     generic (
+      dbits             : integer range 32 to  128          := 32;
+      MAX_SIZE_BURST    : integer range 32 to 1024          := 1024;
       tech              : integer range 0 to numTech        := typeTech;
       pindex            : integer                           := 0;
       paddr             : integer                           := 0;
@@ -638,10 +645,11 @@ package injector_pkg is
       clk               : in  std_ulogic;
       apbi              : in  apb_slave_in_type;
       apbo              : out apb_slave_out_type;
-      bm_in             : out bm_in_type;
-      bm_out            : in  bm_out_type
+      bm_mosi           : out bm_mosi;
+      bm_miso           : in  bm_miso
       );
   end component injector_ahb;
+  
 
   -------------------------------------------------------------------------------
   -- Procedures
@@ -665,20 +673,21 @@ package body injector_pkg is
     src_fixed_addr  : std_ulogic;
     dest_fixed_addr : std_ulogic;
     max_bsize       : integer;
+    bm_bytes        : integer;
     total_size      : std_logic_vector(18 downto 0)
     )
     return std_logic_vector is
     variable temp       : integer;
-    variable burst_size : std_logic_vector(INT_BURST_WIDTH-1 downto 0);
+    variable burst_size : std_logic_vector(log_2(max_bsize) downto 0);
     variable total_int  : integer;
   begin
     total_int := to_integer(unsigned(total_size));
     -- Limit the burst burst size by maximum burst length
     if (src_fixed_addr or dest_fixed_addr) = '1' then
-      if total_int < 4 then             -- less than 4 bytes
+      if total_int < bm_bytes then             -- less than BM data bus bytes
         temp := total_int;
       else
-        temp := 4;
+        temp := bm_bytes;
       end if;
     elsif (total_int > max_bsize) then
       temp := max_bsize;
@@ -690,18 +699,18 @@ package body injector_pkg is
     return burst_size;
   end find_burst_size;
 
-    -- Maximum integer from an array of integers.
-    function max(A : array_integer) return integer is
-      variable temp : integer := 0;
-      variable k : integer := 0;
-    begin
-      for k in A'range loop
-        if(A(k) > temp) then
-          temp := A(k);
-        end if;
-      end loop;
-      return temp;
-    end max;
+  -- Maximum integer from an array of integers.
+  function max(A : array_integer) return integer is
+    variable temp : integer := 0;
+    variable k : integer := 0;
+  begin
+    for k in A'range loop
+      if(A(k) > temp) then
+        temp := A(k);
+      end if;
+    end loop;
+    return temp;
+  end max;
 
   -- Addition function between std_logic_vectors, outputs with length assigned
   function add_vector(

@@ -17,24 +17,26 @@ use bsc.injector_pkg.all;
 
 entity injector is
   generic (
+    -- Injector configuration
+    dbits         : integer range 32 to  128          := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 32 to 4096          := 4096;      -- Maximum size of a beat at a burst transaction.
     -- APB configuration  
     pindex        : integer                           := 0;         -- APB configuartion slave index
     paddr         : integer                           := 0;         -- APB configuartion slave address
     pmask         : integer                           := 16#FFF#;   -- APB configuartion slave mask
     pirq          : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
-    -- Injector configuration
+    -- Asynchronous reset configuration
     ASYNC_RST     : boolean                           := FALSE      -- Allow asynchronous reset
     );
   port (
-    rstn      : in  std_ulogic;                    -- Reset
-    clk       : in  std_ulogic;                    -- Clock
+    rstn          : in  std_ulogic;           -- Reset
+    clk           : in  std_ulogic;           -- Clock
     -- APB interface signals
-    apbi      : in  apb_slave_in_type;             -- APB slave input
-    apbo      : out apb_slave_out_type;            -- APB slave output
+    apbi          : in  apb_slave_in_type;    -- APB slave input
+    apbo          : out apb_slave_out_type;   -- APB slave output
     -- Bus master signals
-    bm0_in    : out bm_in_type;                    -- Input to Bus master 0
-    bm0_out   : in  bm_out_type                    -- Output from Bus master 0
-
+    bm0_mosi      : out bm_mosi;              -- Input to Master interface 0
+    bm0_miso      : in  bm_miso               -- Output from Master interface 0
   );
 end entity injector;
 
@@ -63,20 +65,20 @@ architecture rtl of injector is
   -- READ_IF
   signal read_if_status     : d_ex_sts_out_type;
   signal read_if_start      : std_ulogic;
-  signal read_if_bmo        : bm_out_type;
-  signal read_if_bmi        : bm_in_type;
+  signal read_if_bmo        : bm_miso;
+  signal read_if_bmi        : bm_mosi;
   -- WRITE_IF
   signal write_if_status    : d_ex_sts_out_type;
   signal write_if_start     : std_ulogic;
-  signal write_if_bmi       : bm_in_type;
-  signal write_if_bmo       : bm_out_type;
+  signal write_if_bmi       : bm_mosi;
+  signal write_if_bmo       : bm_miso;
   -- DELAY_IF
   signal delay_if_status    : d_ex_sts_out_type;
   signal delay_if_start     : std_ulogic;
   --Control
   signal ctrl_rst           : std_ulogic;
-  signal ctrl_bmo           : bm_out_type;
-  signal ctrl_bmi           : bm_in_type;
+  signal ctrl_bmo           : bm_miso;
+  signal ctrl_bmi           : bm_mosi;
   signal curr_desc          : curr_des_out_type;
   signal curr_desc_ptr      : std_logic_vector(31 downto 0);
   signal data_desc          : data_dsc_strct_type;
@@ -94,8 +96,8 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Glue logic - Signal assignments
   -----------------------------------------------------------------------------
-   bm0_in       <= ctrl_bmi;
-   ctrl_bmo     <= bm0_out;
+   bm0_mosi     <= ctrl_bmi;
+   ctrl_bmo     <= bm0_miso;
   
   -----------------------------------------------------------------------------
   -- Component instantiation
@@ -128,6 +130,7 @@ begin  -- rtl
   -- READ_IF
   read_if : injector_read_if
     generic map (
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
       ASYNC_RST       => ASYNC_RST
       )
     port map (
@@ -145,6 +148,7 @@ begin  -- rtl
   -- WRITE_IF
   write_if : injector_write_if
     generic map (
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
       ASYNC_RST       => ASYNC_RST
       )
     port map (
@@ -178,6 +182,7 @@ begin  -- rtl
   -- Control module
   ctrl : injector_ctrl
     generic map (
+      dbits           => dbits,
       ASYNC_RST       => ASYNC_RST
       )  
     port map (

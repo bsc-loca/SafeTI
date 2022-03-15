@@ -17,25 +17,25 @@ use bsc.injector_pkg.all;
 
 entity injector_apb is
   generic (
-    pindex      : integer                           := 0;         -- APB configuartion slave index
-    paddr       : integer                           := 0;         -- APB configuartion slave address
-    pmask       : integer                           := 16#FFF#;   -- APB configuartion slave mask
-    pirq        : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
-    ASYNC_RST   : boolean                           := FALSE      -- Allow asynchronous reset flag
+    pindex          : integer                           := 0;         -- APB configuartion slave index
+    paddr           : integer                           := 0;         -- APB configuartion slave address
+    pmask           : integer                           := 16#FFF#;   -- APB configuartion slave mask
+    pirq            : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
+    ASYNC_RST       : boolean                           := FALSE      -- Allow asynchronous reset flag
     );
   port (
-    rstn             : in  std_ulogic;                        -- Reset
-    clk              : in  std_ulogic;                        -- Clock
-    apbi             : in  apb_slave_in_type;                 -- APB slave input
-    apbo             : out apb_slave_out_type;                -- APB slave output
-    ctrl_out         : out injector_ctrl_reg_type;            -- Control configuration signals
-    desc_ptr_out     : out injector_desc_ptr_type;            -- First descriptor pointer
-    active           : out std_ulogic;                        -- Injector enabled after reset, status
-    err_status       : out std_ulogic;                        -- Core error status in APB status register
-    irq_flag_sts     : in  std_ulogic;                        -- IRQ flag     
-    curr_desc_in     : in  curr_des_out_type;                 -- Current descriptor fields for debug display
-    curr_desc_ptr    : in  std_logic_vector(31 downto 0);     -- Current descriptor pointer for debug display
-    sts_in           : in  status_out_type                    -- Status flags from control module
+    rstn            : in  std_ulogic;                        -- Reset
+    clk             : in  std_ulogic;                        -- Clock
+    apbi            : in  apb_slave_in_type;                 -- APB slave input
+    apbo            : out apb_slave_out_type;                -- APB slave output
+    ctrl_out        : out injector_ctrl_reg_type;            -- Control configuration signals
+    desc_ptr_out    : out injector_desc_ptr_type;            -- First descriptor pointer
+    active          : out std_ulogic;                        -- Injector enabled after reset, status
+    err_status      : out std_ulogic;                        -- Core error status in APB status register
+    irq_flag_sts    : in  std_ulogic;                        -- IRQ flag     
+    curr_desc_in    : in  curr_des_out_type;                 -- Current descriptor fields for debug display
+    curr_desc_ptr   : in  std_logic_vector(31 downto 0);     -- Current descriptor pointer for debug display
+    sts_in          : in  status_out_type                    -- Status flags from control module
     );
 end entity injector_apb;
 

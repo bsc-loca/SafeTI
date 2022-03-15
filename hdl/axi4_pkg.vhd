@@ -33,10 +33,10 @@ package axi4_pkg is
   -- User parameters START --
 
     -- AXI bus generics
-    constant ID_R_WIDTH             : integer range  1 to   32  := 1;   -- AXI ID's bus width.
-    constant ID_W_WIDTH             : integer range  1 to   32  := 1;   -- AXI ID's bus width.
+    constant ID_R_WIDTH             : integer range  1 to   32  := 4;   -- AXI ID's bus width.
+    constant ID_W_WIDTH             : integer range  1 to   32  := 4;   -- AXI ID's bus width.
     constant ADDR_WIDTH             : integer range 12 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
-    constant DATA_WIDTH             : integer range  8 to 1024  := 64;  -- AXI data bus width. [Only power of 2s are allowed]
+    constant DATA_WIDTH             : integer range  8 to 1024  := 128; -- AXI data bus width. [Only power of 2s are allowed]
 
   -- User parameters END --
 

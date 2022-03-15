@@ -24,6 +24,8 @@ use bsc.injector_pkg.all;
 
 entity injector_write_if is
   generic (
+    dbits           : integer range 32 to  128  := 32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;  -- Maximum number of bytes per transaction
     ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
     );
   port (
@@ -36,8 +38,8 @@ entity injector_write_if is
     d_des_in        : in  data_dsc_strct_type;            -- Data descriptor needs to executed
     status_out      : out d_ex_sts_out_type;              -- Write_if status out signals 
     -- Generic bus master interface
-    write_if_bmi    : in  bm_out_type;                    -- BM interface signals to write_if,through control module 
-    write_if_bmo    : out bm_in_type                      -- Signals from Write_IF to BM_IF through control module
+    write_if_bmi    : in  bm_miso;                        -- BM interface signals to write_if,through control module 
+    write_if_bmo    : out bm_mosi                         -- Signals from Write_IF to BM_IF through control module
   );
 end entity injector_write_if;
 
@@ -78,7 +80,7 @@ architecture rtl of injector_write_if is
     write_if_state    : write_if_state_type;                    -- WRITE_IF states
     sts               : d_ex_sts_out_type;                      -- WRITE_IF status signals
     tot_size          : std_logic_vector(18 downto 0);          -- Total size of data to write 
-    curr_size         : std_logic_vector(INT_BURST_WIDTH-1 downto 0); -- Remaining size in the burst, to be written
+    curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be written
     inc               : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_wr_busy      : std_ulogic;                             -- bus master write busy
     err_state         : std_logic_vector(4 downto 0);           -- Error state
@@ -112,7 +114,7 @@ begin
   
   comb : process (write_if_bmi, r, d_des_in, write_if_start, err_sts_in)
     variable v             : write_if_reg_type;
-    variable sz_aftr_write : std_logic_vector(INT_BURST_WIDTH-2 downto 0);  -- Index for data remaining to be transferred
+    variable sz_aftr_write : std_logic_vector(log_2(MAX_SIZE_BURST)-1 downto 0);  -- Index for data remaining to be transferred
     variable err           : std_logic_vector(2 downto 0);   -- error variable
     
   begin
@@ -144,6 +146,7 @@ begin
           v.curr_size := find_burst_size(src_fixed_addr       => d_des_in.ctrl.src_fix_adr,
                                               dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
                                               max_bsize       => MAX_SIZE_BURST,
+                                              bm_bytes        => dbits/8,
                                               total_size      => d_des_in.ctrl.size
                                               );
           v.write_if_state := first_word;
@@ -162,11 +165,11 @@ begin
             write_if_bmo.wr_req  <= '1';
             if write_if_bmi.wr_req_grant = '1' then
               v.bmst_wr_busy  := '1';
-              if to_integer(unsigned(r.curr_size)) >= bm_bytes then
-                sz_aftr_write := sub_vector(r.curr_size, bm_bytes, sz_aftr_write'length);
-                v.curr_size   := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);  -- Size pending, after writing first data
-                v.inc         := add_vector(r.inc, bm_bytes, v.inc'length);
-                v.tot_size    := sub_vector(r.tot_size, bm_bytes, v.tot_size'length);
+              if to_integer(unsigned(r.curr_size)) >= dbits/8 then
+                sz_aftr_write := sub_vector(r.curr_size, dbits/8, sz_aftr_write'length);
+                v.curr_size   := sub_vector(r.curr_size, dbits/8, v.curr_size'length);  -- Size pending, after writing first data
+                v.inc         := add_vector(r.inc, dbits/8, v.inc'length);
+                v.tot_size    := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
                 if or_vector(sz_aftr_write) /= '0' then
                   v.write_if_state := write_burst;
                 else
@@ -192,15 +195,15 @@ begin
         -- r.curr_size is the remaining data size to be processed after writing second
         -- data or any of the data writes that comes after second data.
         -- Control reaches in write_burst state only if d_des_in.ctrl.size >=
-        -- two words with bm_bytes size each.
-          if to_integer(unsigned(r.curr_size)) >= bm_bytes then
-            sz_aftr_write     := sub_vector(r.curr_size, bm_bytes, sz_aftr_write'length);
+        -- two words with dbits/8 size each.
+          if to_integer(unsigned(r.curr_size)) >= dbits/8 then
+            sz_aftr_write     := sub_vector(r.curr_size, dbits/8, sz_aftr_write'length);
             if or_vector(sz_aftr_write) = '0' then -- more data to be writen after current data write
               v.write_if_state := write_data_check;
             end if;
-            v.curr_size       := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);
-            v.inc             := add_vector(r.inc, bm_bytes, v.inc'length);
-            v.tot_size        := sub_vector(r.tot_size, bm_bytes, v.tot_size'length);
+            v.curr_size       := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
+            v.inc             := add_vector(r.inc, dbits/8, v.inc'length);
+            v.tot_size        := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
           else
             v.curr_size       := (others => '0');  -- No more data pending, after writing 2nd data
             v.inc             := add_vector(r.inc, r.curr_size, v.inc'length);
@@ -219,6 +222,7 @@ begin
               v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                              dest_fixed_addr  => d_des_in.ctrl.dest_fix_adr,
                                              max_bsize        => MAX_SIZE_BURST,
+                                             bm_bytes         => dbits/8,
                                              total_size       => r.tot_size
                                              );
               v.write_if_state  := first_word;

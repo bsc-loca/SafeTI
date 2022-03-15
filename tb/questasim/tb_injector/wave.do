@@ -4,8 +4,8 @@ add wave -noupdate /tb_injector/rstn
 add wave -noupdate /tb_injector/clk
 add wave -noupdate /tb_injector/apbi
 add wave -noupdate /tb_injector/apbo
-add wave -noupdate -childformat {{/tb_injector/bm_in.rd_size -radix unsigned} {/tb_injector/bm_in.wr_size -radix unsigned}} -expand -subitemconfig {/tb_injector/bm_in.rd_size {-height 18 -radix unsigned} /tb_injector/bm_in.wr_size {-height 18 -radix unsigned}} /tb_injector/bm_in
-add wave -noupdate -expand /tb_injector/bm_out
+add wave -noupdate -childformat {{/tb_injector/bm_mosi.rd_size -radix unsigned} {/tb_injector/bm_mosi.wr_size -radix unsigned}} -expand -subitemconfig {/tb_injector/bm_mosi.rd_size {-height 18 -radix unsigned} /tb_injector/bm_mosi.wr_size {-height 18 -radix unsigned}} /tb_injector/bm_mosi
+add wave -noupdate -expand /tb_injector/bm_miso
 add wave -noupdate /tb_injector/core/apb/rin
 add wave -noupdate -childformat {{/tb_injector/core/ctrl/status.count -radix unsigned}} -expand -subitemconfig {/tb_injector/core/ctrl/status.count {-height 18 -radix unsigned}} /tb_injector/core/ctrl/status
 add wave -noupdate -expand /tb_injector/core/ctrl/fifo_inst/ram

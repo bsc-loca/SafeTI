@@ -7,7 +7,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
---use ieee.std_logic_misc.or_reduce;
 library bsc;
 use bsc.injector_pkg.all;
 
@@ -25,6 +24,7 @@ use bsc.injector_pkg.all;
 
 entity injector_ctrl is
   generic (
+    dbits             : integer range 32 to 128 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     fifo_size         : integer range  1 to  16 := 8;       -- FIFO Length (Length multiple of 8) 
     ASYNC_RST         : boolean                 := FALSE    -- Allow asynchronous reset flag
     );
@@ -41,14 +41,14 @@ entity injector_ctrl is
     status            : out status_out_type;                -- Status signals
     irq_flag_sts      : out std_ulogic;                     -- IRQ status flag
     --Bus Master signals
-    bm_in             : in  bm_out_type;                    -- BM signals from Bus master to control module
-    bm_out            : out bm_in_type;                     -- BM signals to BusMaster interface from control module
+    bm_in             : in  bm_miso;                        -- BM signals from Bus master to control module
+    bm_out            : out bm_mosi;                        -- BM signals to BusMaster interface from control module
     -- READ_IF BM signals
-    read_if_bm_in     : in  bm_in_type;                     -- BM signals from READ_IF through control module  
-    read_if_bm_out    : out bm_out_type;                    -- BM signals to READ_IF through control module  
+    read_if_bm_in     : in  bm_mosi;                        -- BM signals from READ_IF through control module  
+    read_if_bm_out    : out bm_miso;                        -- BM signals to READ_IF through control module  
     -- WRITE_IF BM signals
-    write_if_bm_in    : in  bm_in_type;                     -- BM signals from WRITE_IF through control module
-    write_if_bm_out   : out bm_out_type;                    -- BM signals to WRITE_IF through control module
+    write_if_bm_in    : in  bm_mosi;                        -- BM signals from WRITE_IF through control module
+    write_if_bm_out   : out bm_miso;                        -- BM signals to WRITE_IF through control module
     -- data descriptor out for READ_IF, WRITE_IF and DELAY
     d_desc_out        : out data_dsc_strct_type;            -- Data descriptor passed to READ_IF and WRITE_IF
     ctrl_rst          : out std_ulogic;                     -- Reset signal from APB interface, to READ_IF and WRITE_IF and DELAY
@@ -182,28 +182,28 @@ architecture rtl of injector_ctrl is
   end record;
   -- Reset value for injector_ctrl local reg type
   constant CTRL_REG_RST : ctrl_reg_type := (
-    state        => idle,
-    err_state    => (others => '0'),
-    desc_ptr     => (others => '0'),
-    i            => 0,
-    rep_count    => (others => '0'),
-    rd_desc      => (others => '0'),
-    read_if_start    => '0',
-    write_if_start   => '0',
-    delay_if_start   => '0',
-    desc_skip    => '0',
-    err_flag     => '0',
-    dcomp_flg    => '0',
-    init_error   => '0',
-    bmst_wr_busy => '0',
-    bmst_rd_busy => '0',
-    bmst_rd_err  => '0',
-    err_status   => '0',
-    sts          => STATUS_OUT_RST,
-    fifo_wen     => '0',
-    fifo_ren     => '0',
-    fifo_finished => '0',
-    fifo_rd_rst  => '0'
+    state               => idle,
+    err_state           => (others => '0'),
+    desc_ptr            => (others => '0'),
+    i                   => 0,
+    rep_count           => (others => '0'),
+    rd_desc             => (others => '0'),
+    read_if_start       => '0',
+    write_if_start      => '0',
+    delay_if_start      => '0',
+    desc_skip           => '0',
+    err_flag            => '0',
+    dcomp_flg           => '0',
+    init_error          => '0',
+    bmst_wr_busy        => '0',
+    bmst_rd_busy        => '0',
+    bmst_rd_err         => '0',
+    err_status          => '0',
+    sts                 => STATUS_OUT_RST,
+    fifo_wen            => '0',
+    fifo_ren            => '0',
+    fifo_finished       => '0',
+    fifo_rd_rst         => '0'
     );
 
   -----------------------------------------------------------------------------
@@ -212,7 +212,7 @@ architecture rtl of injector_ctrl is
 
   signal r, rin : ctrl_reg_type;
   signal d_des  : data_dsc_strct_type;  -- Data descriptor
-  signal bmst   : bm_in_type;           -- Bus master control signals
+  signal bmst   : bm_mosi;              -- Bus master control signals
   
   signal fifo_wen_o     : std_logic;                      -- Write enable (to FIFO)
   signal fifo_ren_o     : std_logic;                      -- Read enable  (to FIFO)
@@ -237,12 +237,12 @@ begin  -- rtl
   bm_out.rd_addr <= read_if_bm_in.rd_addr  when ( r.state = read_if  ) else bmst.rd_addr;
   bm_out.rd_req  <= read_if_bm_in.rd_req   when ( r.state = read_if  ) else bmst.rd_req;
   bm_out.rd_size <= read_if_bm_in.rd_size  when ( r.state = read_if  ) else bmst.rd_size;
+  bm_out.rd_descr<= bmst.rd_req;
     
   bm_out.wr_addr <= write_if_bm_in.wr_addr when ( r.state = write_if ) else bmst.wr_addr;
   bm_out.wr_req  <= write_if_bm_in.wr_req  when ( r.state = write_if ) else bmst.wr_req;
   bm_out.wr_size <= write_if_bm_in.wr_size when ( r.state = write_if ) else bmst.wr_size;
   bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.wr_data;
-
 
 
 
@@ -583,13 +583,13 @@ begin  -- rtl
     -- Demultiplex Bus Master signals and drive READ_IF or WRITE_IF 
     if r.state = read_if then           --READ_IF
       read_if_bm_out <= bm_in;
-      write_if_bm_out <= BM_OUT_RST;
+      write_if_bm_out <= BM_MISO_RST;
     elsif r.state = write_if then       --WRITE_IF
       write_if_bm_out <= bm_in;
-      read_if_bm_out <= BM_OUT_RST;
+      read_if_bm_out <= BM_MISO_RST;
     else                                --to not infeer in latch when neither
-      write_if_bm_out <= BM_OUT_RST;
-      read_if_bm_out <= BM_OUT_RST;
+      write_if_bm_out <= BM_MISO_RST;
+      read_if_bm_out <= BM_MISO_RST;
     end if;
 
     -- state decoding for status display

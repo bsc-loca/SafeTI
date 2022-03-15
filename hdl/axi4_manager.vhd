@@ -541,18 +541,25 @@ begin -- rtl
     variable rd_next_bm_size      : std_logic_vector(rd.bm_size'range             );-- Num of bytes left to transfer on the next clk cycle of this burst.
     
   begin
-    -- Default variable values
-    rd_data_fwidth      := (others => '0');
-    rd_bm_counter       := (others => '0');
-    rd_bm_shift         := '0';
-    rd_bm_done          := '0';
-
     if (rstn = '0' and ASYNC_RST) then
+       -- Default variable values
       rd                    <= RST_TRANSF_RD_OP;
+      rd_data_fwidth        := (others => '0');
+      rd_bm_counter         := (others => '0');
+      rd_bm_shift           := '0';
+      rd_bm_done            := '0';
     elsif rising_edge(clk) then
       if (rstn = '0') then
         rd                  <= RST_TRANSF_RD_OP;
+        rd_data_fwidth        := (others => '0');
+        rd_bm_counter         := (others => '0');
+        rd_bm_shift           := '0';
+        rd_bm_done            := '0';
       else
+        rd_data_fwidth        := (others => '0');
+        rd_bm_counter         := (others => '0');
+        rd_bm_shift           := '0';
+        rd_bm_done            := '0';
         ---------------------------
         -- AXI RD TRANSFER LOGIC --
         ---------------------------
@@ -728,8 +735,12 @@ begin -- rtl
       -- RD FIFO --
       -------------
         -- After each AXI data read, put the data to the next available FIFO register.
-        if(rd.axi_valid_buffer = '1' and rd.axi_ready_buffer = '1') then
-            rd.fifo(to_integer(unsigned(rd.axi_index_buffer))) <= rd.axi_data_buffer;
+        -- Unless it using Injector_implementation and no data read is required.
+        if(rd.bm_bypass = '1' and Injector_implementation) then
+        else
+          if(rd.axi_valid_buffer = '1' and rd.axi_ready_buffer = '1') then
+              rd.fifo(to_integer(unsigned(rd.axi_index_buffer))) <= rd.axi_data_buffer;
+          end if;
         end if;
 
 
@@ -930,22 +941,36 @@ begin -- rtl
     variable wr_bm_next_index     : std_logic_vector(wr.bm_index'range            );-- Next FIFO index on BM side
     
   begin
-    -- Default variable values
-    wr_addr_end         := (others => '0');
-    wr_axi_len          := (others => '0');
-    wr_axi_last         := '0';
-    wr_axi_next_index   := (others => '0');
-    wr_axi_read         := FALSE;
-    wr_bm_next_counter  := (others => '0');
-    wr_fifo_offset      := (others => '0');
-    wr_bm_next_index    := (others => '0');
-
     if (rstn = '0' and ASYNC_RST) then
       wr                    <= RST_TRANSF_WR_OP;
+      wr_addr_end         := (others => '0');
+      wr_axi_len          := (others => '0');
+      wr_axi_last         := '0';
+      wr_axi_next_index   := (others => '0');
+      wr_axi_read         := FALSE;
+      wr_bm_next_counter  := (others => '0');
+      wr_fifo_offset      := (others => '0');
+      wr_bm_next_index    := (others => '0');
     elsif rising_edge(clk) then
       if (rstn = '0') then
         wr                  <= RST_TRANSF_WR_OP;
+        wr_addr_end         := (others => '0');
+        wr_axi_len          := (others => '0');
+        wr_axi_last         := '0';
+        wr_axi_next_index   := (others => '0');
+        wr_axi_read         := FALSE;
+        wr_bm_next_counter  := (others => '0');
+        wr_fifo_offset      := (others => '0');
+        wr_bm_next_index    := (others => '0');
       else
+        wr_addr_end         := (others => '0');
+        wr_axi_len          := (others => '0');
+        wr_axi_last         := '0';
+        wr_axi_next_index   := (others => '0');
+        wr_axi_read         := FALSE;
+        wr_bm_next_counter  := (others => '0');
+        wr_fifo_offset      := (others => '0');
+        wr_bm_next_index    := (others => '0');
         ---------------------------
         -- AXI WR TRANSFER LOGIC --
         ---------------------------

@@ -26,6 +26,8 @@ use bsc.injector_pkg.all;
 
 entity injector_read_if is
   generic (
+    dbits           : integer range 32 to  128  := 32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;  -- Maximum number of bytes per transaction
     ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
     );
   port (
@@ -38,8 +40,8 @@ entity injector_read_if is
     d_des_in        : in  data_dsc_strct_type;            -- Data descriptor needs to executed
     status_out      : out d_ex_sts_out_type;              -- M2b status out signals 
     -- Generic bus master interface
-    read_if_bmi     : in  bm_out_type;                    -- BM interface signals to READ_IF,through crontrol module
-    read_if_bmo     : out bm_in_type                      -- Signals from READ_IF to BM IF through control module
+    read_if_bmi     : in  bm_miso;                        -- BM interface signals to READ_IF,through crontrol module
+    read_if_bmo     : out bm_mosi                         -- Signals from READ_IF to BM IF through control module
     );
 end entity injector_read_if;
 
@@ -83,7 +85,7 @@ architecture rtl of injector_read_if is
     read_if_state       : read_if_state_type;                     -- READ_IF states
     sts                 : d_ex_sts_out_type;                      -- M2b status signals 
     tot_size            : std_logic_vector(18 downto 0);          -- Total size of data to read
-    curr_size           : std_logic_vector(INT_BURST_WIDTH-1 downto 0); -- Remaining size in the burst, to be read
+    curr_size           : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be read
     inc                 : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_rd_busy        : std_ulogic;                             -- bus master read busy
     bmst_rd_err         : std_ulogic;                             -- bus master read error
@@ -121,7 +123,7 @@ begin
     variable v             : read_if_reg_type;
     variable remaining     : std_logic_vector(18 downto 0);  -- Remaining size to be read after each burst
     variable bmst_rd_req   : std_ulogic;                     -- bus master read request variable
-    variable rem_bits      : integer range 0 to 120;         -- bits to fetch when current size is less than bm_bytes
+    variable rem_bits      : integer range 0 to 120;         -- bits to fetch when current size is less than dbits/8
   begin
 
     -- Default values 
@@ -154,6 +156,7 @@ begin
           v.curr_size := find_burst_size(src_fixed_addr         => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
                                                 max_bsize       => MAX_SIZE_BURST,
+                                                bm_bytes        => dbits/8,
                                                 total_size      => d_des_in.ctrl.size
                                                 );
           v.read_if_state := exec_data_desc;
@@ -191,12 +194,12 @@ begin
           if read_if_bmi.rd_err = '1' then
             v.bmst_rd_err := '1';
           elsif r.bmst_rd_err = '0' then
-            if to_integer(unsigned(r.curr_size)) >= bm_bytes then
-              v.curr_size    := sub_vector(r.curr_size, bm_bytes, v.curr_size'length);
-              v.inc          := add_vector(r.inc, bm_bytes, v.inc'length);
-              remaining      := sub_vector(r.tot_size, bm_bytes, remaining'length);
+            if to_integer(unsigned(r.curr_size)) >= dbits/8 then
+              v.curr_size    := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
+              v.inc          := add_vector(r.inc, dbits/8, v.inc'length);
+              remaining      := sub_vector(r.tot_size, dbits/8, remaining'length);
               v.tot_size     := remaining;
-            else                        --curr_size is less than bm_bytes
+            else                        --curr_size is less than dbits/8
               v.curr_size    := (others => '0');
               v.inc          := add_vector(r.inc, r.curr_size, v.inc'length);
               remaining      := sub_vector(r.tot_size, r.curr_size, remaining'length);
@@ -211,6 +214,7 @@ begin
                 v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
                                                 dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
                                                 max_bsize       => MAX_SIZE_BURST,
+                                                bm_bytes        => dbits/8,
                                                 total_size      => remaining
                                                 );
                 v.bmst_rd_busy  := '0';

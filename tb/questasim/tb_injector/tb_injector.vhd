@@ -51,6 +51,9 @@ use std.env.all; -- VHDL2008
 
 entity tb_injector is
   generic (
+    -- SafeTI configuration
+    dbits         : integer range 32 to  128                := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 32 to 4096                := 4096;      -- Maximum size of a beat at a burst transaction.
     -- APB configuration  
     pindex            : integer                             := 6;         -- APB configuartion slave index (default=6)
     paddr             : integer                             := 16#850#;   -- APB configuartion slave address (default=16#850#)
@@ -90,33 +93,33 @@ architecture rtl of tb_injector is
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(               4, 63, WRT,  action_addr, '1', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes
-    write_descriptor(               8, 31, WRT,  action_addr, '1', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes
-    write_descriptor(              16, 15,  RD,  action_addr, '1', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes
-    write_descriptor(              32,  7,  RD,  action_addr, '1', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes
-    write_descriptor(              64,  3, WRT,  action_addr, '1', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes
-    write_descriptor(             128,  1, WRT,  action_addr, '1', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes
-    write_descriptor(             256,  0,  RD,  action_addr, '1', add_vector(descr_addr1,  140, 32), '1' )  --  1  read transaction  of 256 bytes
+    write_descriptor(               4, 63, WRT, action_addr, '1', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes
+    write_descriptor(               8, 31, WRT, action_addr, '1', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes
+    write_descriptor(              16, 15,  RD, action_addr, '1', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes
+    write_descriptor(              32,  7,  RD, action_addr, '1', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes
+    write_descriptor(              64,  3, WRT, action_addr, '1', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes
+    write_descriptor(             128,  1, WRT, action_addr, '1', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes
+    write_descriptor(             256,  0,  RD, action_addr, '1', add_vector(descr_addr1,  140, 32), '1' )  --  1  read transaction  of 256 bytes
   );
 
   -- Descriptors to load into injector's fifo for test 2 write (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors2w  : descriptor_bank(0 to 5) := (
-    write_descriptor(MAX_SIZE_BURST-3,  0, WRT,  action_addr, '0', add_vector(descr_addr2w,  20, 32), '0' ), -- Check if writes the correct ammount below size beat
-    write_descriptor(  MAX_SIZE_BURST,  0, WRT,  action_addr, '0', add_vector(descr_addr2w,  40, 32), '0' ), -- Check if writes the correct ammount equal size beat
-    write_descriptor(MAX_SIZE_BURST+3,  0, WRT,  action_addr, '0', add_vector(descr_addr2w,  60, 32), '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0, WRT,  action_addr, '1', add_vector(descr_addr2w,  80, 32), '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0, WRT,  action_addr, '1', add_vector(descr_addr2w, 100, 32), '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0, WRT,  action_addr, '1', add_vector(descr_addr2w, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
+    write_descriptor(MAX_SIZE_BURST-3,  0, WRT, action_addr, '0', add_vector(descr_addr2w,  20, 32), '0' ), -- Check if writes the correct ammount below size beat
+    write_descriptor(  MAX_SIZE_BURST,  0, WRT, action_addr, '0', add_vector(descr_addr2w,  40, 32), '0' ), -- Check if writes the correct ammount equal size beat
+    write_descriptor(MAX_SIZE_BURST+3,  0, WRT, action_addr, '0', add_vector(descr_addr2w,  60, 32), '0' ), -- Check if writes the correct ammount above size beat
+    write_descriptor(               3,  0, WRT, action_addr, '1', add_vector(descr_addr2w,  80, 32), '0' ), -- With fix addr, check if reads lower of a word
+    write_descriptor(               4,  0, WRT, action_addr, '1', add_vector(descr_addr2w, 100, 32), '0' ), -- With fix addr, check if reads a word
+    write_descriptor(              15,  0, WRT, action_addr, '1', add_vector(descr_addr2w, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
   );
 
   -- Descriptors to load into injector's fifo for test 2 read (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors2r  : descriptor_bank(0 to 5) := (
-    write_descriptor(MAX_SIZE_BURST-3,  0,   RD, action_addr, '0', add_vector(descr_addr2r,  20, 32), '0' ), -- Check if writes the correct ammount below size beat
-    write_descriptor(  MAX_SIZE_BURST,  0,   RD, action_addr, '0', add_vector(descr_addr2r,  40, 32), '0' ), -- Check if writes the correct ammount equal size beat
-    write_descriptor(MAX_SIZE_BURST+3,  0,   RD, action_addr, '0', add_vector(descr_addr2r,  60, 32), '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0,   RD, action_addr, '1', add_vector(descr_addr2r,  80, 32), '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0,   RD, action_addr, '1', add_vector(descr_addr2r, 100, 32), '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0,   RD, action_addr, '1', add_vector(descr_addr2r, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
+    write_descriptor(MAX_SIZE_BURST-3,  0,  RD, action_addr, '0', add_vector(descr_addr2r,  20, 32), '0' ), -- Check if writes the correct ammount below size beat
+    write_descriptor(  MAX_SIZE_BURST,  0,  RD, action_addr, '0', add_vector(descr_addr2r,  40, 32), '0' ), -- Check if writes the correct ammount equal size beat
+    write_descriptor(MAX_SIZE_BURST+3,  0,  RD, action_addr, '0', add_vector(descr_addr2r,  60, 32), '0' ), -- Check if writes the correct ammount above size beat
+    write_descriptor(               3,  0,  RD, action_addr, '1', add_vector(descr_addr2r,  80, 32), '0' ), -- With fix addr, check if reads lower of a word
+    write_descriptor(               4,  0,  RD, action_addr, '1', add_vector(descr_addr2r, 100, 32), '0' ), -- With fix addr, check if reads a word
+    write_descriptor(              15,  0,  RD, action_addr, '1', add_vector(descr_addr2r, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
   );
 
 
@@ -137,8 +140,8 @@ architecture rtl of tb_injector is
   signal apbi   : apb_slave_in_type := DEF_INJ_APB;
   signal apbo   : apb_slave_out_type;
 
-  signal bm_in  : bm_in_type;
-  signal bm_out : bm_out_type       := DEF_INJ_BM;
+  signal bm_mosi: bm_mosi;
+  signal bm_miso: bm_miso           := DEF_INJ_BM;
 
   -- APB configuration
   signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
@@ -187,13 +190,13 @@ begin  -- rtl
 
     -- Load descriptors for test 1
     report "Test 1: Loading descriptor batch!";
-    load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
+    load_descriptors(clk, descriptors1, descr_addr1, bm_mosi, bm_miso);
 
     -- Test all descriptors from TEST 1 once
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully twice!";
 
 
@@ -229,17 +232,17 @@ begin  -- rtl
 
     -- Load descriptors for test 2 write
     report "Test 2: Loading write descriptor batch!";
-    load_descriptors(clk, descriptors2w, descr_addr2w, bm_in, bm_out);
+    load_descriptors(clk, descriptors2w, descr_addr2w, bm_mosi, bm_miso);
 
     -- Test all descriptors from TEST 2 write
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors2w, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor write batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
     for i in 0 to 9 loop
       wait until rising_edge(clk); 
     end loop;
-    assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
+    assert (bm_mosi.rd_req or bm_mosi.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
                                       & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
                                       & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
 
@@ -255,17 +258,17 @@ begin  -- rtl
 
     -- Load descriptors for test 2 read
     report "Test 2: Loading read descriptor batch!";
-    load_descriptors(clk, descriptors2r, descr_addr2r, bm_in, bm_out);
+    load_descriptors(clk, descriptors2r, descr_addr2r, bm_mosi, bm_miso);
 
     -- Test all descriptors from TEST 2 read
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors2r, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor read batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
     for i in 0 to 9 loop
       wait until rising_edge(clk); 
     end loop;
-    assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
+    assert (bm_mosi.rd_req or bm_mosi.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
                                       & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
                                       & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
 
@@ -287,13 +290,13 @@ begin  -- rtl
   begin 
     if(clk = '1' and clk'event) then
       -- Increment counters if the signal stays asserted
-      if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
+      if(bm_miso.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
         else limit_rd_req_grant <= 0; end if;
-      if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
+      if(bm_miso.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
         else limit_wr_req_grant <= 0; end if;
-      if(bm_in.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
+      if(bm_mosi.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
         else limit_rd_req <= 0; end if;
-      if(bm_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
+      if(bm_mosi.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
         else limit_wr_req <= 0; end if;
       if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
         else limit_descr_compl <= 0; end if;
@@ -336,12 +339,12 @@ begin  -- rtl
       pirq          => pirq
       )
     port map (
-      rstn    => rstn,
-      clk     => clk,
-      apbi    => apbi,
-      apbo    => apbo,
-      bm0_in  => bm_in,
-      bm0_out => bm_out
+      rstn          => rstn,
+      clk           => clk,
+      apbi          => apbi,
+      apbo          => apbo,
+      bm0_mosi      => bm_mosi,
+      bm0_miso      => bm_miso
       );
   
 end architecture rtl;
