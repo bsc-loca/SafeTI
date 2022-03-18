@@ -14,8 +14,8 @@ use grlib.stdlib.all;
 use grlib.amba.all;
 use grlib.devices.all;
 use grlib.generic_bm_pkg.all;
-library bsc;
-use bsc.injector_pkg.all;
+library safety;
+use safety.injector_pkg.all;
 library techmap;
 use techmap.gencomp.all;
 
@@ -35,7 +35,7 @@ entity injector_ahb_SELENE is
     pindex            : integer                       := 0;         -- APB configuartion slave index
     paddr             : integer                       := 0;         -- APB configuartion slave address
     pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
-    pirq              : integer range  0 to NAHBIRQ-1 := 1;         -- APB configuartion slave irq
+    pirq              : integer range  0 to NAHBIRQ-1 := 0;         -- APB configuartion slave irq
     -- AHB configuration
     hindex            : integer                       := 0          -- AHB master index 0
     );

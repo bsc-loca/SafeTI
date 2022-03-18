@@ -7,8 +7,8 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library bsc;
-use bsc.injector_pkg.all;
+library safety;
+use safety.injector_pkg.all;
 
 
 -----------------------------------------------------------------------------
@@ -20,7 +20,7 @@ entity injector_apb is
     pindex          : integer                           := 0;         -- APB configuartion slave index
     paddr           : integer                           := 0;         -- APB configuartion slave address
     pmask           : integer                           := 16#FFF#;   -- APB configuartion slave mask
-    pirq            : integer range 0 to APB_IRQ_NMAX-1 := 1;         -- APB configuartion slave irq
+    pirq            : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
     ASYNC_RST       : boolean                           := FALSE      -- Allow asynchronous reset flag
     );
   port (

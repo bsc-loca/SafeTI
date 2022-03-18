@@ -9,12 +9,12 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library bsc;
-use bsc.injector_pkg.all;
-use bsc.tb_injector_pkg.all;
-use bsc.axi4_pkg.axi4_miso;
-use bsc.axi4_pkg.axi4_mosi;
-use bsc.axi4_pkg.axi4_manager;
+library safety;
+use safety.injector_pkg.all;
+use safety.tb_injector_pkg.all;
+use safety.axi4_pkg.axi4_miso;
+use safety.axi4_pkg.axi4_mosi;
+use safety.axi4_pkg.axi4_manager;
 use std.env.all; -- VHDL2008
 
 -----------------------------------------------------------------------------
@@ -124,15 +124,15 @@ architecture rtl of tb_injector_axi is
   signal bm_axi_req_wr : std_logic;
 
   -- I/O Injector and AXI interface
-  signal bm_out_injector  : bsc.injector_pkg.bm_mosi;
-  signal bm_in_injector   : bsc.injector_pkg.bm_miso;
-  signal bm_in_manager    : bsc.axi4_pkg.bm_mosi;
-  signal bm_out_manager   : bsc.axi4_pkg.bm_miso;
-  signal bm_out_test      : bsc.injector_pkg.bm_miso;
+  signal bm_out_injector  : safety.injector_pkg.bm_mosi;
+  signal bm_in_injector   : safety.injector_pkg.bm_miso;
+  signal bm_in_manager    : safety.axi4_pkg.bm_mosi;
+  signal bm_out_manager   : safety.axi4_pkg.bm_miso;
+  signal bm_out_test      : safety.injector_pkg.bm_miso;
 
   -- Testbench BM I/O
-  signal bm_in  : bsc.injector_pkg.bm_mosi;
-  signal bm_out : bsc.injector_pkg.bm_miso := DEF_INJ_BM;
+  signal bm_in  : safety.injector_pkg.bm_mosi;
+  signal bm_out : safety.injector_pkg.bm_miso := DEF_INJ_BM;
 
   -- Selector between Injector BM to AXI manager (TRUE) or testbench (FALSE)
   signal AXI_com  : boolean := FALSE;

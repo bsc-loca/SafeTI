@@ -34,8 +34,8 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library bsc;
-use bsc.axi4_pkg.all; -- <- It contains the configuration of the interface.
+library safety;
+use safety.axi4_pkg.all; -- <- It contains the configuration of the interface.
 
 -----------------------------------------------------------------------------
 -- AXI4 FULL Manager - bus manager bridge
@@ -551,15 +551,15 @@ begin -- rtl
     elsif rising_edge(clk) then
       if (rstn = '0') then
         rd                  <= RST_TRANSF_RD_OP;
-        rd_data_fwidth        := (others => '0');
-        rd_bm_counter         := (others => '0');
-        rd_bm_shift           := '0';
-        rd_bm_done            := '0';
+        rd_data_fwidth      := (others => '0');
+        rd_bm_counter       := (others => '0');
+        rd_bm_shift         := '0';
+        rd_bm_done          := '0';
       else
-        rd_data_fwidth        := (others => '0');
-        rd_bm_counter         := (others => '0');
-        rd_bm_shift           := '0';
-        rd_bm_done            := '0';
+        rd_data_fwidth      := (others => '0');
+        rd_bm_counter       := (others => '0');
+        rd_bm_shift         := '0';
+        rd_bm_done          := '0';
         ---------------------------
         -- AXI RD TRANSFER LOGIC --
         ---------------------------

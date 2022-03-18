@@ -11,6 +11,6 @@
 ../hdl/injector_write_if.vhd
 
 # BSC library files
-bsc
+safety
 ../hdl/injector_pkg.vhd
 ../hdl/axi4_pkg.vhd

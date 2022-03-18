@@ -10,7 +10,7 @@ FILE_LIST=""
 rm -rf /tmp/$N
 #make destination folders
 mkdir /tmp/$N
-mkdir /tmp/$N/bsc
+mkdir /tmp/$N/safety
 
 ## TODO: work on autogenerating the vhdl projects in a similar way than SV
 echo "#!SPYGLASS_PROJECT_FILE" >> /tmp/$N/$N.prj
@@ -26,10 +26,10 @@ echo "read_file -type vhdl $PWD/../hdl/injector_delay_if.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_read_if.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_write_if.vhd" >> /tmp/$N/$N.prj
 # Set library name and path
-echo "set_option lib bsc {$PWD/bsc}" >> /tmp/$N/$N.prj
+echo "set_option lib safety {$PWD/safety}" >> /tmp/$N/$N.prj
 # BSC library files
-cp ../hdl/injector_pkg.vhd  /tmp/$N/bsc
-echo "set_option libhdlfiles bsc {/tmp/$N/bsc/injector_pkg.vhd}" >> /tmp/$N/$N.prj
+cp ../hdl/injector_pkg.vhd  /tmp/$N/safety
+echo "set_option libhdlfiles safety {/tmp/$N/safety/injector_pkg.vhd}" >> /tmp/$N/$N.prj
 echo "##Common Options Section" >> /tmp/$N/$N.prj
 echo "set_option mthresh 5000000" >> /tmp/$N/$N.prj                             
 echo "set_option projectwdir ." >> /tmp/$N/$N.prj

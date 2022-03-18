@@ -7,12 +7,12 @@ ci/.questa.log
 synthesis/output/*
 synthesis/vivado*
 tb/questasim/tb_injector/tb_injector/*
-tb/questasim/tb_injector/bsc/*
+tb/questasim/tb_injector/safety/*
 tb/questasim/tb_injector/work/*
 tb/questasim/tb_injector/modelsim.ini
 tb/questasim/tb_injector/transcript
 tb/questasim/tb_injector/.lquesta.log
-tb/questasim/tb_injector_axi/bsc/*
+tb/questasim/tb_injector_axi/safety/*
 tb/questasim/tb_injector_axi/work/*
 tb/questasim/tb_injector_axi/modelsim.ini
 tb/questasim/tb_injector_axi/transcript

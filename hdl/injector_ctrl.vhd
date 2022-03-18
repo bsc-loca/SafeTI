@@ -7,8 +7,8 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library bsc;
-use bsc.injector_pkg.all;
+library safety;
+use safety.injector_pkg.all;
 
 -----------------------------------------------------------------------------
 -- Control module with main state machine for data execution

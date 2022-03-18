@@ -5,10 +5,10 @@ hdl=../../../hdl
 
 #Compiles the files and creates the library safety
 compile: clean
-	vlib bsc
-	mkdir -p bsc
-	vmap bsc bsc
-	vcom -2008 -work bsc $(hdl)/injector_pkg.vhd $(hdl)/../tb/questasim/tb_injector_pkg.vhd
+	vlib safety
+	mkdir -p safety
+	vmap safety safety
+	vcom -2008 -work safety $(hdl)/injector_pkg.vhd $(hdl)/../tb/questasim/tb_injector_pkg.vhd
 	vcom -2008 tb_injector.vhd
 	vcom $(hdl)/injector.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_ctrl.vhd $(hdl)/fifo.vhd $(hdl)/injector_delay_if.vhd $(hdl)/injector_read_if.vhd $(hdl)/injector_write_if.vhd 
 
@@ -34,7 +34,7 @@ launch-tb : vsim
 
 #Cleans the temporal files
 clean:
-	rm -rf bsc
+	rm -rf safety
 	rm -rf work
 	rm -f modelsim.ini
 	rm -f transcript

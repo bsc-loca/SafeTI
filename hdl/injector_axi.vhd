@@ -7,9 +7,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library bsc;
-use bsc.injector_pkg.all;
-use bsc.axi4_pkg.all;
+library safety;
+use safety.injector_pkg.all;
+use safety.axi4_pkg.all;
 
 -----------------------------------------------------------------------------
 -- Top level entity for injector.
@@ -27,7 +27,7 @@ entity injector_axi is
     pindex        : integer                             := 0;       -- APB configuartion slave index
     paddr         : integer                             := 0;       -- APB configuartion slave address
     pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
-    pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 1;       -- APB configuartion slave irq
+    pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 0;       -- APB configuartion slave irq
     -- AXI Master configuration
     axi_id        : integer                             := 0;       -- AXI fixed burst ID
     -- Asynchronous reset configuration
@@ -52,11 +52,11 @@ architecture rtl of injector_axi is
   -----------------------------------------------------------------------------
 
   -- I/O Injector and AXI interface
-  signal bm_out_injector  : bsc.injector_pkg.bm_mosi; -- Output from injector
-  signal bm_in_injector   : bsc.injector_pkg.bm_miso; -- Input to injector
-  signal bm_in_manager    : bsc.axi4_pkg.bm_mosi;     -- Input to AXI4 Manager interface
-  signal bm_out_manager   : bsc.axi4_pkg.bm_miso;     -- Output from AXI4 Manager interface
-  signal bm_bypass        : std_logic;                -- Bypass flag for read transactions
+  signal bm_out_injector  : safety.injector_pkg.bm_mosi;  -- Output from injector
+  signal bm_in_injector   : safety.injector_pkg.bm_miso;  -- Input to injector
+  signal bm_in_manager    : safety.axi4_pkg.bm_mosi;      -- Input to AXI4 Manager interface
+  signal bm_out_manager   : safety.axi4_pkg.bm_miso;      -- Output from AXI4 Manager interface
+  signal bm_bypass        : std_logic;                    -- Bypass flag for read transactions
 
 begin
 

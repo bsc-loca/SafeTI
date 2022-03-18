@@ -5,16 +5,16 @@
 #    entry must end with a End Of Line (just press Enter). The script also allows to create and 
 #    attach files to libraries by leaving an empty line followed by the library name and the files
 #    to (these must be in a folder named as the library). Remember that the first entry is used
-#    as top. This example uses "injector_ahb" as a top design and has two libraries (bsc, techmap):
+#    as top. This example uses "injector_ahb" as a top design and has two libraries (safety, techmap):
 #
 #	# You can comment lines, but always make sure the first uncommented line is the top file
 #	injector_ahb.hdl
 #	injector.hdl
 #	injector_ctrl.hdl
 #	
-#	bsc
-#	bsc/injector_pkg.hdl
-#	bsc/injector_pkg_SELENE.hdl
+#	safety
+#	safety/injector_pkg.hdl
+#	safety/injector_pkg_SELENE.hdl
 #
 #	techmap
 #	techmap/technology.hdl

@@ -9,9 +9,9 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-library bsc;
-use bsc.injector_pkg.all;
-use bsc.tb_injector_pkg.all;
+library safety;
+use safety.injector_pkg.all;
+use safety.tb_injector_pkg.all;
 use std.env.all; -- VHDL2008
 
 -----------------------------------------------------------------------------

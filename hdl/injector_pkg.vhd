@@ -8,13 +8,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
--- pragma translate_off
---library grlib;
---use grlib.at_pkg.all;
---use grlib.at_util.all;
---use grlib.at_ahb_mst_pkg.all;
---use grlib.testlib.check;
--- pragma translate_on
 
 
 package injector_pkg is

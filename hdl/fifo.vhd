@@ -2,10 +2,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.math_real.all;
---library grlib;
---use grlib.config_types.all;
---use grlib.config.all;
---use grlib.stdlib.all;
 
 entity fifo is
     generic (
