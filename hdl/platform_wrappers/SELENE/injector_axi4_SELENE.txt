@@ -1,0 +1,13 @@
+./injector_pkg_SELENE.vhd
+./bsc_safeti/hdl/axi4_pkg.vhd
+./injector_axi4_SELENE.vhd
+./bsc_safeti/hdl/injector_pkg.vhd
+./bsc_safeti/hdl/injector_axi.vhd
+./bsc_safeti/hdl/axi4_manager.vhd
+./bsc_safeti/hdl/injector.vhd
+./bsc_safeti/hdl/injector_apb.vhd
+./bsc_safeti/hdl/injector_ctrl.vhd
+./bsc_safeti/hdl/fifo.vhd
+./bsc_safeti/hdl/injector_delay_if.vhd
+./bsc_safeti/hdl/injector_read_if.vhd
+./bsc_safeti/hdl/injector_write_if.vhd

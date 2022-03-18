@@ -64,7 +64,7 @@ architecture rtl of injector_axi4_SELENE is
   constant REVISION   : integer := 0;
   constant interrupt  : std_logic_vector( 6 downto 0 ) := conv_std_logic_vector(pirq, 7);
   constant pconfig    : apb_config_type := (
-    0 => (conv_std_logic_vector(VENDOR_BSC, 8) & conv_std_logic_vector(5, 12) & interrupt(6 downto 5) 
+    0 => (conv_std_logic_vector(VENDOR_BSC, 8) & conv_std_logic_vector(BSC_SAFETI, 12) & interrupt(6 downto 5) 
           & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)), 
     1 => (conv_std_logic_vector(paddr, 12) & "0000" & conv_std_logic_vector(pmask, 12) & "0001"));
 
