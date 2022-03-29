@@ -2,7 +2,7 @@
 -- Entity:      injector_axi
 -- File:        injector_axi.vhd
 -- Author:      Francis Fuentes Diaz (BSC-CNS)
--- Description: injector top level entity.
+-- Description: injector top level entity + AXI4 interface.
 ------------------------------------------------------------------------------ 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -12,9 +12,9 @@ use safety.injector_pkg.all;
 use safety.axi4_pkg.all;
 
 -----------------------------------------------------------------------------
--- Top level entity for injector.
--- This is a wrapper which integrates injector core to the
--- AXI4 master - generic bus master bridge
+-- Top level entity of AXI4 Safe Traffic Injector for testbench.
+-- This is a wrapper which integrates the injector core to the
+-- AXI4 Full Manager - generic bus master bridge.
 -----------------------------------------------------------------------------
 
 entity injector_axi is
@@ -28,8 +28,15 @@ entity injector_axi is
     paddr         : integer                             := 0;       -- APB configuartion slave address
     pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
     pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 0;       -- APB configuartion slave irq
-    -- AXI Master configuration
-    axi_id        : integer                             := 0;       -- AXI fixed burst ID
+    -- AXI Manager configuration
+    ID_R_WIDTH    : integer range  0 to   32            := 4;       -- AXI ID's bus width.
+    ID_W_WIDTH    : integer range  0 to   32            := 4;       -- AXI ID's bus width.
+    ADDR_WIDTH    : integer range 12 to   64            := 32;      -- AXI address bus width. (Tested only for 32 bits)
+    DATA_WIDTH    : integer range  8 to 1024            := 128;     -- AXI data bus width. [Only power of 2s are allowed]
+    axi_id        : integer range  0 to 32**2-1         := 0;       -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    rd_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    Injector_implementation : boolean                   := TRUE;    -- Data bottleneck bypass optimization enable.
     -- Asynchronous reset configuration
     ASYNC_RST     : boolean                             := FALSE    -- Allow asynchronous reset flag
   );
@@ -64,16 +71,16 @@ begin
   -- Assignments --
   -----------------
 
-  bm_in_manager.rd_addr         <= bm_out_injector.rd_addr;
+  bm_in_manager.rd_addr         <= (63 downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
   bm_in_manager.rd_size         <= bm_out_injector.rd_size;
   bm_in_manager.rd_req          <= bm_out_injector.rd_req;
   bm_bypass                     <= not(bm_out_injector.rd_descr);
-  bm_in_manager.wr_addr         <= bm_out_injector.wr_addr;
+  bm_in_manager.wr_addr         <= (63 downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
   bm_in_manager.wr_size         <= bm_out_injector.wr_size;
   bm_in_manager.wr_req          <= bm_out_injector.wr_req;
-  bm_in_manager.wr_data         <= bm_out_injector.wr_data & (bm_in_manager.wr_data'high-bm_out_injector.wr_data'length downto 0 => '0');
+  bm_in_manager.wr_data         <= (1023 downto dbits => '0') & bm_out_injector.wr_data(bm_in_injector.rd_data'high downto bm_in_injector.rd_data'length-dbits);
 
-  bm_in_injector.rd_data        <= bm_out_manager.rd_data(bm_out_manager.rd_data'high downto bm_out_manager.rd_data'high-bm_in_injector.rd_data'high);
+  bm_in_injector.rd_data        <= bm_out_manager.rd_data(dbits-1 downto 0) & (bm_in_injector.rd_data'high downto dbits => '0');
   bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
   bm_in_injector.rd_valid       <= bm_out_manager.rd_valid;
   bm_in_injector.rd_done        <= bm_out_manager.rd_done;
@@ -110,12 +117,16 @@ begin
 
   axi4M : axi4_manager
     generic map (
+      ID_R_WIDTH      => ID_R_WIDTH,
+      ID_W_WIDTH      => ID_W_WIDTH,
+      ADDR_WIDTH      => ADDR_WIDTH,
+      DATA_WIDTH      => DATA_WIDTH,
+      axi_id          => axi_id,
       dbits           => dbits,
-      axi_id          => 0,
-      rd_n_fifo_regs  => 4,
-      wr_n_fifo_regs  => 4,
+      rd_n_fifo_regs  => rd_n_fifo_regs,
+      wr_n_fifo_regs  => wr_n_fifo_regs,
       ASYNC_RST       => ASYNC_RST,
-      Injector_implementation => TRUE
+      Injector_implementation => Injector_implementation
     )
     port map (
       rstn            => rstn,

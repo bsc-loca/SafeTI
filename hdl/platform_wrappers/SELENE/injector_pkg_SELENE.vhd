@@ -47,17 +47,24 @@ package injector_pkg_selene is
   -- AXI interface wrapper for SELENE platform
   component injector_axi4_SELENE is
     generic (
-      -- SafeTI configuration
-      dbits             : integer range 32 to  128      := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-      MAX_SIZE_BURST    : integer range 32 to 4096      := 4096;    -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
-      tech              : integer range 0 to NTECH      := inferred;-- Target technology
-      -- APB configuration  
-      pindex            : integer                       := 0;       -- APB configuartion slave index
-      paddr             : integer                       := 0;       -- APB configuartion slave address
-      pmask             : integer                       := 16#FFF#; -- APB configuartion slave mask
-      pirq              : integer range 0 to NAHBIRQ-1  := 1;       -- APB configuartion slave irq
-      -- AXI Master configuration
-      axi_id            : integer                       := 0        -- AXI fixed burst index
+    -- SafeTI configuration
+    dbits         : integer range 32 to  128            := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s are allowed]
+    MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
+    tech          : integer range  0 to NTECH           := inferred;-- Target technology
+    -- APB configuration  
+    pindex        : integer                             := 0;       -- APB configuartion slave index
+    paddr         : integer                             := 0;       -- APB configuartion slave address
+    pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
+    pirq          : integer range  0 to NAHBIRQ-1       := 0;       -- APB configuartion slave irq
+    -- AXI Manager configuration
+    ID_R_WIDTH    : integer range  0 to   32            := 4;       -- AXI ID's bus width.
+    ID_W_WIDTH    : integer range  0 to   32            := 4;       -- AXI ID's bus width.
+    ADDR_WIDTH    : integer range 12 to   64            := 32;      -- AXI address bus width. (Tested only for 32 bits)
+    DATA_WIDTH    : integer range  8 to 1024            := 128;     -- AXI data bus width. [Only power of 2s are allowed]
+    axi_id        : integer range  0 to 32**2-1         := 0;       -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    rd_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    Injector_implementation : boolean                   := FALSE    -- Data bottleneck bypass optimization enable.
     );
     port (
       rstn              : in  std_ulogic;       -- Reset

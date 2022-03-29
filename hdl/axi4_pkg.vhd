@@ -5,6 +5,8 @@
 -- Description: Internal package for AXI4 components
 ------------------------------------------------------------------------------
 --  Changelog:
+--              - v0.8.5  Mar 29, 2022.
+--                
 --              - v0.8.2  Mar 11, 2022.
 --                Configurable parameters of the number of FIFO registers and injector 
 --                mode have been moved as generics, allowing multiple instances with 
@@ -30,18 +32,8 @@ package axi4_pkg is
   -- Constant declaration
   -----------------------------------------------------------------------------
 
-  -- User parameters START --
-
-    -- AXI bus generics
-    constant ID_R_WIDTH             : integer range  1 to   32  := 4;   -- AXI ID's bus width.
-    constant ID_W_WIDTH             : integer range  1 to   32  := 4;   -- AXI ID's bus width.
-    constant ADDR_WIDTH             : integer range 12 to   32  := 32;  -- AXI address bus width. (Tested only for 32 bits)
-    constant DATA_WIDTH             : integer range  8 to 1024  := 128; -- AXI data bus width. [Only power of 2s are allowed]
-
-  -- User parameters END --
-
   -- Informative specification parameters (DO NOT MODIFY since they do nothing, BUT NOTICE THEM)
-    constant Max_Transaction_Bytes  : integer                   := 4096;    -- Maximum number of bytes that can be requested per BM transaction.
+    constant Max_Transaction_Bytes  : integer := 4096;    -- Maximum number of bytes that can be requested per BM transaction.
 
     constant FIX                    : std_logic_vector(1 downto 0) := "00"; -- AXI burst modes: FIXED
     constant INC                    : std_logic_vector(1 downto 0) := "01"; --                  INCREMENTAL
@@ -54,35 +46,35 @@ package axi4_pkg is
   -- AXI4 interface bus output
   type axi4_mosi is record
     -- Write address channel
-    aw_id           : std_logic_vector( ID_W_WIDTH-1   downto 0 );
-    aw_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0 );
-    aw_len          : std_logic_vector(  7 downto 0 );
-    aw_burst        : std_logic_vector(  1 downto 0 );
+    aw_id           : std_logic_vector(  31 downto 0 );
+    aw_addr         : std_logic_vector(  63 downto 0 );
+    aw_len          : std_logic_vector(   7 downto 0 );
+    aw_burst        : std_logic_vector(   1 downto 0 );
     aw_lock         : std_logic;
-    aw_cache        : std_logic_vector(  3 downto 0 );
-    aw_size         : std_logic_vector(  2 downto 0 );
-    aw_prot         : std_logic_vector(  2 downto 0 );
-    aw_qos          : std_logic_vector(  3 downto 0 );
-    aw_region       : std_logic_vector(  3 downto 0 );
+    aw_cache        : std_logic_vector(   3 downto 0 );
+    aw_size         : std_logic_vector(   2 downto 0 );
+    aw_prot         : std_logic_vector(   2 downto 0 );
+    aw_qos          : std_logic_vector(   3 downto 0 );
+    aw_region       : std_logic_vector(   3 downto 0 );
     aw_valid        : std_logic;
     -- Write data channel
-    w_data          : std_logic_vector( DATA_WIDTH-1   downto 0 );
-    w_strb          : std_logic_vector( DATA_WIDTH/8-1 downto 0 );
+    w_data          : std_logic_vector(1023 downto 0 );
+    w_strb          : std_logic_vector( 127 downto 0 );
     w_last          : std_logic;
     w_valid         : std_logic;
     -- Write response channel
     b_ready         : std_logic;
     -- Read address channel
-    ar_id           : std_logic_vector( ID_R_WIDTH-1   downto 0 );
-    ar_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0 );
-    ar_len          : std_logic_vector(  7 downto 0 );
-    ar_size         : std_logic_vector(  2 downto 0 );
-    ar_burst        : std_logic_vector(  1 downto 0 );
+    ar_id           : std_logic_vector(  31 downto 0 );
+    ar_addr         : std_logic_vector(  63 downto 0 );
+    ar_len          : std_logic_vector(   7 downto 0 );
+    ar_size         : std_logic_vector(   2 downto 0 );
+    ar_burst        : std_logic_vector(   1 downto 0 );
     ar_lock         : std_logic;
-    ar_cache        : std_logic_vector(  3 downto 0 );
-    ar_prot         : std_logic_vector(  2 downto 0 );
-    ar_qos          : std_logic_vector(  3 downto 0 );
-    ar_region       : std_logic_vector(  3 downto 0 );
+    ar_cache        : std_logic_vector(   3 downto 0 );
+    ar_prot         : std_logic_vector(   2 downto 0 );
+    ar_qos          : std_logic_vector(   3 downto 0 );
+    ar_region       : std_logic_vector(   3 downto 0 );
     ar_valid        : std_logic;
     -- Read data channel
     r_ready         : std_logic;
@@ -95,15 +87,15 @@ package axi4_pkg is
     -- Write data channel
     w_ready         : std_logic;
     -- Write response channel
-    b_id            : std_logic_vector ( ID_W_WIDTH-1  downto 0 );
-    b_resp          : std_logic_vector (  1 downto 0 );
+    b_id            : std_logic_vector(  31 downto 0 );
+    b_resp          : std_logic_vector(   1 downto 0 );
     b_valid         : std_logic;
     -- Read address channel
     ar_ready        : std_logic;
     -- Read data channel
-    r_id            : std_logic_vector ( ID_R_WIDTH-1  downto 0 );
-    r_data          : std_logic_vector ( DATA_WIDTH-1  downto 0 );
-    r_resp          : std_logic_vector (  1 downto 0 );
+    r_id            : std_logic_vector(  31 downto 0 );
+    r_data          : std_logic_vector(1023 downto 0 );
+    r_resp          : std_logic_vector(   1 downto 0 );
     r_last          : std_logic;
     r_valid         : std_logic;
   end record;
@@ -125,12 +117,12 @@ package axi4_pkg is
 
   type bm_mosi is record  -- BM component input, output from Manager interface.
     -- Read channel
-    rd_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0);
-    rd_size         : std_logic_vector(11 downto 0);
+    rd_addr         : std_logic_vector(  63 downto 0);
+    rd_size         : std_logic_vector(  11 downto 0);
     rd_req          : std_logic;
     -- Write channel
-    wr_addr         : std_logic_vector( ADDR_WIDTH-1   downto 0);
-    wr_size         : std_logic_vector(11 downto 0);
+    wr_addr         : std_logic_vector(  63 downto 0);
+    wr_size         : std_logic_vector(  11 downto 0);
     wr_req          : std_logic;
     wr_data         : std_logic_vector(1023 downto 0);
   end record;
@@ -169,8 +161,12 @@ package axi4_pkg is
 
   component axi4_manager is
     generic (
-      dbits           : integer range  8 to DATA_WIDTH  := 32;
-      axi_id          : integer range  0 to max((ID_R_WIDTH, ID_R_WIDTH))**2-1 := 0;
+      ID_R_WIDTH      : integer range  0 to   32  := 4;
+      ID_W_WIDTH      : integer range  0 to   32  := 4;
+      ADDR_WIDTH      : integer range 12 to   64  := 32;
+      DATA_WIDTH      : integer range  8 to 1024  := 128;
+      axi_id          : integer range  0 to 32**2-1 := 0;
+      dbits           : integer range  8 to 1024  := 32;
       rd_n_fifo_regs  : integer range  2 to  256  := 4;
       wr_n_fifo_regs  : integer range  2 to  256  := 4;
       ASYNC_RST       : boolean                   := FALSE;

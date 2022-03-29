@@ -18,12 +18,15 @@ use safety.axi4_pkg.axi4_manager;
 use std.env.all; -- VHDL2008
 
 -----------------------------------------------------------------------------
--- Top level testbench entity for AXI4 manager interface.
+-- Top level testbench entity for SafeTI with AXI4 Manager interface.
 --
 -- This testbench setting is not thought to be used as an automated testing tool, since the tb logic 
 -- is not prepared yet to fetch for AXI manager's BM control signals. In addition, it requires a 
 -- AXI4 Subordinate module that is not included with this testbench.
 -- Some generics may not work for different values from the default ones. 
+--
+-- At the moment, only particular tests (test X) are used, where the user may change the size_vector 
+-- and addr_vector to test specific cases.
 -- 
 -----------------------------------------------------------------------------
 
@@ -37,7 +40,16 @@ entity tb_injector_axi is
     paddr             : integer                             := 16#850#;   -- APB configuartion slave address (default=16#850#)
     pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
     pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (default=6)
-    -- Injector configuration
+    -- AXI4 Configuration
+    ID_R_WIDTH        : integer range  0 to   32            := 4;         -- AXI ID's bus width.
+    ID_W_WIDTH        : integer range  0 to   32            := 4;         -- AXI ID's bus width.
+    ADDR_WIDTH        : integer range 12 to   64            := 32;        -- AXI address bus width. (Tested only for 32 bits)
+    DATA_WIDTH        : integer range  8 to 1024            := 128;       -- AXI data bus width. [Only power of 2s are allowed]
+    axi_id            : integer range  0 to 32**2-1         := 0;         -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    rd_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    Injector_implementation : boolean                       := FALSE;     -- Data bottleneck bypass optimization enable.
+    -- Asynchronous reset configuration
     ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (default=FALSE)
     );
 
@@ -69,11 +81,12 @@ architecture rtl of tb_injector_axi is
   -- Test 2 configuration: (Queue mode disabled), enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
   constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
 
-  -- AXI TEST X
-  constant size_vector    : array_integer(0 to 1) := (4096, 0);
-  constant addr_vector    : addr_bank(0 to 15)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005",
-  X"0000_0006", X"0000_0007", X"0000_0008", X"0000_0009", X"0000_000A", X"0000_000B", X"0000_000C", X"0000_000D", X"0000_000E", X"0000_000F");
-  --constant size_vector    : array_integer(0 to 15) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34);
+  -- AXI TEST X (Unaligned address and different size tests)
+  --constant size_vector    : array_integer(0 to 1) := (4096, 0);
+  --constant addr_vector    : addr_bank(0 to 16)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005", X"0000_0006", 
+  --X"0000_0007", X"0000_0008", X"0000_0009", X"0000_000A", X"0000_000B", X"0000_000C", X"0000_000D", X"0000_000E", X"0000_000F", X"0000_0000");
+  constant size_vector    : array_integer(0 to 16) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34, 0);
+  constant addr_vector    : addr_bank(0 to 1)     := (X"0000_0000", X"0000_0000");
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
   constant descriptors1   : descriptor_bank(0 to 6) := (
@@ -229,13 +242,13 @@ begin  -- rtl
   clk <= not clk after T/2;
 
   -- BM interconnect switch used to load descriptors from testbench.
-  bm_in_manager.rd_addr       <= bm_out_injector.rd_addr when AXI_com else (others => '0');
+  bm_in_manager.rd_addr       <= (63 downto 32 => '0') & bm_out_injector.rd_addr when AXI_com else (others => '0');
   bm_in_manager.rd_size       <= bm_out_injector.rd_size when AXI_com else (others => '0');
   bm_in_manager.rd_req        <= bm_out_injector.rd_req  when AXI_com else '0';
-  bm_in_manager.wr_addr       <= bm_out_injector.wr_addr when AXI_com else (others => '0');
+  bm_in_manager.wr_addr       <= (63 downto 32 => '0') & bm_out_injector.wr_addr when AXI_com else (others => '0');
   bm_in_manager.wr_size       <= bm_out_injector.wr_size when AXI_com else (others => '0');
   bm_in_manager.wr_req        <= bm_out_injector.wr_req  when AXI_com else '0';
-  bm_in_manager.wr_data       <= (bm_out_injector.wr_data & (895 downto 0 => '0')) when AXI_com else (others => '0');
+  bm_in_manager.wr_data       <= ((1023 downto 128 => '0') & bm_out_injector.wr_data) when AXI_com else (others => '0');
 
   bm_in.rd_addr               <= bm_out_injector.rd_addr when not(AXI_com) else (others => '0');
   bm_in.rd_size               <= bm_out_injector.rd_size when not(AXI_com) else (others => '0');
@@ -246,7 +259,7 @@ begin  -- rtl
   bm_in.wr_data               <= bm_out_injector.wr_data when not(AXI_com) else (others => '0');
 
 
-  bm_in_injector.rd_data      <= bm_out_manager.rd_data(1023 downto 896) when AXI_com else bm_out.rd_data;
+  bm_in_injector.rd_data      <= bm_out_manager.rd_data(dbits-1 downto 0) & (127 downto dbits => '0') when AXI_com else bm_out.rd_data;
   bm_in_injector.rd_req_grant <= bm_out_manager.rd_req_grant when AXI_com else bm_out.rd_req_grant;
   bm_in_injector.rd_valid     <= bm_out_manager.rd_valid     when AXI_com else bm_out.rd_valid    ;
   bm_in_injector.rd_done      <= bm_out_manager.rd_done      when AXI_com else bm_out.rd_done     ;
@@ -272,9 +285,9 @@ begin  -- rtl
     ----------------------------------------
     --               TEST X               --
     ----------------------------------------
-    for m in addr_vector'range loop -- addr_vector'range
+    for m in 0 to addr_vector'high-1 loop -- addr_vector'range
     for k in 0 to 1 loop -- 0 for reads, 1 for writes
-    for j in 0 to 0 loop -- size_vector'range
+    for j in 0 to size_vector'high-1 loop -- size_vector'range
 
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
@@ -485,11 +498,13 @@ begin  -- rtl
   -- injector core
   core : injector
     generic map (
+      dbits         => dbits,
+      MAX_SIZE_BURST=> MAX_SIZE_BURST,
       pindex        => pindex,
       paddr         => paddr,
       pmask         => pmask,
       pirq          => pirq,
-      ASYNC_RST     => FALSE
+      ASYNC_RST     => ASYNC_RST
     )
     port map (
       rstn          => rstn,
@@ -503,9 +518,16 @@ begin  -- rtl
   -- AXI4 Manager interface
   AXI4_M0 : axi4_manager
   generic map (
-    dbits           => dbits,
-    axi_id          => 0,
-    Injector_implementation => TRUE
+    ID_R_WIDTH    => ID_R_WIDTH,
+    ID_W_WIDTH    => ID_W_WIDTH,
+    ADDR_WIDTH    => ADDR_WIDTH,
+    DATA_WIDTH    => DATA_WIDTH,
+    axi_id        => axi_id,
+    dbits         => dbits,
+    rd_n_fifo_regs=> 4,
+    wr_n_fifo_regs=> 4,
+    ASYNC_RST     => ASYNC_RST,
+    Injector_implementation => Injector_implementation
   )
   port map (
     rstn            => rstn,
@@ -520,8 +542,8 @@ begin  -- rtl
   -- AXI4 subordinate memory 1024 bytes
   AXI4_S0 : subordinate_v1_0
   generic map (
-    C_S00_AXI_ID_WIDTH      => axi4mo.aw_id'length,
-    C_S00_AXI_DATA_WIDTH    => axi4mo.w_data'length,
+    C_S00_AXI_ID_WIDTH      => ID_R_WIDTH,
+    C_S00_AXI_DATA_WIDTH    => DATA_WIDTH,
     C_S00_AXI_ADDR_WIDTH    => 13, --axi4mo.aw_addr'length,
     C_S00_AXI_AWUSER_WIDTH  => 1,
     C_S00_AXI_ARUSER_WIDTH  => 1,
@@ -530,7 +552,7 @@ begin  -- rtl
   port map (
     s00_AXI_aclk      => clk,
     s00_AXI_aresetn   => rstn,
-    s00_AXI_awid      => axi4mo.aw_id,
+    s00_AXI_awid      => axi4mo.aw_id(ID_R_WIDTH-1 downto 0),
     s00_AXI_awaddr    => axi4mo.aw_addr(12 downto 0),
     s00_AXI_awlen     => axi4mo.aw_len,
     s00_AXI_awsize    => axi4mo.aw_size,
@@ -543,18 +565,18 @@ begin  -- rtl
     s00_AXI_awuser    => "0",
     s00_AXI_awvalid   => axi4mo.aw_valid,
     s00_AXI_awready   => axi4mi.aw_ready,
-    s00_AXI_wdata     => axi4mo.w_data,
-    s00_AXI_wstrb     => axi4mo.w_strb,
+    s00_AXI_wdata     => axi4mo.w_data(DATA_WIDTH-1 downto 0),
+    s00_AXI_wstrb     => axi4mo.w_strb(DATA_WIDTH/8-1 downto 0),
     s00_AXI_wlast     => axi4mo.w_last,
     s00_AXI_wuser     => "0",
     s00_AXI_wvalid    => axi4mo.w_valid,
     s00_AXI_wready    => axi4mi.w_ready,
-    s00_AXI_bid       => axi4mi.b_id,
+    s00_AXI_bid       => axi4mi.b_id(ID_R_WIDTH-1 downto 0),
     s00_AXI_bresp     => axi4mi.b_resp,
     --s00_AXI_buser     => "0",
     s00_AXI_bvalid    => axi4mi.b_valid,
     s00_AXI_bready    => axi4mo.b_ready,
-    s00_AXI_arid      => axi4mo.ar_id,
+    s00_AXI_arid      => axi4mo.ar_id(ID_R_WIDTH-1 downto 0),
     s00_AXI_araddr    => axi4mo.ar_addr(12 downto 0),
     s00_AXI_arlen     => axi4mo.ar_len,
     s00_AXI_arsize    => axi4mo.ar_size,
@@ -567,14 +589,19 @@ begin  -- rtl
     s00_AXI_aruser    => "0",
     s00_AXI_arvalid   => axi4mo.ar_valid,
     s00_AXI_arready   => axi4mi.ar_ready,
-    s00_AXI_rid       => axi4mi.r_id,
-    s00_AXI_rdata     => axi4mi.r_data,
+    s00_AXI_rid       => axi4mi.r_id(ID_R_WIDTH-1 downto 0),
+    s00_AXI_rdata     => axi4mi.r_data(DATA_WIDTH-1 downto 0),
     s00_AXI_rresp     => axi4mi.r_resp,
     s00_AXI_rlast     => axi4mi.r_last,
     --s00_AXI_ruser     => "0",
     s00_AXI_rvalid    => axi4mi.r_valid,
     s00_AXI_rready    => axi4mo.r_ready
   );
+
+  -- Zero not used signals
+  axi4mi.b_id(axi4mi.b_id'high downto ID_R_WIDTH)     <= (others => '0');
+  axi4mi.r_id(axi4mi.r_id'high downto ID_R_WIDTH)     <= (others => '0');
+  axi4mi.r_data(axi4mi.r_data'high downto DATA_WIDTH) <= (others => '0');
 
 
 end architecture rtl;

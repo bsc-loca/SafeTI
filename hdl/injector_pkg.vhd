@@ -602,21 +602,21 @@ package injector_pkg is
   -- Injector core
   component injector is
     generic (
-      dbits             : integer range 32 to  128          := 32;
-      MAX_SIZE_BURST    : integer range 32 to 4096          := 4096;
-      pindex            : integer                           := 0;
-      paddr             : integer                           := 0;
-      pmask             : integer                           := 16#FF8#;
-      pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
-      ASYNC_RST         : boolean                           := FALSE
+      dbits           : integer range 32 to  128          := 32;
+      MAX_SIZE_BURST  : integer range 32 to 4096          := 1024;
+      pindex          : integer                           := 0;
+      paddr           : integer                           := 0;
+      pmask           : integer                           := 16#FFF#;
+      pirq            : integer range 0 to APB_IRQ_NMAX-1 := 0;
+      ASYNC_RST       : boolean                           := FALSE
       );
     port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      apbi              : in  apb_slave_in_type;
-      apbo              : out apb_slave_out_type;
-      bm0_mosi          : out bm_mosi;
-      bm0_miso          : in  bm_miso
+      rstn            : in  std_ulogic;
+      clk             : in  std_ulogic;
+      apbi            : in  apb_slave_in_type;
+      apbo            : out apb_slave_out_type;
+      bm0_mosi        : out bm_mosi;
+      bm0_miso        : in  bm_miso
       );
   end component injector;
 

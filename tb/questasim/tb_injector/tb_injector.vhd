@@ -333,6 +333,8 @@ begin  -- rtl
   -- injector core
   core : injector
     generic map (
+      dbits         => dbits,
+      MAX_SIZE_BURST=> MAX_SIZE_BURST,
       pindex        => pindex,
       paddr         => paddr,
       pmask         => pmask,
