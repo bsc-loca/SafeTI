@@ -63,18 +63,17 @@ package injector_pkg_selene is
     DATA_WIDTH    : integer range  8 to 1024            := 128;     -- AXI data bus width. [Only power of 2s are allowed]
     axi_id        : integer range  0 to 32**2-1         := 0;       -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
     rd_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
-    wr_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
-    Injector_implementation : boolean                   := FALSE    -- Data bottleneck bypass optimization enable.
+    wr_n_fifo_regs: integer range  2 to  256            := 4        -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
     );
     port (
-      rstn              : in  std_ulogic;       -- Reset
-      clk               : in  std_ulogic;       -- Clock
+      rstn        : in  std_ulogic;       -- Reset
+      clk         : in  std_ulogic;       -- Clock
       -- APB interface signals
-      apbi              : in  apb_slv_in_type;  -- APB subordinate input to injector
-      apbo              : out apb_slv_out_type; -- APB subordinate output from injector
+      apbi        : in  apb_slv_in_type;  -- APB subordinate input to injector
+      apbo        : out apb_slv_out_type; -- APB subordinate output from injector
       -- AXI4 interconnect SELENE bus
-      axi4mi            : in  axi_somi_type;    -- AXI4 manager input to injector
-      axi4mo            : out axi4_mosi_type    -- AXI4 manager output from injector
+      axi4mi      : in  axi_somi_type;    -- AXI4 manager input to injector
+      axi4mo      : out axi4_mosi_type    -- AXI4 manager output from injector
     );
   end component injector_axi4_SELENE;
   

@@ -36,7 +36,6 @@ entity injector_axi is
     axi_id        : integer range  0 to 32**2-1         := 0;       -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
     rd_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
     wr_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
-    Injector_implementation : boolean                   := TRUE;    -- Data bottleneck bypass optimization enable.
     -- Asynchronous reset configuration
     ASYNC_RST     : boolean                             := FALSE    -- Allow asynchronous reset flag
   );
@@ -63,7 +62,6 @@ architecture rtl of injector_axi is
   signal bm_in_injector   : safety.injector_pkg.bm_miso;  -- Input to injector
   signal bm_in_manager    : safety.axi4_pkg.bm_mosi;      -- Input to AXI4 Manager interface
   signal bm_out_manager   : safety.axi4_pkg.bm_miso;      -- Output from AXI4 Manager interface
-  signal bm_bypass        : std_logic;                    -- Bypass flag for read transactions
 
 begin
 
@@ -74,11 +72,17 @@ begin
   bm_in_manager.rd_addr         <= (63 downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
   bm_in_manager.rd_size         <= bm_out_injector.rd_size;
   bm_in_manager.rd_req          <= bm_out_injector.rd_req;
-  bm_bypass                     <= not(bm_out_injector.rd_descr);
   bm_in_manager.wr_addr         <= (63 downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
   bm_in_manager.wr_size         <= bm_out_injector.wr_size;
   bm_in_manager.wr_req          <= bm_out_injector.wr_req;
   bm_in_manager.wr_data         <= (1023 downto dbits => '0') & bm_out_injector.wr_data(bm_in_injector.rd_data'high downto bm_in_injector.rd_data'length-dbits);
+
+  bm_in_manager.rd_fixed_addr   <= '0';
+  bm_in_manager.rd_axi_cache    <= "0011";
+  bm_in_manager.rd_axi_prot     <= "001";
+  bm_in_manager.wr_fixed_addr   <= '0';
+  bm_in_manager.wr_axi_cache    <= "0011";
+  bm_in_manager.wr_axi_prot     <= "001";
 
   bm_in_injector.rd_data        <= bm_out_manager.rd_data(dbits-1 downto 0) & (bm_in_injector.rd_data'high downto dbits => '0');
   bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
@@ -125,8 +129,7 @@ begin
       dbits           => dbits,
       rd_n_fifo_regs  => rd_n_fifo_regs,
       wr_n_fifo_regs  => wr_n_fifo_regs,
-      ASYNC_RST       => ASYNC_RST,
-      Injector_implementation => Injector_implementation
+      ASYNC_RST       => ASYNC_RST
     )
     port map (
       rstn            => rstn,
@@ -134,8 +137,7 @@ begin
       axi4mi          => axi4mi,
       axi4mo          => axi4mo,
       bm_in           => bm_in_manager,
-      bm_out          => bm_out_manager,
-      bm_in_bypass_rd => bm_bypass
+      bm_out          => bm_out_manager
     );
 
 end architecture rtl;

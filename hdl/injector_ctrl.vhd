@@ -210,9 +210,10 @@ architecture rtl of injector_ctrl is
   -- Signal declaration
   -----------------------------------------------------------------------------
 
-  signal r, rin : ctrl_reg_type;
-  signal d_des  : data_dsc_strct_type;  -- Data descriptor
-  signal bmst   : bm_mosi;              -- Bus master control signals
+  signal r, rin         : ctrl_reg_type;
+  signal d_des          : data_dsc_strct_type;  -- Data descriptor
+  signal bmst           : bm_mosi;              -- Bus master control signals
+  signal inj_reset      : std_ulogic;           -- Reset injector
   
   signal fifo_wen_o     : std_logic;                      -- Write enable (to FIFO)
   signal fifo_ren_o     : std_logic;                      -- Read enable  (to FIFO)
@@ -257,9 +258,9 @@ begin  -- rtl
   comb : process (r, ctrl, des_ptr, active, read_if_sts_in, write_if_sts_in, delay_if_sts_in, 
     read_if_bm_in, write_if_bm_in, err_status, bm_in, d_des, bmst, fifo_full, fifo_rdata, fifo_completed) --deleted c_des
     variable v           : ctrl_reg_type; 
-    variable remainder   : integer range 0 to 96;          -- Variable for BM read_data handling
-    variable bmst_rd_req : std_ulogic;                     -- Bus master read request variable
-    variable bmst_wr_req : std_ulogic;                     -- Bus master write request variable
+    variable remainder   : integer range 0 to 96;           -- Variable for BM read_data handling
+    variable bmst_rd_req : std_ulogic;                      -- Bus master read request variable
+    variable bmst_wr_req : std_ulogic;                      -- Bus master write request variable
 
   begin
     --Variable initialization
@@ -647,6 +648,7 @@ begin  -- rtl
     
     d_desc_out    <= d_des;
     ctrl_rst      <= ctrl.rst or err_status;
+    inj_reset     <= ctrl.rst or err_status;
     curr_desc_ptr <= r.desc_ptr;
     err_sts_out   <= err_status;
     bmst.rd_req   <= bmst_rd_req;
@@ -682,19 +684,21 @@ begin  -- rtl
   -- FIFO
   fifo_inst : fifo
     generic map(
-        RAM_LENGTH => fifo_size,  -- WRITE_ENTRIES
-        BUS_LENGTH => 160         -- BUS_LENGTH
-        )
+      RAM_LENGTH  => fifo_size, -- WRITE_ENTRIES
+      BUS_LENGTH  => 160,       -- BUS_LENGTH
+      ASYNC_RST   => ASYNC_RST  -- Asynchronous reset flag
+    )
     port map(
-        clk        => clk,
-        rstn       => rstn,
-        write_i    => fifo_wen_o,
-        read_i     => fifo_ren_o,
-        read_rst_i => fifo_read_rst,
-        full_o     => fifo_full,
-        comp_o     => fifo_completed,
-        wdata_i    => fifo_wdata,
-        rdata_o    => fifo_rdata
+      clk         => clk,
+      rstn        => rstn,
+      write_i     => fifo_wen_o,
+      read_i      => fifo_ren_o,
+      read_rst_i  => fifo_read_rst,
+      full_o      => fifo_full,
+      comp_o      => fifo_completed,
+      wdata_i     => fifo_wdata,
+      rdata_o     => fifo_rdata,
+      ctrl_rst    => inj_reset
     );
 
 

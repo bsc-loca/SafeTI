@@ -5,6 +5,13 @@
 -- Description: AXI4 FULL Manager entity.
 ------------------------------------------------------------------------------ 
 --  Changelog:
+--              - v0.8.6  May  5, 2022.
+--                Added input signals for setting the AXI burst parameters as fixed address 
+--                transactions, CACHE and PROT, so they can be configured by the BM component.
+--                The Injector_implementation option has been dropped, since the functionality 
+--                did not save particulary many resources while not being that useful if the BM 
+--                component scales correctly with dbits.
+--
 --              - v0.8.5  Mar 29, 2022.
 --                Now the rd.bm_valid is asserted correctly on discarded data read transactions
 --                due to Injector_implementation being TRUE.
@@ -58,8 +65,6 @@ use safety.axi4_pkg.all; -- <- It contains the configuration of the interface.
 -- - Extensible BM component and AXI data buses width 8, 16, 32, 64, 128, 256, 512 and 1024 bits (read 
 --   further considerations on integration of the interface for limitations).
 -- - Continuous data transmission if there's enough data supply throughput from the least data bus bottleneck.
--- - Special "Injector_implementation" option to save synthesis resources and reduce bottlenecks 
---   during transactions (reads further considerations on integration for more info).
 --
 --
 -- Manager interface and considerations during integration:
@@ -85,17 +90,6 @@ use safety.axi4_pkg.all; -- <- It contains the configuration of the interface.
 --
 -- - The interface may send control and data when the valid flag is not asserted. These signals 
 --   must be discarded since the valid flag is low.
---
--- - The "bm_in_bypass_rd" input signal must be set to low if it's not used. However, in order to be used, 
---   it is necessary to set the "Injector_implementation" option to TRUE.
---   When it is set to TRUE, the BM transfer side of the write transactions logic will not be synthesized,
---   bypassing the bottleneck of the lower width of the BM data bus respect the AXI data bus width, and
---   the interface will only write zeros where it is requested.
---   Meanwhile, the counterpart on the read transactions logic will work as normal if, during the BM read 
---   request, the "bm_in_bypass_rd" input is low. If it is high, all read data will be discarded, bypassing 
---   the bottleneck between the BM and AXI data bus widts.
---   Both transactions will assert the respective "bm_done" output signal when the operation finishes even 
---   when these options are being active.
 --
 --
 -- This AXI4 Manager interface translates and manage the requests made by the BM component,
@@ -134,10 +128,7 @@ entity axi4_manager is
     -- Interface configuration
     rd_n_fifo_regs  : integer range  2 to  256  := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
     wr_n_fifo_regs  : integer range  2 to  256  := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
-    ASYNC_RST       : boolean                   := FALSE;   -- Allow asynchronous reset
-
-    -- Special features
-    Injector_implementation   : boolean         := FALSE    -- For general purpose Manager interface, set it to FALSE.
+    ASYNC_RST       : boolean                   := FALSE    -- Allow asynchronous reset
   );
   port (
     rstn                      : in  std_ulogic; -- Reset
@@ -147,10 +138,7 @@ entity axi4_manager is
     axi4mo                    : out axi4_mosi;  -- AXI4 manager output
     -- BM component signals
     bm_in                     : in  bm_mosi;    -- BM interface input
-    bm_out                    : out bm_miso;    -- BM interface output
-    -- Manager settings
-    bm_in_bypass_rd           : in  std_logic   -- Skip BM bottleneck, discard all read data and write full zeros. 
-                                                -- Only used when Injector_implementation = TRUE. In doubt, set to '0' at instantation.
+    bm_out                    : out bm_miso     -- BM interface output
   );
 end entity axi4_manager;
 
@@ -250,9 +238,10 @@ architecture rtl of axi4_manager is
     state         : transf_state; -- State of the read transaction.
     bm_grant      : std_logic;    -- Grant signals to BM component.
     bm_error      : std_logic;    -- Error flag register due to SLVERR or DECERR subordinate response.
-    bm_bypass     : std_logic;    -- Bypass BM bottleneck by discarding all read data for the transaction requested.
 
     axi_mode      : std_logic_vector(1 downto 0); -- AXI output parameter: burst mode (FIXED, INC, WRAP).
+    axi_cache     : std_logic_vector(3 downto 0); -- AXI output parameter: cache mode.
+    axi_prot      : std_logic_vector(2 downto 0); -- AXI output parameter: privilage level access.
     axi_size      : std_logic_vector(2 downto 0); -- AXI output parameter: size mode of each beat in the burst.
     axi_len       : std_logic_vector(7 downto 0); -- AXI output parameter: number of beats in the burst.
     axi_addr      : std_logic_vector( ADDR_WIDTH     - 1 downto 0); -- AXI output parameter: Starting pointer of the AXI burst.
@@ -299,6 +288,8 @@ architecture rtl of axi4_manager is
     bm_error      : std_logic;    -- Error flag register due to SLVERR or DECERR subordinate response.
 
     axi_mode      : std_logic_vector(1 downto 0); -- AXI output parameter: burst mode (FIXED, INC, WRAP).
+    axi_cache     : std_logic_vector(3 downto 0); -- AXI output parameter: cache mode.
+    axi_prot      : std_logic_vector(2 downto 0); -- AXI output parameter: privilage level access.
     axi_size      : std_logic_vector(2 downto 0); -- AXI output parameter: size mode of each beat in the burst.
     axi_len       : std_logic_vector(7 downto 0); -- AXI output parameter: number of beats in the burst. Also, the beats left to send to axi_data_buffer.
     axi_addr      : std_logic_vector( ADDR_WIDTH     - 1 downto 0); -- AXI output parameter: Starting pointer of the AXI burst.
@@ -332,8 +323,9 @@ architecture rtl of axi4_manager is
     state             => idle,
     bm_grant          => '1',
     bm_error          => '0',
-    bm_bypass         => '0',
-    axi_mode          => (others => '0'),
+    axi_mode          => "01",
+    axi_cache         => (others => '0'),
+    axi_prot          => (others => '0'),
     axi_size          => (others => '0'),
     axi_len           => (others => '0'),
     axi_addr          => (others => '0'),
@@ -373,7 +365,9 @@ architecture rtl of axi4_manager is
     state             => idle,
     bm_grant          => '1',
     bm_error          => '0',
-    axi_mode          => (others => '0'),
+    axi_mode          => "01",
+    axi_cache         => (others => '0'),
+    axi_prot          => (others => '0'),
     axi_size          => (others => '0'),
     axi_len           => (others => '0'),
     axi_addr          => (others => '0'),
@@ -458,8 +452,8 @@ begin -- rtl
   axi4mo.aw_size      <= wr.axi_size; -- Beat size
   axi4mo.aw_burst     <= wr.axi_mode; -- Burst mode
   axi4mo.aw_lock      <= '0';
-  axi4mo.aw_cache     <= (others => '0');
-  axi4mo.aw_prot      <= (others => '0');
+  axi4mo.aw_cache     <= wr.axi_cache;
+  axi4mo.aw_prot      <= wr.axi_prot;
   axi4mo.aw_qos       <= (others => '0');
   axi4mo.aw_valid     <= wr.axi_valid;
     -- Write data channel out
@@ -477,8 +471,8 @@ begin -- rtl
   axi4mo.ar_size      <= rd.axi_size; -- Beat size
   axi4mo.ar_burst     <= rd.axi_mode; -- Burst mode
   axi4mo.ar_lock      <= '0';
-  axi4mo.ar_cache     <= (others => '0');
-  axi4mo.ar_prot      <= (others => '0');
+  axi4mo.ar_cache     <= rd.axi_cache;
+  axi4mo.ar_prot      <= rd.axi_prot;
   axi4mo.ar_qos       <= (others => '0');
   axi4mo.ar_valid     <= rd.axi_valid;
     -- Read data channel out
@@ -578,10 +572,10 @@ begin -- rtl
               rd.bm_grant   <= '0';           -- Deassert granting requests for BM component
               rd.bm_addr    <= bm_in.rd_addr(rd.bm_addr'range); -- Load starting address request
               rd.bm_size    <= std_logic_vector(resize(unsigned(bm_in.rd_size), rd.bm_size'length)); -- Load BM size to transfer (-1 from real size)
-              -- If the implementation may not require reads, read the 
-              if(Injector_implementation) then
-                rd.bm_bypass<= bm_in_bypass_rd;
-              end if;
+              rd.axi_mode   <= '0' & not(bm_in.rd_fixed_addr);
+              rd.axi_cache  <= bm_in.rd_axi_cache;
+              rd.axi_prot   <= bm_in.rd_axi_prot;
+
               -- Next, check 4kB out of bounds access
               rd.state      <= compute1;
             end if;
@@ -614,9 +608,6 @@ begin -- rtl
             -- Set AXI size mode to DATA_WIDTH and align the starting address with the DATA_WIDTH slot.
             rd.axi_size     <= std_logic_vector(to_unsigned(AXI4_DATA_BYTE, rd.axi_size'length));
             rd.axi_addr     <= rd.bm_addr(rd.bm_addr'high downto AXI4_DATA_BYTE) & (AXI4_DATA_BYTE - 1 downto 0 => '0');
-
-            -- Set the burst transfer mode.
-            rd.axi_mode     <= INC;
 
             -- Compute how many beats will be necessary to transfer the requested data in this burst.
             decide_len(rd.bm_size(11 downto 0), rd.bm_addr, rd_axi_len);
@@ -663,17 +654,10 @@ begin -- rtl
               rd_axi_next_index := add_vector(rd.axi_index, 1, rd.axi_index'length);
               rd.axi_index      <= rd_axi_next_index;
 
-              -- On Injector_implementation = TRUE, reads can be discarded but only if the bm_in_bypass_rd was high when the request was made.
-              if(Injector_implementation) then
-                rd.axi_ready    <= not( axi4mi.r_last or rd.fifo_full(to_integer(unsigned(rd_axi_next_index))) ) or rd.bm_bypass;
-                rd.fifo_full(to_integer(unsigned(rd.axi_index))) <= not(rd.bm_bypass);
-              else 
-              -- Otherwise, on normal operation:
-                -- Deassert the ready flag to finish AXI burst if it is the last beat or if there is not enough space in the FIFO at the moment.
-                rd.axi_ready    <= not( axi4mi.r_last or rd.fifo_full(to_integer(unsigned(rd_axi_next_index))) );
-                -- Signal the present rd.FIFO register as prepared for BM transfer, for whenever it is due to buffers.
-                rd.fifo_full(to_integer(unsigned(rd.axi_index))) <= '1';
-              end if;
+              -- Deassert the ready flag to finish AXI burst if it is the last beat or if there is not enough space in the FIFO at the moment.
+              rd.axi_ready    <= not( axi4mi.r_last or rd.fifo_full(to_integer(unsigned(rd_axi_next_index))) );
+              -- Signal the present rd.FIFO register as prepared for BM transfer, for whenever it is due to buffers.
+              rd.fifo_full(to_integer(unsigned(rd.axi_index))) <= '1';
 
               -- The last AXI transfer of the whole transaction will set the proper rd.fifo_last bit, so the BM transfer logic knows when to end.
               -- However, there's a distinction between DATA_WIDTH <= 64 bits and higher data widths. If there's still data to transfer 
@@ -711,14 +695,6 @@ begin -- rtl
                     rd.bm_size    <= std_logic_vector(resize(unsigned(rd.rem_size), rd.bm_size'length));
                     rd.bm_addr    <= add_vector(rd.bm_addr(rd.bm_addr'high downto 12), 1, rd.bm_addr'high - 11) & (11 downto 0 => '0');
                     rd.state      <= compute2;
-                  else
-                    -- On Injector_implementation = TRUE, check if this transaction has the requirement of transfering the read data to the
-                    -- BM component. If it is (rd.bm_bypass = '1'), assert the rd.bm_done when the AXI read has been done and return to idle.
-                    if(rd.bm_bypass = '1' and Injector_implementation) then
-                      rd.bm_done  <= '1';
-                      rd.bm_valid <= '1';
-                      rd.state    <= idle;
-                    end if;
                   end if;
                 end if;
 
@@ -741,12 +717,8 @@ begin -- rtl
       -- RD FIFO --
       -------------
         -- After each AXI data read, put the data to the next available FIFO register.
-        -- Unless it using Injector_implementation and no data read is required.
-        if(rd.bm_bypass = '1' and Injector_implementation) then
-        else
-          if(rd.axi_valid_buffer = '1' and rd.axi_ready_buffer = '1') then
-              rd.fifo(to_integer(unsigned(rd.axi_index_buffer))) <= rd.axi_data_buffer;
-          end if;
+        if(rd.axi_valid_buffer = '1' and rd.axi_ready_buffer = '1') then
+            rd.fifo(to_integer(unsigned(rd.axi_index_buffer))) <= rd.axi_data_buffer;
         end if;
 
 
@@ -949,14 +921,14 @@ begin -- rtl
   begin
     if (rstn = '0' and ASYNC_RST) then
       wr                    <= RST_TRANSF_WR_OP;
-      wr_addr_end         := (others => '0');
-      wr_axi_len          := (others => '0');
-      wr_axi_last         := '0';
-      wr_axi_next_index   := (others => '0');
-      wr_axi_read         := FALSE;
-      wr_bm_next_counter  := (others => '0');
-      wr_fifo_offset      := (others => '0');
-      wr_bm_next_index    := (others => '0');
+      wr_addr_end           := (others => '0');
+      wr_axi_len            := (others => '0');
+      wr_axi_last           := '0';
+      wr_axi_next_index     := (others => '0');
+      wr_axi_read           := FALSE;
+      wr_bm_next_counter    := (others => '0');
+      wr_fifo_offset        := (others => '0');
+      wr_bm_next_index      := (others => '0');
     elsif rising_edge(clk) then
       if (rstn = '0') then
         wr                  <= RST_TRANSF_WR_OP;
@@ -990,6 +962,10 @@ begin -- rtl
               wr.bm_grant   <= '0';           -- Deassert granting requests for BM component
               wr.bm_addr    <= bm_in.wr_addr(wr.bm_addr'range); -- Load starting address request
               wr.bm_size    <= std_logic_vector(resize(unsigned(bm_in.wr_size), wr.bm_size'length));-- Load BM size to transfer (-1 from real size)
+              wr.axi_mode   <= '0' & not(bm_in.wr_fixed_addr);
+              wr.axi_cache  <= bm_in.wr_axi_cache;
+              wr.axi_prot   <= bm_in.wr_axi_prot;
+
               -- Next, check 4kB out of bounds access
               wr.state      <= compute1;
             end if;
@@ -1016,9 +992,6 @@ begin -- rtl
             -- Set AXI size mode to DATA_WIDTH and align the starting address with the DATA_WIDTH slot.
             wr.axi_size     <= std_logic_vector(to_unsigned(AXI4_DATA_BYTE, wr.axi_size'length));
             wr.axi_addr     <= wr.bm_addr(wr.bm_addr'high downto AXI4_DATA_BYTE) & (AXI4_DATA_BYTE - 1 downto 0 => '0');
-            
-            -- Set the burst transfer mode.
-            wr.axi_mode     <= INC;
 
             -- Compute how many beats will be necessary to transfer the requested data in this burst.
             decide_len(wr.bm_size(11 downto 0), wr.bm_addr, wr_axi_len);
@@ -1081,20 +1054,14 @@ begin -- rtl
             -- the FIFO index and the number of bytes left on to transfer on this subordinate. However, if the data buffer is the last beat, do 
             -- not follow with another AXI beat. 
             if( (wr_axi_read or wr.axi_valid_data = '0') and wr.axi_last = '0' ) then
-              if(wr.fifo_full(to_integer(unsigned(wr.axi_index))) = '1' or Injector_implementation) then
+              if(wr.fifo_full(to_integer(unsigned(wr.axi_index))) = '1') then
                 wr.axi_valid_data   <= '1';
                 wr.axi_last         <= wr_axi_last;
                 wr.axi_len          <= sub_vector(wr.axi_len, 1, wr.axi_len'length);
                 wr.axi_index        <= wr_axi_next_index;
                 wr.bm_size          <= sub_vector(wr.bm_size, DATA_WIDTH/8, wr.bm_size'length);
-
-                -- On implementations where write data is always zeros, the BM bottleneck can be bypassed by not using the FIFO.
-                if(Injector_implementation) then
-                  wr.axi_data_buffer<= (others => '0');
-                else
-                  wr.fifo_full(to_integer(unsigned(wr.axi_index)))  <= '0';
-                  wr.axi_data_buffer<= wr.fifo(to_integer(unsigned(wr.axi_index)));
-                end if;
+                wr.fifo_full(to_integer(unsigned(wr.axi_index)))  <= '0';
+                wr.axi_data_buffer<= wr.fifo(to_integer(unsigned(wr.axi_index)));
               else
                 wr.axi_valid_data   <= '0';
               end if;
@@ -1135,9 +1102,6 @@ begin -- rtl
       ---------------------------------
       -- WR FIFO + BM TRANSFER LOGIC --
       ---------------------------------
-
-      -- If write data should be discarded due to Injector_implementation = TRUE, the whole BM transfer block and FIFO logic can be saved.
-      if(Injector_implementation = FALSE) then
 
       -- Read BM data if the wr.bm_ready flag register is high.
       if(wr.bm_ready = '1') then
@@ -1199,7 +1163,6 @@ begin -- rtl
         when others =>
 
       end case;
-      end if; -- Injector_implementation = FALSE check.
 
 
       -------------------------

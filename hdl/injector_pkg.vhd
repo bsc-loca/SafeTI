@@ -583,7 +583,8 @@ package injector_pkg is
   component fifo is
     generic (
       RAM_LENGTH      : integer := 8;
-      BUS_LENGTH      : integer := 160
+      BUS_LENGTH      : integer := 160;
+      ASYNC_RST       : boolean := FALSE
       );
     port(
       clk             : in  std_logic;
@@ -594,7 +595,8 @@ package injector_pkg is
       full_o          : out std_logic;
       comp_o          : out std_logic;
       wdata_i         : in  std_logic_vector(BUS_LENGTH-1 downto 0);
-      rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0)
+      rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0);
+      ctrl_rst        : in  std_logic
       );
   end component fifo;
 

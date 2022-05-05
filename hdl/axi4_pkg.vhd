@@ -120,11 +120,17 @@ package axi4_pkg is
     rd_addr         : std_logic_vector(  63 downto 0);
     rd_size         : std_logic_vector(  11 downto 0);
     rd_req          : std_logic;
+    rd_fixed_addr   : std_logic;
+    rd_axi_cache    : std_logic_vector(   3 downto 0);
+    rd_axi_prot     : std_logic_vector(   2 downto 0);
     -- Write channel
     wr_addr         : std_logic_vector(  63 downto 0);
     wr_size         : std_logic_vector(  11 downto 0);
     wr_req          : std_logic;
     wr_data         : std_logic_vector(1023 downto 0);
+    wr_fixed_addr   : std_logic;
+    wr_axi_cache    : std_logic_vector(   3 downto 0);
+    wr_axi_prot     : std_logic_vector(   2 downto 0);
   end record;
 
   type array_integer          is array (natural range <>) of integer;
@@ -169,8 +175,7 @@ package axi4_pkg is
       dbits           : integer range  8 to 1024  := 32;
       rd_n_fifo_regs  : integer range  2 to  256  := 4;
       wr_n_fifo_regs  : integer range  2 to  256  := 4;
-      ASYNC_RST       : boolean                   := FALSE;
-      Injector_implementation : boolean           := FALSE
+      ASYNC_RST       : boolean                   := FALSE
     );
     port (
       rstn            : in  std_ulogic;
@@ -178,8 +183,7 @@ package axi4_pkg is
       axi4mi          : in  axi4_miso;
       axi4mo          : out axi4_mosi;
       bm_in           : in  bm_mosi;
-      bm_out          : out bm_miso;
-      bm_in_bypass_rd : in  std_logic
+      bm_out          : out bm_miso
     );
   end component axi4_manager;
 
