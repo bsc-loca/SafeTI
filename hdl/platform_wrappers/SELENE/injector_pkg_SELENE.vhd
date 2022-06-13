@@ -77,9 +77,19 @@ package injector_pkg_selene is
     );
   end component injector_axi4_SELENE;
   
+  -- IF function for when VHDL can not use if (like at constants).
+  function sel              (A, B : integer; sel : boolean) return integer;
 
 end package injector_pkg_selene;
 
 package body injector_pkg_selene is
+
+  -- IF function that outputs the first input if the boolean is true, the second if false.
+  function sel(A, B : integer; sel : boolean) return integer is
+  begin
+    if sel then return A;
+    else return B;
+    end if;
+  end sel;
 
 end package body injector_pkg_selene;

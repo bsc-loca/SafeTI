@@ -12,14 +12,13 @@ add wave -noupdate -childformat {{/tb_injector_axi_reset/AXI4_M0/wr.fifo_full -r
 add wave -noupdate -childformat {{/tb_injector_axi_reset/AXI4_M0/rd.fifo -radix hexadecimal}} -subitemconfig {/tb_injector_axi_reset/AXI4_M0/rd.fifo {-height 18 -radix hexadecimal}} /tb_injector_axi_reset/AXI4_M0/rd
 add wave -noupdate /tb_injector_axi_reset/bm_in_manager
 add wave -noupdate /tb_injector_axi_reset/bm_out_manager
-add wave -noupdate /tb_injector_axi_reset/AXI4_M0/bm_in_bypass_rd
 add wave -noupdate -divider {SafeTI injector}
 add wave -noupdate /tb_injector_axi_reset/bm_in_injector
 add wave -noupdate -childformat {{/tb_injector_axi_reset/bm_out_injector.rd_size -radix unsigned}} -subitemconfig {/tb_injector_axi_reset/bm_out_injector.rd_size {-height 18 -radix unsigned}} /tb_injector_axi_reset/bm_out_injector
-add wave -noupdate /tb_injector_axi_reset/core/ctrl/fifo_inst/ram
 add wave -noupdate /tb_injector_axi_reset/core/ctrl/r
+add wave -noupdate /tb_injector_axi_reset/core/ctrl/desc_bank
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {4300 ns} 0}
+WaveRestoreCursors {{Cursor 1} {698 ns} 0}
 quietly wave cursor active 1
 configure wave -namecolwidth 150
 configure wave -valuecolwidth 130

@@ -21,21 +21,23 @@ entity injector_apb is
     paddr           : integer                           := 0;         -- APB configuartion slave address
     pmask           : integer                           := 16#FFF#;   -- APB configuartion slave mask
     pirq            : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
+    desc_Nmax       : integer range 1 to 128            := 8;         -- Maximum number of descriptors allowed
     ASYNC_RST       : boolean                           := FALSE      -- Allow asynchronous reset flag
     );
   port (
-    rstn            : in  std_ulogic;                        -- Reset
-    clk             : in  std_ulogic;                        -- Clock
-    apbi            : in  apb_slave_in_type;                 -- APB slave input
-    apbo            : out apb_slave_out_type;                -- APB slave output
-    ctrl_out        : out injector_ctrl_reg_type;            -- Control configuration signals
-    desc_ptr_out    : out injector_desc_ptr_type;            -- First descriptor pointer
-    active          : out std_ulogic;                        -- Injector enabled after reset, status
-    err_status      : out std_ulogic;                        -- Core error status in APB status register
-    irq_flag_sts    : in  std_ulogic;                        -- IRQ flag     
-    curr_desc_in    : in  curr_des_out_type;                 -- Current descriptor fields for debug display
-    curr_desc_ptr   : in  std_logic_vector(31 downto 0);     -- Current descriptor pointer for debug display
-    sts_in          : in  status_out_type                    -- Status flags from control module
+    rstn            : in  std_ulogic;                       -- Reset
+    clk             : in  std_ulogic;                       -- Clock
+    apbi            : in  apb_slave_in_type;                -- APB slave input
+    apbo            : out apb_slave_out_type;               -- APB slave output
+    ctrl_out        : out injector_ctrl_reg_type;           -- Control configuration signals
+    desc_ptr_out    : out injector_desc_ptr_type;           -- First descriptor pointer
+    active          : out std_ulogic;                       -- Injector enabled after reset, status
+    err_status      : out std_ulogic;                       -- Core error status in APB status register
+    irq_flag_sts    : in  std_ulogic;                       -- IRQ flag     
+    curr_desc_in    : in  curr_des_out_type;                -- Current descriptor fields for debug display
+    curr_desc_ptr   : in  std_logic_vector(31 downto 0);    -- Current descriptor pointer for debug display
+    sts_in          : in  status_out_type;                  -- Status flags from control module
+    desc_bank       : out descriptor_bank                   -- Descriptor bank
     );
 end entity injector_apb;
 
@@ -50,11 +52,16 @@ architecture rtl of injector_apb is
   -- Constant declaration
   -----------------------------------------------------------------------------
 
+  constant DESC_BANK_LENGTH : integer := log_2(desc_Nmax-1); -- Number of bits necessary to index the descriptor bank
+
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------
 
-  signal r, rin : injector_reg_type;
+  signal r,                 rin                 : injector_reg_type;
+  signal r_desc,            rin_desc            : descriptor_bank(desc_Nmax - 1 downto 0);  -- Descriptor written APB
+  signal r_desc_index,      rin_desc_index      : unsigned(0 downto 0);                     -- Descriptor word index
+  signal r_desc_bank_index, rin_desc_bank_index : unsigned(DESC_BANK_LENGTH - 1 downto 0);  -- Descriptor bank index
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -67,20 +74,26 @@ begin -- rtl
   -----------------------------------------------------------------------------
   
   apbo.index  <= pindex;
+  desc_bank   <= r_desc;
   
   -----------------------------------------------------------------------------
   -- Combinational process
   -----------------------------------------------------------------------------
   
-  comb : process ( apbi, r, sts_in, curr_desc_in, curr_desc_ptr, irq_flag_sts)
-
+  comb : process (apbi, r, sts_in, curr_desc_in, curr_desc_ptr, irq_flag_sts)
     variable v      : injector_reg_type;
-    variable prdata : std_logic_vector (31 downto 0);
-    
+    variable v_desc : descriptor;
+    variable v_desc_index       : unsigned(r_desc_index'range);       -- Descriptor word index
+    variable v_desc_bank_index  : unsigned(r_desc_bank_index'range);  -- Descriptor bank index
+    variable prdata : std_logic_vector(31 downto 0);
+
   begin
     -- Initialization
-    v      := r;
-    prdata := (others => '0');
+    v             := r;
+    v_desc        := r_desc(to_integer(r_desc_bank_index));
+    v_desc_index  := r_desc_index;
+    v_desc_bank_index := r_desc_bank_index;
+    prdata        := (others => '0');
 
     ----------------------
     -- core status logic
@@ -131,7 +144,7 @@ begin -- rtl
     -- APB address decode  
     ----------------------
     ---- Read accesses ----
-    if (apbi.sel(pindex) and apbi.en and not apbi.write) = '1' then
+    if (apbi.sel(pindex) and apbi.en and not apbi.wr_en) = '1' then
       case apbi.addr(7 downto 2) is
         when "000000" =>                --0x00 Injector control register
           prdata(0) := r.ctrl.en;
@@ -176,7 +189,7 @@ begin -- rtl
     end if;
     
     ---- Write accesses ----
-    if (apbi.sel(pindex) and apbi.en and apbi.write ) = '1' then
+    if (apbi.sel(pindex) and apbi.en and apbi.wr_en ) = '1' then
       case apbi.addr(7 downto 2) is
         when "000000" =>                --0x00 Injector control register
           v.ctrl.en      := apbi.wdata(0);
@@ -186,15 +199,25 @@ begin -- rtl
           v.ctrl.irq_err := apbi.wdata(4);
           v.ctrl.qmode   := apbi.wdata(5);
         when "000001" =>                --0x04 Injector status register. Errors are cleared on write
-          v.sts.err                  := r.sts.err and not(apbi.wdata(1));
-          v.sts.irq_flag             := r.sts.irq_flag and not(apbi.wdata(5));
-          v.sts.decode_err           := r.sts.decode_err and not(apbi.wdata(6));
-          v.sts.rd_desc_err          := r.sts.rd_desc_err and not(apbi.wdata(7));        
-          v.sts.read_if_rd_data_err  := r.sts.read_if_rd_data_err and not(apbi.wdata(8));
-          v.sts.write_if_wr_data_err := r.sts.write_if_wr_data_err and not(apbi.wdata(9));
-          v.sts.rd_nxt_ptr_err       := r.sts.rd_nxt_ptr_err and not(apbi.wdata(10));
-        when "000010" =>                --0x08 Injector descriptor pointer register
-          v.desc_ptr.ptr := apbi.wdata(31 downto 0);
+          v.sts.err                   := r.sts.err and not(apbi.wdata(1));
+          v.sts.irq_flag              := r.sts.irq_flag and not(apbi.wdata(5));
+          v.sts.decode_err            := r.sts.decode_err and not(apbi.wdata(6));
+          v.sts.rd_desc_err           := r.sts.rd_desc_err and not(apbi.wdata(7));        
+          v.sts.read_if_rd_data_err   := r.sts.read_if_rd_data_err and not(apbi.wdata(8));
+          v.sts.write_if_wr_data_err  := r.sts.write_if_wr_data_err and not(apbi.wdata(9));
+          v.sts.rd_nxt_ptr_err        := r.sts.rd_nxt_ptr_err and not(apbi.wdata(10));
+        when "111111" =>                --0xFC Descriptor X control and action address
+          case r_desc_index is
+            when "0" =>
+              v_desc.ctrl             := serial_2_desc_ctrl(apbi.wdata);
+              v_desc_index            := v_desc_index + 1;
+            when "1" =>
+              v_desc.actaddr          := serial_2_desc_actaddr(apbi.wdata);
+              v_desc_index            := (others => '0');
+              v_desc_bank_index       := v_desc_bank_index + 1;
+            when others =>
+              null;
+          end case;
         when others =>
           null;
       end case;
@@ -205,10 +228,17 @@ begin -- rtl
     ----------------------
     if r.ctrl.rst = '1' then
       v := INJECTOR_REG_RST;
+      v_desc := DESCRIPTOR_RST;
+      v_desc_index := (others => '0');
+      v_desc_bank_index := (others => '0');
     end if;
-    rin            <= v;
-    apbo.rdata     <= prdata;
-    apbo.irq       <= (others => '0');
+    rin           <= v;
+    rin_desc      <= r_desc;
+    rin_desc(to_integer(r_desc_bank_index)) <= v_desc;
+    rin_desc_index      <= v_desc_index;
+    rin_desc_bank_index <= v_desc_bank_index;
+    apbo.rdata    <= prdata;
+    apbo.irq      <= (others => '0');
     -- IRQ pulse generation
     if sts_in.err = '1' then
       apbo.irq(pirq) <= r.ctrl.irq_en and r.ctrl.irq_err;
@@ -236,12 +266,21 @@ begin -- rtl
   seq : process (clk, rstn)
   begin
     if (rstn = '0' and ASYNC_RST) then -- Asynchronous reset
-      r <= INJECTOR_REG_RST; 
+      r       <= INJECTOR_REG_RST; 
+      r_desc  <= (others => DESCRIPTOR_RST);
+      r_desc_index      <=  (others => '0');
+      r_desc_bank_index <=  (others => '0');
     elsif rising_edge(clk) then
       if rstn = '0' or r.ctrl.rst = '1' then
-        r <= INJECTOR_REG_RST;
+        r       <= INJECTOR_REG_RST;
+        r_desc  <= (others => DESCRIPTOR_RST);
+        r_desc_index      <=  (others => '0');
+        r_desc_bank_index <=  (others => '0');
       else
-        r <= rin;
+        r       <= rin;
+        r_desc  <= rin_desc;
+        r_desc_index      <= rin_desc_index;
+        r_desc_bank_index <= rin_desc_bank_index;
       end if;
     end if;
   end process seq;

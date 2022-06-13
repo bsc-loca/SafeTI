@@ -25,7 +25,7 @@ use safety.injector_pkg.all;
 entity injector_ctrl is
   generic (
     dbits             : integer range 32 to 128 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    fifo_size         : integer range  1 to  16 := 8;       -- FIFO Length (Length multiple of 8) 
+    desc_Nmax         : integer range  1 to 128 :=  8;      -- Maximum number of descriptors allowed
     ASYNC_RST         : boolean                 := FALSE    -- Allow asynchronous reset flag
     );
   port (
@@ -61,7 +61,9 @@ entity injector_ctrl is
     write_if_start    : out std_logic;                      -- WRITE_IF start signal
     -- DELAY_IF
     delay_if_sts_in   : in  d_ex_sts_out_type;
-    delay_if_start    : out std_logic
+    delay_if_start    : out std_logic;
+
+    desc_bank         : in descriptor_bank -- TODO: Put the descriptor bank correctly.
   );
 end entity injector_ctrl;
 
@@ -162,7 +164,7 @@ architecture rtl of injector_ctrl is
     desc_ptr            : std_logic_vector(31 downto 0);   -- Current descriptor pointer
     i                   : integer range 0 to 7;            -- Register for index increment
     rep_count           : std_logic_vector(5 downto 0);    -- Register for Repetition Count increment
-    rd_desc             : std_logic_vector(159 downto 0);  -- Register for descriptor read from BM (5 Registers * 32 bits)
+    desc                : descriptor;                      -- Register for descriptor read from BM (5 Registers * 32 bits)
     read_if_start       : std_ulogic;                      -- READ_IF start signal
     write_if_start      : std_ulogic;                      -- WRITE_IF start signal
     delay_if_start      : std_ulogic;                      -- DELAY_IF start signal
@@ -187,7 +189,7 @@ architecture rtl of injector_ctrl is
     desc_ptr            => (others => '0'),
     i                   => 0,
     rep_count           => (others => '0'),
-    rd_desc             => (others => '0'),
+    desc                => DESCRIPTOR_RST,
     read_if_start       => '0',
     write_if_start      => '0',
     delay_if_start      => '0',
@@ -222,6 +224,8 @@ architecture rtl of injector_ctrl is
   signal fifo_full      : std_logic;                      -- FIFO is full (from FIFO)
   signal fifo_completed : std_logic;                      -- FIFO completely read (from FIFO)
   signal fifo_read_rst  : std_logic;                      -- FIFO Read Address Reset output
+
+  signal r_desc_index, rin_desc_index : unsigned(log_2(desc_Nmax)-1 downto 0); -- Descriptor bank index
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -261,10 +265,12 @@ begin  -- rtl
     variable remainder   : integer range 0 to 96;           -- Variable for BM read_data handling
     variable bmst_rd_req : std_ulogic;                      -- Bus master read request variable
     variable bmst_wr_req : std_ulogic;                      -- Bus master write request variable
+    variable v_desc_index: unsigned(log_2(desc_Nmax)-1 downto 0); -- Index for descriptor bank
 
   begin
     --Variable initialization
     v           := r;
+    v_desc_index:= r_desc_index;
     remainder   := 0;
     bmst_rd_req := '0';
     bmst_wr_req := '0';
@@ -331,38 +337,38 @@ begin  -- rtl
             v.dcomp_flg     := '0';
             v.fifo_finished := '0';
             v.desc_ptr      := des_ptr.ptr;
-            v.rd_desc       := (others => '0');
-            v.state         := fetch_desc;
+            v.desc          := DESCRIPTOR_RST;
+            v.state         := read_fifo; --fetch_desc;
           elsif r.sts.ongoing = '1' or r.sts.kick = '1' or v.sts.kick = '1' then
             if r.init_error = '1' then  -- Taking up the same descriptor to fetch again since previously
                                         -- it encountered an error before reaching decoding state
               v.sts.ongoing := '1';
-              v.rd_desc     := (others => '0');
-              v.state       := fetch_desc;
+              v.desc        := DESCRIPTOR_RST;
+              v.state       := idle; --fetch_desc;
             else  -- No initial desc read error
               if r.fifo_finished = '1' then  -- When fifo is fully Read, update Completed Flag
-              v.sts.ongoing   := '0';
-              v.dcomp_flg     := '0';
-              v.sts.desc_comp := '0';
+                v.sts.ongoing   := '0';
+                v.dcomp_flg     := '0';
+                v.sts.desc_comp := '0';
                 if(ctrl.qmode = '0') then
         -- Normal Queue execution finished, update flags and end execution
-                v.sts.comp      := '1';
+                  v.sts.comp    := '1';
                 else
         -- Queue Mode, re-enter FIFO and restart execution
-                v.sts.ongoing   := '1';
-                v.fifo_finished := '0';
-                v.state    := read_fifo;
+                  v.sts.ongoing   := '1';
+                  v.fifo_finished := '0';
+                  v.state         := read_fifo;
                 end if;
-              elsif d_des.nxt_des.last = '1' or fifo_full = '1' then -- If descriptor queue is finished or FIFO is full
-                v.state       := read_fifo;
-              else  -- not last descriptor. Continue with next descriptor in the queue
-                v.desc_ptr      := d_des.nxt_des.ptr;
-                v.dcomp_flg     := '0';
-                v.sts.ongoing   := '1';
-                v.sts.comp      := '0';
-                v.rd_desc       := (others => '0');
-                v.state         := fetch_desc;
-                v.desc_skip     := '0';
+              --elsif d_des.nxt_des.last = '1' or fifo_full = '1' then -- If descriptor queue is finished or FIFO is full
+              --  v.state           := read_fifo;
+              --else  -- not last descriptor. Continue with next descriptor in the queue
+              --  v.desc_ptr      := d_des.nxt_des.ptr;
+              --  v.dcomp_flg     := '0';
+              --  v.sts.ongoing   := '1';
+              --  v.sts.comp      := '0';
+              --  v.rd_desc       := (others => '0');
+              --  v.state         := fetch_desc;
+              --  v.desc_skip     := '0';
               end if;
             end if;
           end if;
@@ -371,85 +377,94 @@ begin  -- rtl
         end if;
         -----------
 
-      when fetch_desc =>
-        -- Read all fields of descriptor. 20 bytes(5 words)
-        v.sts.kick   := '0';
-        v.init_error := '0';
-        -- Initiate descriptor fetch
-        if r.bmst_rd_busy = '0' then
-          bmst_rd_req   := '1';
-          v.bmst_rd_err := '0';
-        end if;
-        bmst.rd_addr <= r.desc_ptr;
-        bmst.rd_size <= sub_vector(DESC_BYTES, 1, bmst.rd_size'length);
-        if bmst_rd_req = '1' and bm_in.rd_req_grant = '1' then
-          v.state        := read_desc;
-          v.bmst_rd_busy := '1';
-        end if;
-        -----------
-        
-      when read_desc =>
-        remainder := (sz_bits mod dbits);
-        if bm_in.rd_valid = '1' then
-          -- Check read errors (for each access in the burst)
-          if bm_in.rd_err = '1' then
-            v.bmst_rd_err := '1';
-            -- Can not write back here as we dont know type of descriptor before decoding.               
-          elsif r.bmst_rd_err = '0' then
-            -- Read descriptor and store in 160 bit register 'rd_desc'. Logic to take care of configurable data width 'dbits'
-            if (r.i < (sz_bits/dbits)) then
-              v.rd_desc                   := std_logic_vector(shift_left(unsigned(r.rd_desc), dbits));
-              v.rd_desc(dbits-1 downto 0) := bm_in.rd_data(127 downto (128-dbits));
-            elsif remainder /= 0 then
-              case remainder is
-                when 32 =>              -- remainder = 32
-                  v.rd_desc              := std_logic_vector(shift_left(unsigned(r.rd_desc), 32));
-                  v.rd_desc(31 downto 0) := bm_in.rd_data(127 downto 96);
-                when others =>          -- remainder = 96
-                  v.rd_desc              := std_logic_vector(shift_left(unsigned(r.rd_desc), 96));
-                  v.rd_desc(95 downto 0) := bm_in.rd_data(127 downto 32);
-              end case;
-            end if;  -- all fields of descriptor are read.
-            v.i := r.i + 1;
-          end if;
-          -- Evaluate if the burst access has finished
-          if bm_in.rd_done = '1' then
-            if v.bmst_rd_err = '0' then
-              -- No errors during the complete burst
-              v.fifo_wen := '1';
-              v.state    := idle;
-            else -- Bus master error
-              v.sts.err         := '1';
-              v.sts.rd_desc_err := '1';
-              v.err_flag        := '1';
-              v.err_state       := READ_DES;
-              v.init_error      := '1';
-              v.state           := idle;
-            end if;
-            -- Clear indexing register and bus master flags
-            v.i            := 0;
-            v.bmst_rd_busy := '0';
-          end if;
-        end if;
+      --when fetch_desc =>
+      --  -- Read all fields of descriptor. 20 bytes(5 words)
+      --  v.sts.kick   := '0';
+      --  v.init_error := '0';
+      --  -- Initiate descriptor fetch
+      --  if r.bmst_rd_busy = '0' then
+      --    bmst_rd_req   := '1';
+      --    v.bmst_rd_err := '0';
+      --  end if;
+      --  bmst.rd_addr <= r.desc_ptr;
+      --  bmst.rd_size <= sub_vector(DESC_BYTES, 1, bmst.rd_size'length);
+      --  if bmst_rd_req = '1' and bm_in.rd_req_grant = '1' then
+      --    v.state        := read_desc;
+      --    v.bmst_rd_busy := '1';
+      --  end if;
+      --  -----------
+      --  
+      --when read_desc =>
+      --  remainder := (sz_bits mod dbits);
+      --  if bm_in.rd_valid = '1' then
+      --    -- Check read errors (for each access in the burst)
+      --    if bm_in.rd_err = '1' then
+      --      v.bmst_rd_err := '1';
+      --      -- Can not write back here as we dont know type of descriptor before decoding.               
+      --    elsif r.bmst_rd_err = '0' then
+      --      -- Read descriptor and store in 160 bit register 'rd_desc'. Logic to take care of configurable data width 'dbits'
+      --      if (r.i < (sz_bits/dbits)) then
+      --        v.rd_desc                   := std_logic_vector(shift_left(unsigned(r.rd_desc), dbits));
+      --        v.rd_desc(dbits-1 downto 0) := bm_in.rd_data(127 downto (128-dbits));
+      --      elsif remainder /= 0 then
+      --        case remainder is
+      --          when 32 =>              -- remainder = 32
+      --            v.rd_desc              := std_logic_vector(shift_left(unsigned(r.rd_desc), 32));
+      --            v.rd_desc(31 downto 0) := bm_in.rd_data(127 downto 96);
+      --          when others =>          -- remainder = 96
+      --            v.rd_desc              := std_logic_vector(shift_left(unsigned(r.rd_desc), 96));
+      --            v.rd_desc(95 downto 0) := bm_in.rd_data(127 downto 32);
+      --        end case;
+      --      end if;  -- all fields of descriptor are read.
+      --      v.i := r.i + 1;
+      --    end if;
+      --    -- Evaluate if the burst access has finished
+      --    if bm_in.rd_done = '1' then
+      --      if v.bmst_rd_err = '0' then
+      --        -- No errors during the complete burst
+      --        v.fifo_wen := '1';
+      --        v.state    := idle;
+      --      else -- Bus master error
+      --        v.sts.err         := '1';
+      --        v.sts.rd_desc_err := '1';
+      --        v.err_flag        := '1';
+      --        v.err_state       := READ_DES;
+      --        v.init_error      := '1';
+      --        v.state           := idle;
+      --      end if;
+      --      -- Clear indexing register and bus master flags
+      --      v.i            := 0;
+      --      v.bmst_rd_busy := '0';
+      --    end if;
+      --  end if;
         -----------
 
       when read_fifo =>
         if r.fifo_finished = '0' then
-          if r.fifo_ren = '0' then -- Single clock Read enable signal
-            v.fifo_ren := '1';
-          else
-            v.fifo_ren       := '0'; -- Ready to read from FIFO
-            v.dcomp_flg      := '0';
-            v.sts.desc_comp  := '0';
-            v.rd_desc        := fifo_rdata;
-            v.state          := decode_desc;
+          --if r.fifo_ren = '0' then -- Single clock Read enable signal
+          --  v.fifo_ren := '1';
+          --else
+            v.fifo_ren      := '0'; -- Ready to read from FIFO
+            v.dcomp_flg     := '0';
+            v.sts.desc_comp := '0';
+            v.desc          := desc_bank(to_integer(r_desc_index));
+            v.state         := decode_desc;
 
-            -- Check if FIFO is fully read
-            if or_vector(fifo_rdata) = '0' or fifo_completed = '1' then 
-              v.fifo_rd_rst       := '1';
-              v.fifo_finished     := '1';
+            if ( (r_desc_index = (desc_Nmax - 1)) or (desc_bank(to_integer(r_desc_index)).actaddr.last = '1') ) then
+              v_desc_index    := (others => '0');
+              v.fifo_finished := '1';
+            elsif(v.desc /= DESCRIPTOR_RST) then
+              v_desc_index    := r_desc_index + 1;
+            else
+              v.state         := idle;
             end if;
-          end if;
+
+            ---- Check if FIFO is fully read
+            --if or_vector(fifo_rdata) = '0' or fifo_completed = '1' then 
+            --  v.fifo_rd_rst       := '1';
+            --  v.fifo_finished     := '1';
+            --end if;
+        --  end if;
         else
           v.state := idle;
         end if;
@@ -457,9 +472,9 @@ begin  -- rtl
 
       when decode_desc => 
         -- Finding descriptor type based on desc_type field. 0-read, 1-write, 2-Delay, 3-TBD
-        case r.rd_desc(131 downto 129) is
+        case r.desc.ctrl.act_type is
           when READ =>
-            if r.rd_desc(128) = '1' then  -- enabled descriptor
+            if r.desc.ctrl.en = '1' then  -- enabled descriptor
               v.read_if_start := '1';
               v.state         := read_if;
             else  -- Disabled descriptor. go to next fifo position.
@@ -468,7 +483,7 @@ begin  -- rtl
             end if;
             
           when WRITE =>
-            if r.rd_desc(128) = '1' then  -- enabled descriptor
+            if r.desc.ctrl.en = '1' then  -- enabled descriptor
               v.write_if_start  := '1';
               v.state           := write_if;
             else  -- Disabled descriptor. go to next fifo positon.
@@ -477,7 +492,7 @@ begin  -- rtl
             end if;
           
           when DELAY =>
-            if r.rd_desc(128) = '1' then  -- enabled descriptor
+            if r.desc.ctrl.en = '1' then  -- enabled descriptor
               v.delay_if_start  := '1';
               v.state           := delay_if;
             else  -- Disabled descriptor. go to next fifo position.
@@ -496,8 +511,8 @@ begin  -- rtl
 
       when read_if =>
         -- Check whether the transaction was successfull or not
-        if (r.read_if_start = '0' and read_if_sts_in.comp = '1') then 
-           if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+        if( (r.read_if_start = '0') and (read_if_sts_in.comp = '1') ) then 
+           if( (r.rep_count < r.desc.ctrl.count) and (or_vector(r.desc.ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
               v.state         := decode_desc;
            else          
@@ -518,16 +533,16 @@ begin  -- rtl
       when write_if =>
         -- Check whether the transaction was successfull or not
         if (r.write_if_start = '0' and write_if_sts_in.comp = '1') then
-           -- Check the descriptor repetition count parameter
-        if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
-              v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
-              v.state         := decode_desc;
-           else
-              v.sts.desc_comp := '1';
-              v.dcomp_flg     := '1';
-              v.rep_count     := (others => '0');
-              v.state         := read_fifo;
-     end if;
+          -- Check the descriptor repetition count parameter
+          if( (r.rep_count < r.desc.ctrl.count) and (or_vector(r.desc.ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
+            v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
+            v.state         := decode_desc;
+          else
+            v.sts.desc_comp := '1';
+            v.dcomp_flg     := '1';
+            v.rep_count     := (others => '0');
+            v.state         := read_fifo;
+          end if;
         elsif write_if_sts_in.write_if_err = '1' then
           v.sts.err           := '1';
           v.err_flag          := '1';
@@ -540,7 +555,7 @@ begin  -- rtl
       when delay_if =>
         -- Check whether the transaction was successfull or not
         if (r.delay_if_start = '0' and delay_if_sts_in.comp = '1') then
-          if ( r.rep_count < r.rd_desc(140 downto 135) and or_vector(r.rd_desc(140 downto 135)) = '1' ) then -- Check COUNT parameter in Ctrl Desc Register
+          if( (r.rep_count < r.desc.ctrl.count) and (or_vector(r.desc.ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
             v.rep_count       := add_vector(r.rep_count, 1, r.rep_count'length);
             v.state           := decode_desc;
           else
@@ -566,20 +581,20 @@ begin  -- rtl
     ----------------------
 
     -- Descriptor control signals
-    d_des.ctrl.en           <= r.rd_desc(128);
-    d_des.ctrl.desc_type    <= r.rd_desc(131 downto 129);
-    d_des.ctrl.irq_en       <= r.rd_desc(132);
-    d_des.ctrl.src_fix_adr  <= r.rd_desc(133);
-    d_des.ctrl.dest_fix_adr <= r.rd_desc(134);
-    d_des.ctrl.count_size   <= r.rd_desc(140 downto 135);
-    d_des.ctrl.size         <= r.rd_desc(159 downto 141);    
+    d_des.ctrl.en           <= r.desc.ctrl.en;
+    d_des.ctrl.desc_type    <= r.desc.ctrl.act_type;
+    d_des.ctrl.irq_en       <= r.desc.ctrl.irqe;
+    d_des.ctrl.src_fix_adr  <= r.desc.ctrl.srcfix;
+    d_des.ctrl.dest_fix_adr <= r.desc.ctrl.destfix;
+    d_des.ctrl.count_size   <= r.desc.ctrl.count;
+    d_des.ctrl.size         <= add_vector(r.desc.ctrl.size, 1, d_des.ctrl.size'length);
     -- Next Descriptor Pointer
-    d_des.nxt_des.ptr       <= (r.rd_desc(127 downto 97) & "0");
-    d_des.nxt_des.last      <= r.rd_desc(96);
+    d_des.nxt_des.ptr       <= (others => '0');
+    d_des.nxt_des.last      <= r.desc.actaddr.last;
     -- Destination base address where data is to be written
-    d_des.dest_addr         <= r.rd_desc(95 downto 64);
+    d_des.dest_addr         <= r.desc.actaddr.addr;
     -- Source base address from where data is to be fetched
-    d_des.src_addr          <= r.rd_desc(63 downto 32);
+    d_des.src_addr          <= r.desc.actaddr.addr;
 
     -- Demultiplex Bus Master signals and drive READ_IF or WRITE_IF 
     if r.state = read_if then           --READ_IF
@@ -604,8 +619,8 @@ begin  -- rtl
           status.state <= READ_DES;
         when decode_desc =>
           status.state <= DECODE;
-  when read_fifo =>
-    status.state <= READ_FIFO_Q;
+        when read_fifo =>
+          status.state <= READ_FIFO_Q;
         when read_if =>
           status.state <= read_if_sts_in.state;
         when write_if =>
@@ -627,6 +642,7 @@ begin  -- rtl
     end if;
 
     rin                     <= v;
+    rin_desc_index          <= v_desc_index;
     status.err              <= r.sts.err;
     status.decode_desc_err  <= r.sts.decode_desc_err;
     status.rd_desc_err      <= r.sts.rd_desc_err;
@@ -640,10 +656,10 @@ begin  -- rtl
     status.count            <= r.rep_count;
 
     -- Current descriptor fields for debug display
-    curr_desc_out.dbg_ctrl     <= r.rd_desc(159 downto 128);
-    curr_desc_out.dbg_nxt      <= r.rd_desc(127 downto 96);
-    curr_desc_out.dbg_dst_addr <= r.rd_desc(95 downto 64);
-    curr_desc_out.dbg_src_addr <= r.rd_desc(63 downto 32);
+    curr_desc_out.dbg_ctrl     <= r.desc.ctrl.size & r.desc.ctrl.count & r.desc.ctrl.destfix & r.desc.ctrl.srcfix & r.desc.ctrl.irqe & r.desc.ctrl.act_type & r.desc.ctrl.en;
+    curr_desc_out.dbg_nxt      <= (others => '0');
+    curr_desc_out.dbg_dst_addr <= r.desc.actaddr.addr;
+    curr_desc_out.dbg_src_addr <= r.desc.actaddr.addr;
     curr_desc_out.dbg_sts      <= b"00" & X"0000_000" & r.err_flag & r.dcomp_flg;
     
     d_desc_out    <= d_des;
@@ -656,7 +672,7 @@ begin  -- rtl
 
     fifo_wen_o    <= r.fifo_wen;
     fifo_ren_o    <= r.fifo_ren;
-    fifo_wdata    <= r.rd_desc;
+    fifo_wdata    <= (others => '0');
     fifo_read_rst <= r.fifo_rd_rst;
     
   end process comb;
@@ -668,11 +684,14 @@ begin  -- rtl
   begin
     if (rstn = '0' and ASYNC_RST) then
       r <= CTRL_REG_RST;
+      r_desc_index <= (others => '0');
     elsif rising_edge(clk) then
       if rstn = '0' or ctrl.rst = '1' then
         r <= CTRL_REG_RST;
+        r_desc_index <= (others => '0');
       else
         r <= rin;
+        r_desc_index <= rin_desc_index;
       end if;
     end if;
   end process seq;
@@ -684,7 +703,7 @@ begin  -- rtl
   -- FIFO
   fifo_inst : fifo
     generic map(
-      RAM_LENGTH  => fifo_size, -- WRITE_ENTRIES
+      RAM_LENGTH  => desc_Nmax, -- WRITE_ENTRIES
       BUS_LENGTH  => 160,       -- BUS_LENGTH
       ASYNC_RST   => ASYNC_RST  -- Asynchronous reset flag
     )
@@ -698,7 +717,8 @@ begin  -- rtl
       comp_o      => fifo_completed,
       wdata_i     => fifo_wdata,
       rdata_o     => fifo_rdata,
-      ctrl_rst    => inj_reset
+      ctrl_rst    => inj_reset,
+      desc_bank   => desc_bank
     );
 
 

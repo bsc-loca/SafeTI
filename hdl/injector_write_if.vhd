@@ -79,7 +79,7 @@ architecture rtl of injector_write_if is
   type write_if_reg_type is record
     write_if_state    : write_if_state_type;                    -- WRITE_IF states
     sts               : d_ex_sts_out_type;                      -- WRITE_IF status signals
-    tot_size          : std_logic_vector(18 downto 0);          -- Total size of data to write 
+    tot_size          : std_logic_vector(19 downto 0);          -- Total size of data to write 
     curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be written
     inc               : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_wr_busy      : std_ulogic;                             -- bus master write busy
@@ -143,12 +143,11 @@ begin
           if or_vector(d_des_in.ctrl.size) = '0' then
             v.sts.comp      := '1';
           end if;
-          v.curr_size := find_burst_size(src_fixed_addr       => d_des_in.ctrl.src_fix_adr,
-                                              dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                              max_bsize       => MAX_SIZE_BURST,
-                                              bm_bytes        => dbits/8,
-                                              total_size      => d_des_in.ctrl.size
-                                              );
+          v.curr_size := find_burst_size( fixed_addr  => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+                                          max_bsize   => MAX_SIZE_BURST,
+                                          bm_bytes    => dbits/8,
+                                          total_size  => d_des_in.ctrl.size
+                                          );
           v.write_if_state := first_word;
         end if;
       ----------
@@ -219,11 +218,10 @@ begin
           v.bmst_wr_busy := '0';
           if write_if_bmi.wr_err = '0' then
             if or_vector(r.tot_size) /= '0' then --Start again if there are remaining bytes
-              v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
-                                             dest_fixed_addr  => d_des_in.ctrl.dest_fix_adr,
-                                             max_bsize        => MAX_SIZE_BURST,
-                                             bm_bytes         => dbits/8,
-                                             total_size       => r.tot_size
+              v.curr_size := find_burst_size(fixed_addr => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+                                             max_bsize  => MAX_SIZE_BURST,
+                                             bm_bytes   => dbits/8,
+                                             total_size => r.tot_size
                                              );
               v.write_if_state  := first_word;
             else

@@ -3,6 +3,9 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.math_real.all;
 
+library safety;
+use safety.injector_pkg.all;
+
 entity fifo is
   generic (
     RAM_LENGTH : integer := 16;     
@@ -19,8 +22,9 @@ entity fifo is
     comp_o        : out std_logic;
     wdata_i       : in  std_logic_vector(BUS_LENGTH-1 downto 0);
     rdata_o       : out std_logic_vector(BUS_LENGTH-1 downto 0);
-    ctrl_rst      : in  std_logic
-  );  
+    ctrl_rst      : in  std_logic;
+    desc_bank     : in  descriptor_bank
+  );
 end entity fifo;
 
 
@@ -58,7 +62,7 @@ begin
       else
         -- RAM
         if write_i = '1' then
-          ram(to_integer(r_write_addr)) <= wdata_i;
+          ram(to_integer(r_write_addr)) <= (others => '0');
         end if;
         --if read_i = '1' then
           rdata_o <= ram(to_integer(r_read_addr));

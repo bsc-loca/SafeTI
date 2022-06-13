@@ -1,8 +1,8 @@
 # Ignore list
-./*/work/*
-./*/safety/*
-./*/noInclude/*
-./*/vsim-wlf
+./*/work
+./*/safety
+./*/noInclude
+./*/vsim.wlf
 ./*/modelsim.ini
 ./*/transcript
 ./*/.lquesta.log

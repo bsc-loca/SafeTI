@@ -83,7 +83,7 @@ architecture rtl of injector_read_if is
   type read_if_reg_type is record
     read_if_state       : read_if_state_type;                     -- READ_IF states
     sts                 : d_ex_sts_out_type;                      -- M2b status signals 
-    tot_size            : std_logic_vector(18 downto 0);          -- Total size of data to read
+    tot_size            : std_logic_vector(19 downto 0);          -- Total size of data to read
     curr_size           : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be read
     inc                 : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_rd_busy        : std_ulogic;                             -- bus master read busy
@@ -149,15 +149,14 @@ begin
           v.tot_size       := d_des_in.ctrl.size;
           v.inc            := (others => '0');
           v.bmst_rd_err    := '0';
-          if or_vector(d_des_in.ctrl.size) = '0' then
-            v.sts.comp := '1';
-          end if;
-          v.curr_size := find_burst_size(src_fixed_addr         => d_des_in.ctrl.src_fix_adr,
-                                                dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                                max_bsize       => MAX_SIZE_BURST,
-                                                bm_bytes        => dbits/8,
-                                                total_size      => d_des_in.ctrl.size
-                                                );
+          --if or_vector(d_des_in.ctrl.size) = '0' then
+          --  v.sts.comp := '1';
+          --end if;
+          v.curr_size := find_burst_size(fixed_addr => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+                                         max_bsize  => MAX_SIZE_BURST,
+                                         bm_bytes   => dbits/8,
+                                         total_size => d_des_in.ctrl.size
+                                         );
           v.read_if_state := exec_data_desc;
         end if; -- No Restart (or resume) bit for the moment
       ----------     
@@ -197,12 +196,12 @@ begin
               v.curr_size    := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
               v.inc          := add_vector(r.inc, dbits/8, v.inc'length);
               remaining      := sub_vector(r.tot_size, dbits/8, remaining'length);
-              v.tot_size     := remaining;
+              v.tot_size     := '0' & remaining;
             else                        --curr_size is less than dbits/8
               v.curr_size    := (others => '0');
               v.inc          := add_vector(r.inc, r.curr_size, v.inc'length);
               remaining      := sub_vector(r.tot_size, r.curr_size, remaining'length);
-              v.tot_size     := remaining;
+              v.tot_size     := '0' & remaining;
             end if;
           end if;
 
@@ -210,12 +209,11 @@ begin
           if read_if_bmi.rd_done = '1' then
             if v.bmst_rd_err = '0' then  -- no bus master error                    
               if or_vector(remaining) /= '0' then
-                v.curr_size := find_burst_size(src_fixed_addr   => d_des_in.ctrl.src_fix_adr,
-                                                dest_fixed_addr => d_des_in.ctrl.dest_fix_adr,
-                                                max_bsize       => MAX_SIZE_BURST,
-                                                bm_bytes        => dbits/8,
-                                                total_size      => remaining
-                                                );
+                v.curr_size := find_burst_size(fixed_addr => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+                                               max_bsize  => MAX_SIZE_BURST,
+                                               bm_bytes   => dbits/8,
+                                               total_size => '0' & remaining
+                                               );
                 v.bmst_rd_busy  := '0';
                 v.read_if_state := exec_data_desc;
               else                      -- Data fetch completed

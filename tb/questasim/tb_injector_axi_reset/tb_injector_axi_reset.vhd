@@ -62,7 +62,6 @@ architecture rtl of tb_injector_axi_reset is
 
   -- Pointers
   constant apb_inj_addr   : std_logic_vector(31 downto 0) := X"000" & std_logic_vector(to_unsigned(paddr, 12)) & X"00"; -- Location of the injector at APB memory
-  constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
   constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0003";  -- Write/read address
 
   -- Injector reset configuration
@@ -71,14 +70,14 @@ architecture rtl of tb_injector_axi_reset is
   -- Test X configuration: Queue mode enabled, enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
   constant inj_configX    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "111001";
   
-  constant descriptorsXwrH : descriptor_bank(0 to 1) := (
-    write_descriptor(          524287,  0, WRT, action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ),
-    write_descriptor(          524287,  0, WRT, action_addr, '0', add_vector(descr_addr1,   40, 32), '1' )
+  constant descriptorsXwrH : descriptor_bank_tb(0 to 1) := (
+    write_descriptor(          524288,  0, WRT, action_addr, '0', '0' ),
+    write_descriptor(          524288,  0, WRT, action_addr, '0', '1' )
   );
 
-  constant descriptorsXwrL : descriptor_bank(0 to 1) := (
-    write_descriptor(               3,  0, WRT, action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ),
-    write_descriptor(               3,  0, WRT, action_addr, '0', add_vector(descr_addr1,   40, 32), '1' )
+  constant descriptorsXwrL : descriptor_bank_tb(0 to 1) := (
+    write_descriptor(               3,  0, WRT, action_addr, '0', '0' ),
+    write_descriptor(               3,  0, WRT, action_addr, '0', '1' )
   );
 
   -----------------------------------------------------------------------------
@@ -246,23 +245,24 @@ begin  -- rtl
     wait until rising_edge(clk);
     rstn      <= '1';
     
-    -- Configure injector for test X
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_configX, apbo, apbi);
-    
     -- Load descriptors for test X wr with MAX size
-    load_descriptors(clk, descriptorsXwrH, descr_addr1, bm_in, bm_out);
+    load_descriptors(clk, apb_inj_addr, descriptorsXwrH, apbi);
+
+    -- Configure injector for test X
+    configure_injector(clk, apb_inj_addr, inj_configX, apbo, apbi);
+    
 
     -- Execute some transactions and reset the injector midway
     AXI_com   <= TRUE; -- Connect with AXI interface
     wait for 400 ns;
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_rst, apbo, apbi); -- Reset injector
+    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi); -- Reset injector
     wait until rising_edge(clk);
     wait for 400 ns;
     
     -- Load new descriptor program
     AXI_com   <= FALSE;   -- Change BM connections to testbench
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_configX, apbo, apbi);
-    load_descriptors(clk, descriptorsXwrL, descr_addr1, bm_in, bm_out);
+    configure_injector(clk, apb_inj_addr, inj_configX, apbo, apbi);
+    load_descriptors(clk, apb_inj_addr, descriptorsXwrL, apbi);
     AXI_com   <= TRUE; -- Connect with AXI interface
     
     wait for 5000 ns;

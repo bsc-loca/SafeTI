@@ -37,7 +37,7 @@ package tb_injector_pkg is
     sel     => (others => '0'),
     en      => '0',
     addr    => (others => '0'),
-    write   => '0',
+    wr_en   => '0',
     wdata   => (others => '0'),
     irq     => (others => '0'),
     ten     => '0',
@@ -65,8 +65,8 @@ package tb_injector_pkg is
   -----------------------------------------------------------------------------
 
   -- Since we are working with many descriptors, it's better to use both types
-  type descriptor_words is array (0 to 4) of std_logic_vector(31 downto 0); -- 5 word descriptor
-  type descriptor_bank  is array (natural range <>) of descriptor_words;    -- X number of descriptors
+  type descriptor_words is array (0 to 1) of std_logic_vector(31 downto 0); -- 2 word per descriptor
+  type descriptor_bank_tb  is array (natural range <>) of descriptor_words;    -- X number of descriptors
   type addr_bank        is array (natural range <>) of std_logic_vector(31 downto 0); -- X number of addresses
 
   -----------------------------------------------------------------------------
@@ -74,12 +74,11 @@ package tb_injector_pkg is
   -----------------------------------------------------------------------------
 
   -- Function used to generate a descriptor. They're created with the enable and interrupt flags asserted.
-  function write_descriptor(size      : integer range 0 to 524287;      -- Total size of a transfer
+  function write_descriptor(size      : integer range 0 to 524288;      -- Total size of a transfer
                             count     : integer range 0 to 63;          -- Number of repeats of the transfer
                             action    : std_logic_vector(2 downto 0);   -- Transaction type (read, write, delay)
                             addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
                             addrfix   : std_ulogic;                     -- Address to write/read is fixed when asserted
-                            nextaddr  : std_logic_vector(31 downto 0);  -- Address to load from the next descriptor
                             last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words;
 
@@ -90,7 +89,6 @@ package tb_injector_pkg is
   procedure configure_injector(
     signal   clk              : in  std_ulogic;
     constant apb_inj_addr     : in  std_logic_vector(31 downto 0);
-    constant descr_addr       : in  std_logic_vector(31 downto 0);
     constant inj_config       : in  std_logic_vector(31 downto 0);
     signal   apbo             : in  apb_slave_out_type;
     signal   apbi             : out apb_slave_in_type
@@ -98,22 +96,21 @@ package tb_injector_pkg is
 
   -- Procedure used to simulate a memory fetch to load descriptors for a test.
   procedure load_descriptors(
-    signal   clk              : in  std_ulogic;
-    constant descriptor_bank  : in  descriptor_bank;  -- Descriptor batch to offer at rdata
-    constant descriptor_addr  : in  std_logic_vector(31 downto 0); -- 1st descriptor address
-    signal   bm_in            : in  bm_mosi;          -- BM bus set by injector
-    signal   bm_out           : out bm_miso           -- BM bus set by testbench
+    signal   clk                : in  std_ulogic;
+    constant apb_inj_addr       : in  std_logic_vector(31 downto 0); -- Injector's address location on APB memory
+    constant descriptor_bank_tb : in  descriptor_bank_tb; -- Descriptor batch to offer at rdata
+    signal   apbi               : out apb_slave_in_type   -- APB bus to write descriptors
   );
 
   -- Procedure used to execute read/write transactions.
   procedure test_descriptor_batch(
     signal   clk              : in  std_ulogic;
-    signal   bmin             : in  bm_mosi;          -- BM bus set by injector
-    signal   bmout            : out bm_miso;          -- BM bus set by testbench
-    constant descr_bnk        : in  descriptor_bank;  -- Descriptor batch to be executed
-    constant MAX_BEAT         : in  integer;          -- Maximum length in bytes for a beat in burst
-    signal   irq              : in  std_logic;        -- Descriptor completion flag
-    signal   wait_descr_compl : out std_logic         -- Testbench is waiting for descriptor completion flag signal
+    signal   bmin             : in  bm_mosi;            -- BM bus set by injector
+    signal   bmout            : out bm_miso;            -- BM bus set by testbench
+    constant descr_bnk        : in  descriptor_bank_tb; -- Descriptor batch to be executed
+    constant MAX_BEAT         : in  integer;            -- Maximum length in bytes for a beat in burst
+    signal   irq              : in  std_logic;          -- Descriptor completion flag
+    signal   wait_descr_compl : out std_logic           -- Testbench is waiting for descriptor completion flag signal
   );
 
 end package tb_injector_pkg;
@@ -126,50 +123,39 @@ package body tb_injector_pkg is
   -- Sequential process
   -----------------------------------------------------------------------------
 
-  function write_descriptor(size      : integer range 0 to 524287;      -- Total size of a transfer
+  function write_descriptor(size      : integer range 0 to 524288;      -- Total size of a transfer -1
                             count     : integer range 0 to 63;          -- Number of repeats of the transfer
                             action    : std_logic_vector(2 downto 0);   -- Transaction type (read, write, delay)
                             addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
                             addrfix   : std_ulogic;                     -- Address to write/read is fixed when asserted
-                            nextaddr  : std_logic_vector(31 downto 0);  -- Address to load from the next descriptor
                             last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words is 
-    variable descr_words                  : descriptor_words  := (others => (others => '0'));
-    variable src_fix_addr, dest_fix_addr  : std_ulogic        := '0';
-    variable src_addr, dest_addr          : std_logic_vector(31 downto 0) := (others => '0');
-    variable size_std                     : std_logic_vector(18 downto 0) := (others => '0');
-    variable count_std                    : std_logic_vector(5 downto 0)  := (others => '0');
+    variable descr_words  : descriptor_words  := (others => (others => '0'));
+    variable enable       : std_ulogic        := '0';
+    variable size_std     : std_logic_vector(18 downto 0) := (others => '0');
+    variable count_std    : std_logic_vector(5 downto 0)  := (others => '0');
 
   begin
-    size_std  := std_logic_vector( to_unsigned(size,  size_std'length ) );
     count_std := std_logic_vector( to_unsigned(count, count_std'length) );
 
-    case action is
-      when RD  =>
-        src_addr      := addr;
-        src_fix_addr  := addrfix;
-
-      when WRT =>
-        dest_addr     := addr;
-        dest_fix_addr := addrfix;
-
-      when others =>
-        null;
-    end case;
+    if(size /= 0) then
+      enable    := '1';
+      size_std  := std_logic_vector( to_unsigned(size - 1,  size_std'length) );
+    else
+      enable    := '0';
+      size_std  := (others => '0');
+    end if;
 
     descr_words := (
       size_std              & --0x00 Injector control word
       count_std             &
-      dest_fix_addr         & 
-      src_fix_addr          &
+      addrfix               & 
+      addrfix               &
       '1'                   & -- enable interrupt on descriptor completion
       action                &
-      '1'                   , -- enable descriptor
-      nextaddr(31 downto 1) & --0x04 Injector First descriptor pointer
-      last                  , 
-      dest_addr             , --0x08 Write address
-      src_addr              , --0x0C Read address
-      x"00000000"             --0x10 Descriptor status word (for future implementation)
+      enable                , -- enable descriptor
+      addr(31 downto 1)     & --0x04 Action (read/write) address
+      last
       );
 
     return descr_words;
@@ -186,74 +172,53 @@ package body tb_injector_pkg is
   procedure configure_injector(
     signal   clk              : in  std_ulogic;
     constant apb_inj_addr     : in  std_logic_vector(31 downto 0);
-    constant descr_addr       : in  std_logic_vector(31 downto 0);
     constant inj_config       : in  std_logic_vector(31 downto 0);
     signal   apbo             : in  apb_slave_out_type;
     signal   apbi             : out apb_slave_in_type
   ) is
   begin
     apbi.en    <= '0';
-    apbi.addr  <= add_vector(apb_inj_addr, 8, apbi.addr'length); -- 1st descriptor pointer address
-    apbi.wdata <= descr_addr;   -- 1st descriptor pointer
-    wait until rising_edge(clk);
-    apbi.en    <= '1';
-    apbi.write <= '1';
-    wait until rising_edge(clk);
-    apbi.en    <= '0';
     apbi.addr  <= apb_inj_addr; -- Configure and start injector
     apbi.wdata <= inj_config;   -- Test 1 configuration
     wait until rising_edge(clk);
     report "Starting the injector!";
     apbi.en    <= '1';
+    apbi.wr_en <= '1';
     wait until rising_edge(clk);
     apbi.en    <= '0';
-    apbi.write <= '0';
+    apbi.wr_en <= '0';
     apbi.addr  <= (others => '0');
     apbi.wdata <= (others => '0');
   end procedure configure_injector;
 
 
   procedure load_descriptors(
-    signal   clk              : in  std_ulogic;
-    constant descriptor_bank  : in  descriptor_bank;
-    constant descriptor_addr  : in  std_logic_vector(31 downto 0);
-    signal   bm_in            : in  bm_mosi;
-    signal   bm_out           : out bm_miso
+    signal   clk                : in  std_ulogic;
+    constant apb_inj_addr       : in  std_logic_vector(31 downto 0);
+    constant descriptor_bank_tb : in  descriptor_bank_tb;
+    signal   apbi               : out apb_slave_in_type
   ) is 
-    variable descriptor       :     descriptor_words;
-    variable addr             :     std_logic_vector(31 downto 0);
+    variable descriptor         :     descriptor_words;
 
   begin
-    for j in descriptor_bank'range loop -- Loop for each descriptors
-      
-      descriptor := descriptor_bank(j);
-      bm_out.rd_req_grant <= '1';
-      bm_out.rd_done  <= '0';
-      bm_out.rd_valid <= '0';
-      wait until rising_edge(bm_in.rd_req);
-      addr := add_vector(descriptor_addr, 20*j, bm_in.rd_addr'length);
-      assert (bm_in.rd_addr = addr) report "The injector is fetching at the wrong address for descriptor to load!"  -- VHDL2008
-        & LF & "         It should be requesting the address 0x" & to_hstring(unsigned(addr))                       -- VHDL2008
-        & ", but it is fetching at 0x" & to_hstring(unsigned(bm_in.rd_addr)) & " instead." severity failure;        -- VHDL2008
-      --assert (bm_in.rd_addr = addr) report "The injector is fetching at the wrong address for descriptor to load!" severity failure; -- !VHDL2008
-      wait until falling_edge(bm_in.rd_req);
-      bm_out.rd_req_grant <= '0';
+    -- Set the signals to write descriptors through the APB serial register
+    apbi.addr   <= add_vector(apb_inj_addr, X"FC", 32);
+    apbi.en     <= '1';
+    apbi.wr_en  <= '1';
+
+    for j in descriptor_bank_tb'range loop -- Loop for each descriptors
+      descriptor  := descriptor_bank_tb(j);
 
       for i in descriptor'range loop -- Loop for each word of the descriptor
+        apbi.wdata <= descriptor(i); -- APB data bus is 32-bit
 
-        bm_out.rd_valid <= '0';
-        bm_out.rd_data <= descriptor(i) & X"00000000_00000000_00000000"; -- TODO: Adapt with dbits
-
-        wait until rising_edge(clk);
-        if (i = (descriptor'length - 1)) then bm_out.rd_done <= '1';
-        else bm_out.rd_done <= '0';
-        end if;
-        bm_out.rd_valid <= '1';
         wait until rising_edge(clk);
       end loop;
-      
-      bm_out  <= DEF_INJ_BM;
     end loop;
+
+    apbi.addr   <= (others => '0');
+    apbi.en     <= '0';
+    apbi.wr_en  <= '0';
 
   end procedure load_descriptors;
 
@@ -266,7 +231,7 @@ package body tb_injector_pkg is
     signal   clk          : in  std_ulogic;
     signal   bmin         : in  bm_mosi;
     signal   bmout        : out bm_miso;
-    constant descr_bnk    : in  descriptor_bank;
+    constant descr_bnk    : in  descriptor_bank_tb;
     constant MAX_BEAT     : in  integer;
     signal   irq          : in  std_logic;
     signal   wait_descr_compl : out std_logic
@@ -296,7 +261,7 @@ package body tb_injector_pkg is
       else for repet_count in 0 to to_integer(unsigned(descr_wrd(0)(12 downto 7))) loop
         addr_off     := 0;
         first_beat   := '1';
-        wait_for_req := bmin.rd_req nor bmin.rd_req; -- Check if testbench must wait for injector request
+        wait_for_req := bmin.rd_req nor bmin.wr_req; -- Check if testbench must wait for injector request
 
         -- Wait for transaction request if is not asserted already
         if(wait_for_req = '1') then wait until rising_edge(bmin.rd_req) or rising_edge(bmin.wr_req); end if;
@@ -315,7 +280,7 @@ package body tb_injector_pkg is
           tot_size := to_integer(unsigned(descr_wrd(0)(31 downto 13)));
 
           -- Due to maximum size beats in bursts, big transactions must be sliced in MAX_SIZE_BEAT beats,
-          while (tot_size > 0) loop -- or 4 byte beats if it's a fixed address transaction.
+          while (tot_size > 0) loop -- or dbits/8 byte beats if it's a fixed address transaction.
 
             -- Each beat requires a handshake request process. The first one is done on the main loop to allow select transaction mode routine.
             wait_for_req := not bmin.rd_req; -- Check if testbench must wait for injector request
@@ -339,7 +304,7 @@ package body tb_injector_pkg is
             end if;
 
             -- Check if injector is reading on the correct address
-            addr_act := add_vector(descr_wrd(3), addr_off, addr_act'length);
+            addr_act := add_vector(descr_wrd(1)(31 downto 1) & '0', addr_off, addr_act'length);
             assert (bmin.rd_addr = addr_act) report  "Wrong address fetched for read transaction!" & LF & "Expected 0x"         -- VHDL2008
                                       & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x"             -- VHDL2008
                                       & to_hstring(unsigned(bmin.rd_addr)) & "." & LF & "This has happened at descriptor "      -- VHDL2008
@@ -403,7 +368,7 @@ package body tb_injector_pkg is
             end if;
             
             -- Check if injector is writing on the correct address
-            addr_act := add_vector(descr_wrd(2), addr_off, addr_act'length);
+            addr_act := add_vector(descr_wrd(1)(31 downto 1) & '0', addr_off, addr_act'length);
             assert (bmin.wr_addr = addr_act) report  "Wrong address fetched for write transaction!" & LF & "Expected 0x"       -- VHDL2008
                                       & to_hstring(unsigned(addr_act))     & " address, but injector fetched at 0x"            -- VHDL2008
                                       & to_hstring(unsigned(bmin.wr_addr)) & "." & LF & "This has happened at descriptor "     -- VHDL2008
@@ -455,11 +420,4 @@ package body tb_injector_pkg is
   -- Component instantiation
   -----------------------------------------------------------------------------
 
-  
-  
-
-
 end package body tb_injector_pkg;
-
-
-

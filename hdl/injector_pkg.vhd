@@ -34,6 +34,9 @@ package injector_pkg is
 -- Parametric constants
 -------------------------------------------------------------------------------
 
+-- Number of bits in a descriptor (not to be changed unless the descriptor fields change)
+constant DESC_BIT_LENGTH        : integer := 64;
+
 -------------------------------------------------------------------------------
 -- Types and records
 -------------------------------------------------------------------------------
@@ -109,7 +112,7 @@ package injector_pkg is
     sel             : std_logic_vector ( 0 to APB_SLAVE_NMAX-1 );
     en              : std_logic;
     addr            : std_logic_vector ( 31 downto 0 );
-    write           : std_logic;
+    wr_en           : std_logic;
     wdata           : std_logic_vector ( 31 downto 0 );
     irq             : std_logic_vector ( APB_IRQ_NMAX-1   downto 0 );
     ten             : std_logic;
@@ -145,7 +148,7 @@ package injector_pkg is
     lock            : std_ulogic;
     trans           : std_logic_vector(  1 downto 0 );
     addr            : std_logic_vector( 31 downto 0 );
-    write           : std_ulogic;
+    wr_en           : std_ulogic;
     size            : std_logic_vector(  2 downto 0 );
     burst           : std_logic_vector(  2 downto 0 );
     prot            : std_logic_vector(  3 downto 0 );
@@ -251,7 +254,7 @@ package injector_pkg is
     src_fix_adr  : std_ulogic;                    -- Fetch data from fixed address
     dest_fix_adr : std_ulogic;                    -- Write data to fixed address
     count_size   : std_logic_vector(5 downto 0);  -- Transaction repetition counter size (bits resolution)
-    size         : std_logic_vector(18 downto 0); -- Size of data to be transfered
+    size         : std_logic_vector(19 downto 0); -- Real size of data to be transfered
   end record;
 
   -- Reset value for data descriptor control
@@ -427,6 +430,61 @@ package injector_pkg is
     desc_ptr => INJECTOR_DESC_PTR_RST
     );
 
+  ----------------
+
+  -- Descriptor control field (basic)
+  type descriptor_control is record
+    size      : std_logic_vector(31 downto 13);
+    count     : std_logic_vector(12 downto  7);
+    destfix   : std_logic;
+    srcfix    : std_logic;
+    irqe      : std_logic;
+    act_type  : std_logic_vector( 3 downto  1);
+    en        : std_logic;
+  end record;
+
+  type descriptor_actionaddr is record
+    addr      : std_logic_vector(31 downto  0);
+    last      : std_logic;
+  end record;
+
+  -- Descriptor word (basic)
+  type descriptor is record
+    ctrl      : descriptor_control;
+    actaddr   : descriptor_actionaddr;
+  end record;
+
+  -- Descriptor bank
+  type descriptor_bank is array (natural range <>) of descriptor;
+
+  -- Reset constant for descriptor's control word
+  constant DESCRIPTOR_CTRL_RST : descriptor_control := (
+    size      => (others => '0'),
+    count     => (others => '0'),
+    destfix   => '0',
+    srcfix    => '0',
+    irqe      => '0',
+    act_type  => (others => '0'),
+    en        => '0'
+  );
+
+  -- Reset constant for descriptor's action address word
+  constant DESCRIPTOR_ACTADDR_RST : descriptor_actionaddr := (
+    addr      => (others => '0'),
+    last      => '0'
+  );
+
+  -- Reset constant for a descriptor
+  constant DESCRIPTOR_RST : descriptor := (
+    ctrl      => DESCRIPTOR_CTRL_RST,
+    actaddr   => DESCRIPTOR_ACTADDR_RST
+  );
+
+  -- Reset constant for bank of descriptors
+  constant DESCRIPTOR_BANK_RST : descriptor_bank(255 downto 0) := (
+    others => DESCRIPTOR_RST
+  );
+
   -------------------------------------------------------------------------------
   -- Types required by subprograms
   -------------------------------------------------------------------------------
@@ -436,12 +494,11 @@ package injector_pkg is
   -------------------------------------------------------------------------------
   -- Subprograms
   -------------------------------------------------------------------------------
-  function find_burst_size  (src_fixed_addr   : std_ulogic;
-                             dest_fixed_addr  : std_ulogic;
-                             max_bsize        : integer;
-                             bm_bytes         : integer;
-                             total_size       : std_logic_vector(18 downto 0)
-                             ) return std_logic_vector;
+  function find_burst_size(fixed_addr       : std_ulogic;
+                           max_bsize        : integer;
+                           bm_bytes         : integer;
+                           total_size       : std_logic_vector(19 downto 0)
+                           ) return std_logic_vector;
 
   -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
   function log_2            (max_size         : integer) return integer;
@@ -458,6 +515,11 @@ package injector_pkg is
 
   -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
   function or_vector        (vect : std_logic_vector) return std_logic;
+
+  --STD_LOGIC_VECTOR serial array (first ctrl, then addr) conversion of/to descriptor
+  function desc_2_serial          (desc : descriptor) return std_logic_vector;
+  function serial_2_desc_ctrl     (serial : std_logic_vector(31 downto 0)) return descriptor_control;
+  function serial_2_desc_actaddr  (serial : std_logic_vector(31 downto 0)) return descriptor_actionaddr;
   
   -------------------------------------------------------------------------------
   -- Components
@@ -470,6 +532,7 @@ package injector_pkg is
       paddr             : integer                 := 0;
       pmask             : integer                 := 16#FF8#;
       pirq              : integer                 := 0;
+      desc_Nmax         : integer range 1 to 128  := 8;
       ASYNC_RST         : boolean                 := FALSE
       );
     port (
@@ -484,7 +547,8 @@ package injector_pkg is
       irq_flag_sts      : in  std_ulogic;
       curr_desc_in      : in  curr_des_out_type;
       curr_desc_ptr     : in  std_logic_vector(31 downto 0);
-      sts_in            : in  status_out_type
+      sts_in            : in  status_out_type;
+      desc_bank         : out descriptor_bank
       );
   end component injector_apb;
 
@@ -492,7 +556,7 @@ package injector_pkg is
   component injector_ctrl is
     generic (
       dbits             : integer range 32 to 128 := 32;
-      fifo_size         : integer range  1 to  16 := 8;
+      desc_Nmax         : integer range  1 to 128 := 8;
       ASYNC_RST         : boolean                 := FALSE
       );
     port (
@@ -520,7 +584,8 @@ package injector_pkg is
       write_if_sts_in   : in  d_ex_sts_out_type;
       write_if_start    : out std_logic;
       delay_if_sts_in   : in  d_ex_sts_out_type;
-      delay_if_start    : out std_logic
+      delay_if_start    : out std_logic;
+      desc_bank         : in descriptor_bank
       );
   end component injector_ctrl;
 
@@ -596,7 +661,8 @@ package injector_pkg is
       comp_o          : out std_logic;
       wdata_i         : in  std_logic_vector(BUS_LENGTH-1 downto 0);
       rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0);
-      ctrl_rst        : in  std_logic
+      ctrl_rst        : in  std_logic;
+      desc_bank       : in  descriptor_bank
       );
   end component fifo;
 
@@ -604,6 +670,7 @@ package injector_pkg is
   -- Injector core
   component injector is
     generic (
+      desc_Nmax       : integer range  1 to  128          := 8;
       dbits           : integer range 32 to  128          := 32;
       MAX_SIZE_BURST  : integer range 32 to 4096          := 1024;
       pindex          : integer                           := 0;
@@ -665,11 +732,10 @@ package body injector_pkg is
 
   -- Function to determine the burst size based on maximum burst limit
   function find_burst_size(
-    src_fixed_addr  : std_ulogic;
-    dest_fixed_addr : std_ulogic;
+    fixed_addr      : std_ulogic;
     max_bsize       : integer;
     bm_bytes        : integer;
-    total_size      : std_logic_vector(18 downto 0)
+    total_size      : std_logic_vector(19 downto 0)
     )
     return std_logic_vector is
     variable temp       : integer;
@@ -678,8 +744,8 @@ package body injector_pkg is
   begin
     total_int := to_integer(unsigned(total_size));
     -- Limit the burst burst size by maximum burst length
-    if (src_fixed_addr or dest_fixed_addr) = '1' then
-      if total_int < bm_bytes then             -- less than BM data bus bytes
+    if(fixed_addr = '1') then
+      if(total_int < bm_bytes) then  -- less than BM data bus bytes
         temp := total_int;
       else
         temp := bm_bytes;
@@ -786,6 +852,37 @@ package body injector_pkg is
     return wool;
   end or_vector;
 
+  function desc_2_serial(desc : descriptor) return std_logic_vector is
+    variable std_vector :std_Logic_vector(DESC_BIT_LENGTH-1 downto 0) := (others => '0');
+  begin
+    std_vector := desc.ctrl.size & desc.ctrl.count & desc.ctrl.destfix & desc.ctrl.srcfix & desc.ctrl.irqe & desc.ctrl.act_type & desc.ctrl.en
+                & desc.actaddr.addr(31 downto 1) & desc.actaddr.last;
+    
+    return std_vector;
+  end desc_2_serial;
+
+  function serial_2_desc_ctrl(serial : std_logic_vector(31 downto 0)) return descriptor_control is
+    variable desc_ctrl : descriptor_control := DESCRIPTOR_CTRL_RST;
+  begin
+    desc_ctrl.size      := serial(31 downto 13);
+    desc_ctrl.count     := serial(12 downto  7);
+    desc_ctrl.destfix   := serial( 6);
+    desc_ctrl.srcfix    := serial( 5);
+    desc_ctrl.irqe      := serial( 4);
+    desc_ctrl.act_type  := serial( 3 downto  1);
+    desc_ctrl.en        := serial( 0);
+
+    return desc_ctrl;
+  end serial_2_desc_ctrl;
+
+  function serial_2_desc_actaddr(serial : std_logic_vector(31 downto 0)) return descriptor_actionaddr is
+    variable desc_actaddr : descriptor_actionaddr := DESCRIPTOR_ACTADDR_RST;
+  begin
+    desc_actaddr.addr   := serial(31 downto  1) & '0';
+    desc_actaddr.last   := serial(0);
+
+    return desc_actaddr;
+  end serial_2_desc_actaddr;
 
    
 -- pragma translate_off

@@ -70,7 +70,7 @@ architecture rtl of injector_delay_if is
   type delay_if_reg_type is record
     delay_if_state      : delay_if_state_type;            -- DELAY_IF states
     sts                 : d_ex_sts_out_type;              -- Status signals 
-    tot_size            : std_logic_vector(18 downto 0);  -- Total size of delay cycles
+    tot_size            : std_logic_vector(19 downto 0);  -- Total size of delay cycles
     curr_size           : std_logic_vector(18 downto 0);  -- Remaining delay cycles
     err_state           : std_logic_vector(4 downto 0);   -- Error state
   end record;

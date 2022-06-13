@@ -65,10 +65,7 @@ architecture rtl of tb_injector_axi is
 
   -- Pointers
   constant apb_inj_addr   : std_logic_vector(31 downto 0) := X"000" & std_logic_vector(to_unsigned(paddr, 12)) & X"00"; -- Location of the injector at APB memory
-  constant descr_addr1    : std_logic_vector(31 downto 0) := X"0100_0000";  -- First descriptor MSB address for test 1
-  constant descr_addr2w   : std_logic_vector(31 downto 0) := X"0110_0000";  -- First descriptor MSB address for test 2 writes
-  constant descr_addr2r   : std_logic_vector(31 downto 0) := X"0120_0000";  -- First descriptor MSB address for test 2 reads
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0003";  -- Write/read address
+  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
 
   -- Injector configurations
   -- Injector reset
@@ -88,34 +85,34 @@ architecture rtl of tb_injector_axi is
   constant addr_vector    : addr_bank(0 to 1)     := (X"0000_0000", X"0000_0000");
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
-  constant descriptors1   : descriptor_bank(0 to 6) := (
-    write_descriptor(               4, 63,  RD, action_addr, '0', add_vector(descr_addr1,   20, 32), '0' ), -- 64 write transactions of   4 bytes
-    write_descriptor(               8, 31,  RD, action_addr, '0', add_vector(descr_addr1,   40, 32), '0' ), -- 32 write transactions of   8 bytes
-    write_descriptor(              16, 15,  RD, action_addr, '0', add_vector(descr_addr1,   60, 32), '0' ), -- 16  read transactions of  16 bytes
-    write_descriptor(              32,  7,  RD, action_addr, '0', add_vector(descr_addr1,   80, 32), '0' ), --  8  read transactions of  32 bytes
-    write_descriptor(              64,  3,  RD, action_addr, '0', add_vector(descr_addr1,  100, 32), '0' ), --  4 write transactions of  64 bytes
-    write_descriptor(             128,  1,  RD, action_addr, '0', add_vector(descr_addr1,  120, 32), '0' ), --  2 write transactions of 128 bytes
-    write_descriptor(             256,  0,  RD, action_addr, '0', add_vector(descr_addr1,  140, 32), '1' )  --  1  read transaction  of 256 bytes
+  constant descriptors1   : descriptor_bank_tb(0 to 6) := (
+    write_descriptor(               4, 63,  RD, action_addr, '0', '0' ), -- 64 write transactions of   4 bytes
+    write_descriptor(               8, 31,  RD, action_addr, '0', '0' ), -- 32 write transactions of   8 bytes
+    write_descriptor(              16, 15,  RD, action_addr, '0', '0' ), -- 16  read transactions of  16 bytes
+    write_descriptor(              32,  7,  RD, action_addr, '0', '0' ), --  8  read transactions of  32 bytes
+    write_descriptor(              64,  3,  RD, action_addr, '0', '0' ), --  4 write transactions of  64 bytes
+    write_descriptor(             128,  1,  RD, action_addr, '0', '0' ), --  2 write transactions of 128 bytes
+    write_descriptor(             256,  0,  RD, action_addr, '0', '1' )  --  1  read transaction  of 256 bytes
   );
 
   -- Descriptors to load into injector's fifo for test 2 write (size, count, action, addr, addrfix, nextraddr, last)
-  constant descriptors2w  : descriptor_bank(0 to 5) := (
-    write_descriptor(MAX_SIZE_BURST-3,  0, WRT, action_addr, '0', add_vector(descr_addr2w,  20, 32), '0' ), -- Check if writes the correct ammount below size beat
-    write_descriptor(  MAX_SIZE_BURST,  0, WRT, action_addr, '0', add_vector(descr_addr2w,  40, 32), '0' ), -- Check if writes the correct ammount equal size beat
-    write_descriptor(MAX_SIZE_BURST+3,  0, WRT, action_addr, '0', add_vector(descr_addr2w,  60, 32), '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0, WRT, action_addr, '1', add_vector(descr_addr2w,  80, 32), '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0, WRT, action_addr, '1', add_vector(descr_addr2w, 100, 32), '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0, WRT, action_addr, '1', add_vector(descr_addr2w, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
+  constant descriptors2w  : descriptor_bank_tb(0 to 5) := (
+    write_descriptor(MAX_SIZE_BURST-3,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount below size beat
+    write_descriptor(  MAX_SIZE_BURST,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount equal size beat
+    write_descriptor(MAX_SIZE_BURST+3,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount above size beat
+    write_descriptor(               3,  0, WRT, action_addr, '1', '0' ), -- With fix addr, check if reads lower of a word
+    write_descriptor(               4,  0, WRT, action_addr, '1', '0' ), -- With fix addr, check if reads a word
+    write_descriptor(              15,  0, WRT, action_addr, '1', '1' )  -- With fix addr, check if it really fixes the addr
   );
 
   -- Descriptors to load into injector's fifo for test 2 read (size, count, action, addr, addrfix, nextraddr, last)
-  constant descriptors2r  : descriptor_bank(0 to 5) := (
-    write_descriptor(MAX_SIZE_BURST-3,  0,  RD, action_addr, '0', add_vector(descr_addr2r,  20, 32), '0' ), -- Check if writes the correct ammount below size beat
-    write_descriptor(  MAX_SIZE_BURST,  0,  RD, action_addr, '0', add_vector(descr_addr2r,  40, 32), '0' ), -- Check if writes the correct ammount equal size beat
-    write_descriptor(MAX_SIZE_BURST+3,  0,  RD, action_addr, '0', add_vector(descr_addr2r,  60, 32), '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0,  RD, action_addr, '1', add_vector(descr_addr2r,  80, 32), '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0,  RD, action_addr, '1', add_vector(descr_addr2r, 100, 32), '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0,  RD, action_addr, '1', add_vector(descr_addr2r, 120, 32), '1' )  -- With fix addr, check if it really fixes the addr
+  constant descriptors2r  : descriptor_bank_tb(0 to 5) := (
+    write_descriptor(MAX_SIZE_BURST-3,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount below size beat
+    write_descriptor(  MAX_SIZE_BURST,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount equal size beat
+    write_descriptor(MAX_SIZE_BURST+3,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount above size beat
+    write_descriptor(               3,  0,  RD, action_addr, '1', '0' ), -- With fix addr, check if reads lower of a word
+    write_descriptor(               4,  0,  RD, action_addr, '1', '0' ), -- With fix addr, check if reads a word
+    write_descriptor(              15,  0,  RD, action_addr, '1', '1' )  -- With fix addr, check if it really fixes the addr
   );
 
   -----------------------------------------------------------------------------
@@ -148,7 +145,7 @@ architecture rtl of tb_injector_axi is
 
   -- Selector between Injector BM to AXI manager (TRUE) or testbench (FALSE)
   signal AXI_com  : boolean := FALSE;
-  signal test_vect: descriptor_bank(0 to 0);
+  signal test_vect: descriptor_bank_tb(0 to 0);
 
   -- APB configuration
   signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
@@ -292,15 +289,15 @@ begin  -- rtl
 
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
-      test_vect(0) <= write_descriptor( size_vector(j), 0, std_logic_vector(to_unsigned(sel(0, 1, k=0), 3)), addr_vector(m), '0', add_vector(descr_addr1, 20, 32), '1');
+      test_vect(0) <= write_descriptor( size_vector(j), 0, std_logic_vector(to_unsigned(sel(0, 1, k=0), 3)), addr_vector(m), '0', '1');
       wait until rising_edge(clk);
       rstn      <= '1';
 
-      -- Configure injector for test X
-      configure_injector(clk, apb_inj_addr, descr_addr1, inj_config1, apbo, apbi);
-
       -- Load descriptors for test X
-      load_descriptors(clk, test_vect, descr_addr1, bm_in, bm_out);
+      load_descriptors(clk, apb_inj_addr, test_vect, apbi);
+
+      -- Configure injector for test X
+      configure_injector(clk, apb_inj_addr, inj_config1, apbo, apbi);
 
       -- Test all descriptors from TEST 1 once
         -- Change BM connections to AXI manager, to establish AXI communication and transaction.
@@ -323,13 +320,13 @@ begin  -- rtl
       
     -- Reset injector
     AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_rst, apbo, apbi);
+    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
 
     -- Check if reset has worked
     apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
     apbi.en     <= '1';
     apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
-    apbi.write  <= '0';
+    apbi.wr_en  <= '0';
     wait until rising_edge(clk); wait until rising_edge(clk);
     if(or_vector(apbo.rdata) = '1') then
       assert FALSE report "Test X: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
@@ -349,14 +346,14 @@ begin  -- rtl
     --               TEST 1               --
     ----------------------------------------
 
-    -- Configure injector for test 1
-    report "Test 1: Load configuration and start injector!";
     AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_config1, apbo, apbi);
-
     -- Load descriptors for test 1
     report "Test 1: Loading descriptor batch!";
-    load_descriptors(clk, descriptors1, descr_addr1, bm_in, bm_out);
+    load_descriptors(clk, apb_inj_addr, descriptors1, apbi);
+
+    -- Configure injector for test 1
+    report "Test 1: Load configuration and start injector!";
+    configure_injector(clk, apb_inj_addr, inj_config1, apbo, apbi);
     AXI_com   <= TRUE;   -- Change BM connections to AXI subordinate
 
     report "Test 1 descriptor batch has been completed succesfully once!";  
@@ -366,13 +363,13 @@ begin  -- rtl
 
 
     -- Reset injector
-    configure_injector(clk, apb_inj_addr, descr_addr1, inj_rst, apbo, apbi);
+    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
 
     -- Check if reset has worked
     apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
     apbi.en     <= '1';
     apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
-    apbi.write  <= '0';
+    apbi.wr_en  <= '0';
     wait until rising_edge(clk); wait until rising_edge(clk);
     if(or_vector(apbo.rdata) = '1') then
       assert FALSE report "Test 1: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
@@ -392,13 +389,13 @@ begin  -- rtl
     --               TEST 2               --
     ----------------------------------------
 
-    -- Configure injector for test 2 write
-    report "Test 2: Load write configuration and start injector!";
-    configure_injector(clk, apb_inj_addr, descr_addr2w, inj_config2, apbo, apbi);
-
     -- Load descriptors for test 2 write
     report "Test 2: Loading write descriptor batch!";
-    --load_descriptors(clk, descriptors2w, descr_addr2w, bm_in, bm_out);
+    --load_descriptors(clk, apb_inj_addr, descriptors2w, apbi);
+
+    -- Configure injector for test 2 write
+    report "Test 2: Load write configuration and start injector!";
+    configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
 
     -- Test all descriptors from TEST 2 write
     --test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
@@ -420,11 +417,11 @@ begin  -- rtl
 
     -- Configure injector for test 2 read
     report "Test 2: Load read configuration and start injector!";
-    configure_injector(clk, apb_inj_addr, descr_addr2r, inj_config2, apbo, apbi);
+    configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
 
     -- Load descriptors for test 2 read
     report "Test 2: Loading read descriptor batch!";
-    --load_descriptors(clk, descriptors2r, descr_addr2r, bm_in, bm_out);
+    --load_descriptors(clk, apb_inj_addr, descriptors2r, apbi);
 
     -- Test all descriptors from TEST 2 read
     --test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 

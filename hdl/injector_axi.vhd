@@ -20,9 +20,10 @@ use safety.axi4_pkg.all;
 entity injector_axi is
   generic (
     -- SafeTI configuration
+    dexc_Nmax     : integer range  1 to  128            :=  8;      -- Maximum number of descriptor slots. [Only power of 2s allowed]
     dbits         : integer range 32 to  128            := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
-    tech          : integer range 0 to numTech          := typeTech;-- Target technology
+    tech          : integer range  0 to numTech         := typeTech;-- Target technology
     -- APB configuration  
     pindex        : integer                             := 0;       -- APB configuartion slave index
     paddr         : integer                             := 0;       -- APB configuartion slave address
@@ -102,6 +103,7 @@ begin
   -- injector core
   core : injector
     generic map (
+      desc_Nmax       => dexc_Nmax,
       dbits           => dbits,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
       pindex          => pindex,
