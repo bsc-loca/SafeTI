@@ -21,7 +21,7 @@ entity injector_apb is
     paddr           : integer                           := 0;         -- APB configuartion slave address
     pmask           : integer                           := 16#FFF#;   -- APB configuartion slave mask
     pirq            : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
-    desc_Nmax       : integer range 1 to 128            := 8;         -- Maximum number of descriptors allowed
+    mem_Ndesc       : integer range 1 to 512            := 16;        -- Maximum number of descriptors allowed
     ASYNC_RST       : boolean                           := FALSE      -- Allow asynchronous reset flag
     );
   port (
@@ -30,14 +30,13 @@ entity injector_apb is
     apbi            : in  apb_slave_in_type;                -- APB slave input
     apbo            : out apb_slave_out_type;               -- APB slave output
     ctrl_out        : out injector_ctrl_reg_type;           -- Control configuration signals
-    desc_ptr_out    : out injector_desc_ptr_type;           -- First descriptor pointer
     active          : out std_ulogic;                       -- Injector enabled after reset, status
     err_status      : out std_ulogic;                       -- Core error status in APB status register
     irq_flag_sts    : in  std_ulogic;                       -- IRQ flag     
     curr_desc_in    : in  curr_des_out_type;                -- Current descriptor fields for debug display
     curr_desc_ptr   : in  std_logic_vector(31 downto 0);    -- Current descriptor pointer for debug display
     sts_in          : in  status_out_type;                  -- Status flags from control module
-    desc_bank       : out descriptor_bank                   -- Descriptor bank
+    desc_mem_out    : out descriptor_memory                 -- Internal memory used to store the injector program (descriptors)
     );
 end entity injector_apb;
 
@@ -52,16 +51,14 @@ architecture rtl of injector_apb is
   -- Constant declaration
   -----------------------------------------------------------------------------
 
-  constant DESC_BANK_LENGTH : integer := log_2(desc_Nmax-1); -- Number of bits necessary to index the descriptor bank
 
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------
 
   signal r,                 rin                 : injector_reg_type;
-  signal r_desc,            rin_desc            : descriptor_bank(desc_Nmax - 1 downto 0);  -- Descriptor written APB
-  signal r_desc_index,      rin_desc_index      : unsigned(0 downto 0);                     -- Descriptor word index
-  signal r_desc_bank_index, rin_desc_bank_index : unsigned(DESC_BANK_LENGTH - 1 downto 0);  -- Descriptor bank index
+  signal r_desc_mem,        rin_desc_mem        : descriptor_memory(mem_Ndesc - 1 downto 0);  -- Memory program to be written by APB
+  signal r_desc_apb_ptr,    rin_desc_apb_ptr    : unsigned(log_2(mem_Ndesc) downto 0);        -- APB pointer to write descriptor words
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -73,27 +70,25 @@ begin -- rtl
   -- Assignments
   -----------------------------------------------------------------------------
   
-  apbo.index  <= pindex;
-  desc_bank   <= r_desc;
+  apbo.index    <= pindex;
+  desc_mem_out  <= r_desc_mem;
   
   -----------------------------------------------------------------------------
   -- Combinational process
   -----------------------------------------------------------------------------
   
   comb : process (apbi, r, sts_in, curr_desc_in, curr_desc_ptr, irq_flag_sts)
-    variable v      : injector_reg_type;
-    variable v_desc : descriptor;
-    variable v_desc_index       : unsigned(r_desc_index'range);       -- Descriptor word index
-    variable v_desc_bank_index  : unsigned(r_desc_bank_index'range);  -- Descriptor bank index
+    variable v                  : injector_reg_type;
+    variable v_desc_mem         : descriptor_memory(r_desc_mem'range);
+    variable v_desc_apb_ptr     : unsigned(r_desc_apb_ptr'range);
     variable prdata : std_logic_vector(31 downto 0);
 
   begin
     -- Initialization
     v             := r;
-    v_desc        := r_desc(to_integer(r_desc_bank_index));
-    v_desc_index  := r_desc_index;
-    v_desc_bank_index := r_desc_bank_index;
     prdata        := (others => '0');
+    v_desc_mem    := r_desc_mem;
+    v_desc_apb_ptr:= r_desc_apb_ptr;
 
     ----------------------
     -- core status logic
@@ -143,6 +138,7 @@ begin -- rtl
     ----------------------  
     -- APB address decode  
     ----------------------
+    
     ---- Read accesses ----
     if (apbi.sel(pindex) and apbi.en and not apbi.wr_en) = '1' then
       case apbi.addr(7 downto 2) is
@@ -168,7 +164,7 @@ begin -- rtl
           --prdata(24 downto 15) := sts_in.count;
           prdata(31 downto 15) := (others => '0');
         when "000010" =>                 --0x08 Injector First descriptor pointer
-          prdata(31 downto 0) := r.desc_ptr.ptr;
+          prdata(31 downto 0) := (others => '0');
         when "000011" =>                 --0x0C Injector future capabilities register :TODO
           prdata(31 downto 0) := (others => '0');
         when "000100" =>                 --0x10 Current descriptor control field for debug.
@@ -206,39 +202,28 @@ begin -- rtl
           v.sts.read_if_rd_data_err   := r.sts.read_if_rd_data_err and not(apbi.wdata(8));
           v.sts.write_if_wr_data_err  := r.sts.write_if_wr_data_err and not(apbi.wdata(9));
           v.sts.rd_nxt_ptr_err        := r.sts.rd_nxt_ptr_err and not(apbi.wdata(10));
-        when "111111" =>                --0xFC Descriptor X control and action address
-          case r_desc_index is
-            when "0" =>
-              v_desc.ctrl             := serial_2_desc_ctrl(apbi.wdata);
-              v_desc_index            := v_desc_index + 1;
-            when "1" =>
-              v_desc.actaddr          := serial_2_desc_actaddr(apbi.wdata);
-              v_desc_index            := (others => '0');
-              v_desc_bank_index       := v_desc_bank_index + 1;
-            when others =>
-              null;
-          end case;
+        when "111111" =>                --0xFC Descriptor word input
+          if(r_desc_apb_ptr <= to_unsigned(mem_Ndesc - 1, r_desc_apb_ptr'length)) then
+            v_desc_mem(to_integer(r_desc_apb_ptr)) := apbi.wdata;
+            v_desc_apb_ptr  := r_desc_apb_ptr + 1;  -- Increase pointer for next word
+          else -- Internal program memory is full
+            -- TODO: ERROR FULL INJECTOR MEMORY
+          end if;
         when others =>
           null;
       end case;
     end if;
 
+
     ----------------------
     -- Signal update --
     ----------------------
-    if r.ctrl.rst = '1' then
-      v := INJECTOR_REG_RST;
-      v_desc := DESCRIPTOR_RST;
-      v_desc_index := (others => '0');
-      v_desc_bank_index := (others => '0');
-    end if;
-    rin           <= v;
-    rin_desc      <= r_desc;
-    rin_desc(to_integer(r_desc_bank_index)) <= v_desc;
-    rin_desc_index      <= v_desc_index;
-    rin_desc_bank_index <= v_desc_bank_index;
-    apbo.rdata    <= prdata;
-    apbo.irq      <= (others => '0');
+
+    rin               <= v;
+    rin_desc_mem      <= v_desc_mem;
+    rin_desc_apb_ptr  <= v_desc_apb_ptr;
+    apbo.rdata        <= prdata;
+    apbo.irq          <= (others => '0');
     -- IRQ pulse generation
     if sts_in.err = '1' then
       apbo.irq(pirq) <= r.ctrl.irq_en and r.ctrl.irq_err;
@@ -251,7 +236,6 @@ begin -- rtl
     end if;
     --  control signals
     ctrl_out        <= r.ctrl;
-    desc_ptr_out    <= r.desc_ptr;
     err_status      <= r.sts.err or r.sts.decode_err or r.sts.rd_desc_err or
                        r.sts.read_if_rd_data_err or r.sts.write_if_wr_data_err or
                        r.sts.rd_nxt_ptr_err;
@@ -266,21 +250,18 @@ begin -- rtl
   seq : process (clk, rstn)
   begin
     if (rstn = '0' and ASYNC_RST) then -- Asynchronous reset
-      r       <= INJECTOR_REG_RST; 
-      r_desc  <= (others => DESCRIPTOR_RST);
-      r_desc_index      <=  (others => '0');
-      r_desc_bank_index <=  (others => '0');
+      r               <= INJECTOR_REG_RST; 
+      r_desc_mem      <= (others => (others => '0'));
+      r_desc_apb_ptr  <= (others => '0');
     elsif rising_edge(clk) then
       if rstn = '0' or r.ctrl.rst = '1' then
-        r       <= INJECTOR_REG_RST;
-        r_desc  <= (others => DESCRIPTOR_RST);
-        r_desc_index      <=  (others => '0');
-        r_desc_bank_index <=  (others => '0');
+        r               <= INJECTOR_REG_RST;
+        r_desc_mem      <= (others => (others => '0'));
+        r_desc_apb_ptr  <= (others => '0');
       else
-        r       <= rin;
-        r_desc  <= rin_desc;
-        r_desc_index      <= rin_desc_index;
-        r_desc_bank_index <= rin_desc_bank_index;
+        r               <= rin;
+        r_desc_mem      <= rin_desc_mem;
+        r_desc_apb_ptr  <= rin_desc_apb_ptr;
       end if;
     end if;
   end process seq;

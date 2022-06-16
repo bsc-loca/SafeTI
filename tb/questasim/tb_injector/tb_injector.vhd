@@ -52,15 +52,15 @@ use std.env.all; -- VHDL2008
 entity tb_injector is
   generic (
     -- SafeTI configuration
-    dbits         : integer range 32 to  128                := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST: integer range 32 to 4096                := 4096;      -- Maximum size of a beat at a burst transaction.
+    dbits         : integer range 8 to 4096               :=   32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 8 to 4096               := 4096;      -- Maximum size of a beat at a burst transaction.
     -- APB configuration  
-    pindex            : integer                             := 6;         -- APB configuartion slave index (default=6)
-    paddr             : integer                             := 16#850#;   -- APB configuartion slave address (default=16#850#)
-    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
-    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (default=6)
+    pindex            : integer                           := 6;         -- APB configuartion slave index (default=6)
+    paddr             : integer                           := 16#850#;   -- APB configuartion slave address (default=16#850#)
+    pmask             : integer                           := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
+    pirq              : integer range 0 to APB_IRQ_NMAX-1 := 6;         -- APB configuartion slave irq (default=6)
     -- Injector configuration
-    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (default=FALSE)
+    ASYNC_RST         : boolean                           := FALSE      -- Allow asynchronous reset flag (default=FALSE)
     );
 
 end entity tb_injector;

@@ -33,8 +33,8 @@ use std.env.all; -- VHDL2008
 entity tb_injector_axi is
   generic (
     -- SafeTI configuration
-    dbits             : integer range 32 to  128            := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST    : integer range 32 to 4096            := 4096;      -- Maximum size of a beat at a burst transaction.
+    dbits         : integer range 8 to 4096                 :=   32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 8 to 4096                 := 4096;      -- Maximum size of a beat at a burst transaction.
     -- APB configuration  
     pindex            : integer                             := 6;         -- APB configuartion slave index (default=6)
     paddr             : integer                             := 16#850#;   -- APB configuartion slave address (default=16#850#)

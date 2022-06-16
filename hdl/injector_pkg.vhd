@@ -34,8 +34,16 @@ package injector_pkg is
 -- Parametric constants
 -------------------------------------------------------------------------------
 
--- Number of bits in a descriptor (not to be changed unless the descriptor fields change)
-constant DESC_BIT_LENGTH        : integer := 64;
+
+-------------------------------------------------------------------------------
+-- Labels
+-------------------------------------------------------------------------------
+
+-- Descriptor types (act_type)
+constant READ_OP    : std_logic_vector(2 downto 0) := "000";
+constant WRITE_OP   : std_logic_vector(2 downto 0) := "001";
+constant DELAY_OP   : std_logic_vector(2 downto 0) := "010";
+constant META_OP    : std_logic_vector(2 downto 0) := "111";
 
 -------------------------------------------------------------------------------
 -- Types and records
@@ -158,7 +166,6 @@ constant DESC_BIT_LENGTH        : integer := 64;
     index           : integer range 0 to AHB_MASTER_NMAX-1;
   end record;
 
- 
   -- status out type 
   type status_out_type is record
     err             : std_ulogic;       -- General error status. Asserted along with other errors
@@ -173,7 +180,6 @@ constant DESC_BIT_LENGTH        : integer := 64;
     rd_nxt_ptr_err  : std_ulogic;       -- Error during re-reading des.nxt_ptr field on a kick request
     comp            : std_ulogic;       -- all desc are completed
     count           : std_logic_vector(5 downto 0);       -- Current transaction repetition count value
-    
   end record;
 
    -- reset value for status out type
@@ -343,18 +349,6 @@ constant DESC_BIT_LENGTH        : integer := 64;
     );
 
   -- INJECTOR capability register (read only)
-
-  -- INJECTOR descriptor pointer register
-  -- This register points to the first descriptor. 
-  type injector_desc_ptr_type is record
-    ptr : std_logic_vector(31 downto 0);  -- Descriptor pointer  
-  end record;
-
-  -- Reset value for INJECTOR descriptor pointer register
-  constant INJECTOR_DESC_PTR_RST : injector_desc_ptr_type := (
-    ptr => (others => '0')
-    );
-
   -- Current descriptor control field for debug. 
   type cur_desc_ctrl_type is record
     ctrl : std_logic_vector(31 downto 0);
@@ -420,76 +414,69 @@ constant DESC_BIT_LENGTH        : integer := 64;
   type injector_reg_type is record
     ctrl     : injector_ctrl_reg_type;   -- Control register
     sts      : injector_sts_reg_type;    -- Status register
-    desc_ptr : injector_desc_ptr_type;   -- Descriptor pointer
   end record;
 
   -- Reset value for reg_type
   constant INJECTOR_REG_RST : injector_reg_type := (
     ctrl     => INJECTOR_CTRL_REG_RST,
-    sts      => INJECTOR_STS_REG_RST,
-    desc_ptr => INJECTOR_DESC_PTR_RST
+    sts      => INJECTOR_STS_REG_RST
     );
 
   ----------------
 
-  -- Descriptor control field (basic)
+  -- Descriptor control field (common)
   type descriptor_control is record
-    size      : std_logic_vector(31 downto 13);
-    count     : std_logic_vector(12 downto  7);
-    destfix   : std_logic;
-    srcfix    : std_logic;
+    size      : std_logic_vector(32 downto 13); -- Internally, the size is increased by 1 to indicate the
+    count     : std_logic_vector(12 downto  7); -- real transfer size anywhere else than on ctrl and debug.
+    reserved  : std_logic;
+    type_spec : std_logic;
     irqe      : std_logic;
     act_type  : std_logic_vector( 3 downto  1);
-    en        : std_logic;
+    last      : std_logic;
   end record;
 
   type descriptor_actionaddr is record
     addr      : std_logic_vector(31 downto  0);
-    last      : std_logic;
   end record;
 
   -- Descriptor word (basic)
-  type descriptor is record
-    ctrl      : descriptor_control;
-    actaddr   : descriptor_actionaddr;
+  type descriptor_branch is record
+    not_flag  : std_logic;
+    flags     : std_logic_vector(30 downto 15);
+    loop_times: std_logic_vector(14 downto  9);
+    branch_ptr: std_logic_vector( 8 downto  0);
   end record;
-
-  -- Descriptor bank
-  type descriptor_bank is array (natural range <>) of descriptor;
 
   -- Reset constant for descriptor's control word
   constant DESCRIPTOR_CTRL_RST : descriptor_control := (
     size      => (others => '0'),
     count     => (others => '0'),
-    destfix   => '0',
-    srcfix    => '0',
+    reserved  => '0',
+    type_spec => '0',
     irqe      => '0',
     act_type  => (others => '0'),
-    en        => '0'
+    last      => '0'
   );
 
   -- Reset constant for descriptor's action address word
   constant DESCRIPTOR_ACTADDR_RST : descriptor_actionaddr := (
-    addr      => (others => '0'),
-    last      => '0'
+    addr      => (others => '0')
   );
 
-  -- Reset constant for a descriptor
-  constant DESCRIPTOR_RST : descriptor := (
-    ctrl      => DESCRIPTOR_CTRL_RST,
-    actaddr   => DESCRIPTOR_ACTADDR_RST
-  );
-
-  -- Reset constant for bank of descriptors
-  constant DESCRIPTOR_BANK_RST : descriptor_bank(255 downto 0) := (
-    others => DESCRIPTOR_RST
+  -- Reset constant for descriptor's action address word
+  constant DESCRIPTOR_BRANCH_RST : descriptor_branch := (
+    not_flag  => '0',
+    flags     => (others => '0'),
+    loop_times=> (others => '0'),
+    branch_ptr=> (others => '0')
   );
 
   -------------------------------------------------------------------------------
-  -- Types required by subprograms
+  -- Types required by subprograms and components
   -------------------------------------------------------------------------------
 
   type array_integer          is array (natural range <>) of integer;
+  type descriptor_memory      is array (natural range <>) of std_logic_vector(31 downto 0);
 
   -------------------------------------------------------------------------------
   -- Subprograms
@@ -517,9 +504,10 @@ constant DESC_BIT_LENGTH        : integer := 64;
   function or_vector        (vect : std_logic_vector) return std_logic;
 
   --STD_LOGIC_VECTOR serial array (first ctrl, then addr) conversion of/to descriptor
-  function desc_2_serial          (desc : descriptor) return std_logic_vector;
+  function desc_ctrl_2_serial     (desc_ctrl : descriptor_control) return std_logic_vector;
   function serial_2_desc_ctrl     (serial : std_logic_vector(31 downto 0)) return descriptor_control;
   function serial_2_desc_actaddr  (serial : std_logic_vector(31 downto 0)) return descriptor_actionaddr;
+  function serial_2_desc_branch   (serial : std_logic_vector(31 downto 0)) return descriptor_branch;
   
   -------------------------------------------------------------------------------
   -- Components
@@ -532,7 +520,7 @@ constant DESC_BIT_LENGTH        : integer := 64;
       paddr             : integer                 := 0;
       pmask             : integer                 := 16#FF8#;
       pirq              : integer                 := 0;
-      desc_Nmax         : integer range 1 to 128  := 8;
+      mem_Ndesc         : integer range 1 to 512  := 16;
       ASYNC_RST         : boolean                 := FALSE
       );
     port (
@@ -541,29 +529,27 @@ constant DESC_BIT_LENGTH        : integer := 64;
       apbi              : in  apb_slave_in_type;
       apbo              : out apb_slave_out_type;
       ctrl_out          : out injector_ctrl_reg_type;
-      desc_ptr_out      : out injector_desc_ptr_type;
       active            : out std_ulogic;
       err_status        : out std_ulogic;
       irq_flag_sts      : in  std_ulogic;
       curr_desc_in      : in  curr_des_out_type;
       curr_desc_ptr     : in  std_logic_vector(31 downto 0);
       sts_in            : in  status_out_type;
-      desc_bank         : out descriptor_bank
+      desc_mem_out      : out descriptor_memory
       );
   end component injector_apb;
 
   -- Control Module
   component injector_ctrl is
     generic (
-      dbits             : integer range 32 to 128 := 32;
-      desc_Nmax         : integer range  1 to 128 := 8;
-      ASYNC_RST         : boolean                 := FALSE
+      dbits             : integer range  8 to 1024  :=   32;
+      mem_Ndesc         : integer range  1 to  512  :=   16;
+      ASYNC_RST         : boolean                   := FALSE
       );
     port (
       rstn              : in  std_ulogic;
       clk               : in  std_ulogic;
       ctrl              : in  injector_ctrl_reg_type;
-      des_ptr           : in  injector_desc_ptr_type;
       active            : in  std_ulogic;
       err_status        : in  std_ulogic;
       curr_desc_out     : out curr_des_out_type;
@@ -576,7 +562,9 @@ constant DESC_BIT_LENGTH        : integer := 64;
       read_if_bm_out    : out bm_miso;
       write_if_bm_in    : in  bm_mosi;
       write_if_bm_out   : out bm_miso;
-      d_desc_out        : out data_dsc_strct_type;
+      desc_ctrl_out     : out descriptor_control;
+      desc_actaddr_out  : out descriptor_actionaddr;
+      desc_branch_out   : out descriptor_branch;
       ctrl_rst          : out std_ulogic;
       err_sts_out       : out std_ulogic;
       read_if_start     : out std_ulogic;
@@ -585,15 +573,15 @@ constant DESC_BIT_LENGTH        : integer := 64;
       write_if_start    : out std_logic;
       delay_if_sts_in   : in  d_ex_sts_out_type;
       delay_if_start    : out std_logic;
-      desc_bank         : in descriptor_bank
+      desc_mem          : in descriptor_memory
       );
   end component injector_ctrl;
 
   -- WRITE_IF
   component injector_write_if is
     generic (
-      dbits             : integer range 32 to  128  := 32;
-      MAX_SIZE_BURST    : integer range 32 to 4096  := 4096;
+      dbits             : integer range  8 to 1024  :=   32;
+      MAX_SIZE_BURST    : integer range  8 to 4096  := 1024;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -602,7 +590,8 @@ constant DESC_BIT_LENGTH        : integer := 64;
       ctrl_rst          : in  std_ulogic;
       err_sts_in        : in  std_ulogic;
       write_if_start    : in  std_ulogic;
-      d_des_in          : in  data_dsc_strct_type;
+      desc_ctrl         : in  descriptor_control;
+      desc_actaddr      : in  descriptor_actionaddr;
       status_out        : out d_ex_sts_out_type;
       write_if_bmi      : in  bm_miso;
       write_if_bmo      : out bm_mosi
@@ -612,8 +601,8 @@ constant DESC_BIT_LENGTH        : integer := 64;
    -- READ_IF
   component injector_read_if is
     generic (
-      dbits             : integer range 32 to  128  := 32;
-      MAX_SIZE_BURST    : integer range 32 to 4096  := 4096;
+      dbits             : integer range  8 to 1024  :=   32;
+      MAX_SIZE_BURST    : integer range  8 to 4096  := 1024;
       ASYNC_RST         : boolean                   := FALSE
       );
     port (
@@ -622,7 +611,8 @@ constant DESC_BIT_LENGTH        : integer := 64;
       ctrl_rst          : in  std_ulogic;
       err_sts_in        : in  std_ulogic;
       read_if_start     : in  std_ulogic;
-      d_des_in          : in  data_dsc_strct_type;
+      desc_ctrl         : in  descriptor_control;
+      desc_actaddr      : in  descriptor_actionaddr;
       status_out        : out d_ex_sts_out_type;
       read_if_bmi       : in  bm_miso;
       read_if_bmo       : out bm_mosi
@@ -640,43 +630,22 @@ constant DESC_BIT_LENGTH        : integer := 64;
       ctrl_rst          : in  std_ulogic;
       err_sts_in        : in  std_ulogic;
       delay_if_start    : in  std_ulogic;
-      d_des_in          : in  data_dsc_strct_type;
+      desc_ctrl         : in  descriptor_control;
+      desc_branch       : in  descriptor_branch;
       status_out        : out d_ex_sts_out_type
       );
   end component injector_delay_if;
 
-  component fifo is
-    generic (
-      RAM_LENGTH      : integer := 8;
-      BUS_LENGTH      : integer := 160;
-      ASYNC_RST       : boolean := FALSE
-      );
-    port(
-      clk             : in  std_logic;
-      rstn            : in  std_logic;
-      write_i         : in  std_logic;
-      read_i          : in  std_logic;
-      read_rst_i      : in  std_logic;
-      full_o          : out std_logic;
-      comp_o          : out std_logic;
-      wdata_i         : in  std_logic_vector(BUS_LENGTH-1 downto 0);
-      rdata_o         : out std_logic_vector(BUS_LENGTH-1 downto 0);
-      ctrl_rst        : in  std_logic;
-      desc_bank       : in  descriptor_bank
-      );
-  end component fifo;
-
-
   -- Injector core
   component injector is
     generic (
-      desc_Nmax       : integer range  1 to  128          := 8;
-      dbits           : integer range 32 to  128          := 32;
-      MAX_SIZE_BURST  : integer range 32 to 4096          := 1024;
-      pindex          : integer                           := 0;
-      paddr           : integer                           := 0;
+      mem_Ndesc       : integer range 1 to  512           :=   16;
+      dbits           : integer range 8 to 1024           :=   32;
+      MAX_SIZE_BURST  : integer range 8 to 4096           := 1024;
+      pindex          : integer                           :=    0;
+      paddr           : integer                           :=    0;
       pmask           : integer                           := 16#FFF#;
-      pirq            : integer range 0 to APB_IRQ_NMAX-1 := 0;
+      pirq            : integer range 0 to APB_IRQ_NMAX-1 :=    0;
       ASYNC_RST       : boolean                           := FALSE
       );
     port (
@@ -692,23 +661,23 @@ constant DESC_BIT_LENGTH        : integer := 64;
   -- INJECTOR AHB top level interface
   component injector_ahb is
     generic (
-      dbits             : integer range 32 to  128          := 32;
-      MAX_SIZE_BURST    : integer range 32 to 1024          := 1024;
-      tech              : integer range 0 to numTech        := typeTech;
-      pindex            : integer                           := 0;
-      paddr             : integer                           := 0;
-      pmask             : integer                           := 16#FFF#;
-      pirq              : integer range 0 to APB_IRQ_NMAX-1 := 0;
-      hindex            : integer                           := 0;
-      ASYNC_RST         : boolean                           := FALSE
+      dbits           : integer range 8 to 1024           :=   32;
+      MAX_SIZE_BURST  : integer range 8 to 1024           := 1024;
+      tech            : integer range 0 to numTech        := typeTech;
+      pindex          : integer                           :=    0;
+      paddr           : integer                           :=    0;
+      pmask           : integer                           := 16#FFF#;
+      pirq            : integer range 0 to APB_IRQ_NMAX-1 :=    0;
+      hindex          : integer                           :=    0;
+      ASYNC_RST       : boolean                           := FALSE
       );
     port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      apbi              : in  apb_slave_in_type;
-      apbo              : out apb_slave_out_type;
-      bm_mosi           : out bm_mosi;
-      bm_miso           : in  bm_miso
+      rstn            : in  std_ulogic;
+      clk             : in  std_ulogic;
+      apbi            : in  apb_slave_in_type;
+      apbo            : out apb_slave_out_type;
+      bm_mosi         : out bm_mosi;
+      bm_miso         : in  bm_miso
       );
   end component injector_ahb;
   
@@ -716,14 +685,6 @@ constant DESC_BIT_LENGTH        : integer := 64;
   -------------------------------------------------------------------------------
   -- Procedures
   -------------------------------------------------------------------------------
-  -- pragma translate_off
-  --constant vmode  : boolean := false; -- Extra print-out
-
---  procedure run_injector_tests(
---    signal atmi   : out at_ahb_mst_in_type;
---    signal atmo   : in  at_ahb_mst_out_type);  
-
-  -- pragma translate_on
 
 
 end package injector_pkg;
@@ -852,25 +813,24 @@ package body injector_pkg is
     return wool;
   end or_vector;
 
-  function desc_2_serial(desc : descriptor) return std_logic_vector is
-    variable std_vector :std_Logic_vector(DESC_BIT_LENGTH-1 downto 0) := (others => '0');
+  function desc_ctrl_2_serial(desc_ctrl : descriptor_control) return std_logic_vector is
+    variable serial :std_Logic_vector(31 downto 0) := (others => '0');
   begin
-    std_vector := desc.ctrl.size & desc.ctrl.count & desc.ctrl.destfix & desc.ctrl.srcfix & desc.ctrl.irqe & desc.ctrl.act_type & desc.ctrl.en
-                & desc.actaddr.addr(31 downto 1) & desc.actaddr.last;
+    serial := desc_ctrl.size(31 downto 13) & desc_ctrl.count & desc_ctrl.reserved & desc_ctrl.type_spec & desc_ctrl.irqe & desc_ctrl.act_type & desc_ctrl.last;
     
-    return std_vector;
-  end desc_2_serial;
+    return serial;
+  end desc_ctrl_2_serial;
 
   function serial_2_desc_ctrl(serial : std_logic_vector(31 downto 0)) return descriptor_control is
     variable desc_ctrl : descriptor_control := DESCRIPTOR_CTRL_RST;
   begin
-    desc_ctrl.size      := serial(31 downto 13);
+    desc_ctrl.size      := '0' & serial(31 downto 13);
     desc_ctrl.count     := serial(12 downto  7);
-    desc_ctrl.destfix   := serial( 6);
-    desc_ctrl.srcfix    := serial( 5);
+    desc_ctrl.reserved  := serial( 6);
+    desc_ctrl.type_spec := serial( 5);
     desc_ctrl.irqe      := serial( 4);
     desc_ctrl.act_type  := serial( 3 downto  1);
-    desc_ctrl.en        := serial( 0);
+    desc_ctrl.last      := serial( 0);
 
     return desc_ctrl;
   end serial_2_desc_ctrl;
@@ -878,96 +838,21 @@ package body injector_pkg is
   function serial_2_desc_actaddr(serial : std_logic_vector(31 downto 0)) return descriptor_actionaddr is
     variable desc_actaddr : descriptor_actionaddr := DESCRIPTOR_ACTADDR_RST;
   begin
-    desc_actaddr.addr   := serial(31 downto  1) & '0';
-    desc_actaddr.last   := serial(0);
+    desc_actaddr.addr   := serial(31 downto  0);
 
     return desc_actaddr;
   end serial_2_desc_actaddr;
 
-   
--- pragma translate_off
---    -- Injector Testbench Testing Procedures
---    procedure run_injector_tests(
---        signal   atmi:  out   at_ahb_mst_in_type;
---        signal   atmo:  in    at_ahb_mst_out_type ) is
---        variable w32        : std_logic_vector(31 downto 0);
---        variable r32        : std_logic_vector(31 downto 0);
---    begin
---
---        report "[INJ] Writing descriptors to memory";
---
---        -- DESCRIPTOR #1 (0x00100000)
---        w32 := X"00200011"; -- Control
---        at_write_32(X"00100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00101000"; -- Next Descriptor
---        at_write_32(X"00100004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00B00000"; -- Destination Address
---        at_write_32(X"00100008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00A00000"; -- Source Address
---        at_write_32(X"0010000C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        -- DESCRIPTOR #2 (0x00101000)
---        w32 := X"00200013"; -- Control
---        at_write_32(X"00101000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00100001"; -- Next Descriptor
---        at_write_32(X"00101004",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00B00000"; -- Destination Address
---        at_write_32(X"00101008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00A00000"; -- Source Address
---        at_write_32(X"0010100C",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        -- ENABLE PMU
---        report "[PMU] Enabling SafePMU";
---        -- Reset RDC
---        w32 := X"00000010";
---        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00000000";
---        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        -- Reset Counters
---        w32 := X"00000002";
---        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00000000";
---        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        -- Enable RDC
---        w32 := X"00000040";
---        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        -- Enable RDC
---        w32 := X"00000001";
---        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        --enable_counters
---
---        wait for 5 us;
---
---        report "[INJ] Enabling SafeTI";
---
---        w32 := X"00100000"; -- First Descriptor Pointer
---        at_write_32(X"fc085008",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        w32 := X"00000019"; -- Control Register
---        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        wait for 50 us; -- Short run: simulate generic run
---
---        -- DISABLE INJECTOR
---        w32 := X"0000001b"; -- Control Register
---        at_write_32(X"fc085000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        wait for 5 us;
---
---        -- DISABLE PMU
---        w32 := X"00000000";
---        at_write_32(X"80100074",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---        at_write_32(X"80100000",  w32, 0, false, "0011", true, vmode, atmi, atmo);
---
---        wait for 5 us;
---
---        report "End of INJ Tests";
---        wait for 30 us;
---
---        assert false report "Injector Test OK" severity failure;
---    end;
+  function serial_2_desc_branch(serial : std_logic_vector(31 downto 0)) return descriptor_branch is
+    variable desc_branch : descriptor_branch := DESCRIPTOR_BRANCH_RST;
+  begin
+    desc_branch.not_flag    := serial(31);
+    desc_branch.flags       := serial(30 downto 15);
+    desc_branch.loop_times  := serial(14 downto  9);
+    desc_branch.branch_ptr  := serial( 8 downto  0);
 
--- pragma translate_on
+    return desc_branch;
+  end serial_2_desc_branch;
+
+
 end package body injector_pkg;

@@ -18,16 +18,16 @@ use safety.injector_pkg.all;
 entity injector is
   generic (
     -- Injector configuration
-    desc_Nmax     : integer range  1 to  128          :=  8;        -- Maximum number of programmable descriptors [Only power of 2s allowed]
-    dbits         : integer range 32 to  128          := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST: integer range 32 to 4096          := 1024;      -- Maximum size of a beat at a burst transaction.
+    mem_Ndesc     : integer range 1 to  256          :=   16;     -- Maximum number of programmable descriptors [Only power of 2s allowed]
+    dbits         : integer range 8 to 1024          :=   32;     -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 8 to 4096          := 1024;     -- Maximum number of bytes allowed at a burst transaction.
     -- APB configuration  
-    pindex        : integer                           := 0;         -- APB configuartion slave index
-    paddr         : integer                           := 0;         -- APB configuartion slave address
-    pmask         : integer                           := 16#FFF#;   -- APB configuartion slave mask
-    pirq          : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
+    pindex        : integer                           := 0;       -- APB configuartion slave index
+    paddr         : integer                           := 0;       -- APB configuartion slave address
+    pmask         : integer                           := 16#FFF#; -- APB configuartion slave mask
+    pirq          : integer range 0 to APB_IRQ_NMAX-1 := 0;       -- APB configuartion slave irq
     -- Asynchronous reset configuration
-    ASYNC_RST     : boolean                           := FALSE      -- Allow asynchronous reset
+    ASYNC_RST     : boolean                           := FALSE    -- Allow asynchronous reset
     );
   port (
     rstn          : in  std_ulogic;           -- Reset
@@ -58,12 +58,11 @@ architecture rtl of injector is
   -----------------------------------------------------------------------------  
   -- APB interface signals
   signal ctrl_reg           : injector_ctrl_reg_type;
-  signal desc_ptr_reg       : injector_desc_ptr_type;
   signal err_status         : std_ulogic;
   signal err_sts_data       : std_ulogic;
   signal status             : status_out_type;
   signal active             : std_ulogic;
-  signal desc_bank          : descriptor_bank(desc_Nmax - 1 downto 0);
+  signal desc_mem           : descriptor_memory(mem_Ndesc - 1 downto 0);
   -- READ_IF
   signal read_if_status     : d_ex_sts_out_type;
   signal read_if_start      : std_ulogic;
@@ -83,7 +82,9 @@ architecture rtl of injector is
   signal ctrl_bmi           : bm_mosi;
   signal curr_desc          : curr_des_out_type;
   signal curr_desc_ptr      : std_logic_vector(31 downto 0);
-  signal data_desc          : data_dsc_strct_type;
+  signal desc_ctrl          : descriptor_control;
+  signal desc_actaddr       : descriptor_actionaddr;
+  signal desc_branch        : descriptor_branch;
   signal irq_flag_sts       : std_ulogic;
 
   -----------------------------------------------------------------------------
@@ -112,7 +113,7 @@ begin  -- rtl
       paddr           => paddr,
       pmask           => pmask,
       pirq            => pirq,
-      desc_Nmax       => desc_Nmax,
+      mem_Ndesc       => mem_Ndesc,
       ASYNC_RST       => ASYNC_RST
     )
     port map (
@@ -121,19 +122,19 @@ begin  -- rtl
       apbi            => apbi,
       apbo            => apbo,
       ctrl_out        => ctrl_reg,
-      desc_ptr_out    => desc_ptr_reg,
       active          => active,
       err_status      => err_status,
       irq_flag_sts    => irq_flag_sts,
       curr_desc_in    => curr_desc,
       curr_desc_ptr   => curr_desc_ptr,
       sts_in          => status,
-      desc_bank       => desc_bank
+      desc_mem_out    => desc_mem
     );
 
   -- READ_IF
   read_if : injector_read_if
     generic map (
+      dbits           => dbits,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
       ASYNC_RST       => ASYNC_RST
     )
@@ -143,7 +144,8 @@ begin  -- rtl
       ctrl_rst        => ctrl_rst,
       err_sts_in      => err_sts_data,
       read_if_start   => read_if_start,
-      d_des_in        => data_desc,
+      desc_ctrl       => desc_ctrl,
+      desc_actaddr    => desc_actaddr,
       status_out      => read_if_status,
       read_if_bmi     => read_if_bmo,
       read_if_bmo     => read_if_bmi
@@ -152,6 +154,7 @@ begin  -- rtl
   -- WRITE_IF
   write_if : injector_write_if
     generic map (
+      dbits           => dbits,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
       ASYNC_RST       => ASYNC_RST
     )
@@ -161,7 +164,8 @@ begin  -- rtl
       ctrl_rst        => ctrl_rst,
       err_sts_in      => err_sts_data,
       write_if_start  => write_if_start,
-      d_des_in        => data_desc,
+      desc_ctrl       => desc_ctrl,
+      desc_actaddr    => desc_actaddr,
       status_out      => write_if_status,
       write_if_bmi    => write_if_bmo,
       write_if_bmo    => write_if_bmi
@@ -178,7 +182,8 @@ begin  -- rtl
       ctrl_rst        => ctrl_rst,
       err_sts_in      => err_sts_data,
       delay_if_start  => delay_if_start,
-      d_des_in        => data_desc,
+      desc_ctrl       => desc_ctrl,
+      desc_branch     => desc_branch,
       status_out      => delay_if_status
     );
 
@@ -187,14 +192,13 @@ begin  -- rtl
   ctrl : injector_ctrl
     generic map (
       dbits           => dbits,
-      desc_Nmax       => desc_Nmax,
+      mem_Ndesc       => mem_Ndesc,
       ASYNC_RST       => ASYNC_RST
     )  
     port map (
       rstn            => rstn,
       clk             => clk,
       ctrl            => ctrl_reg,
-      des_ptr         => desc_ptr_reg,
       active          => active,
       err_status      => err_status,
       curr_desc_out   => curr_desc,
@@ -207,7 +211,9 @@ begin  -- rtl
       read_if_bm_out  => read_if_bmo,
       write_if_bm_in  => write_if_bmi,
       write_if_bm_out => write_if_bmo,
-      d_desc_out      => data_desc,
+      desc_ctrl_out   => desc_ctrl,
+      desc_actaddr_out=> desc_actaddr,
+      desc_branch_out => desc_branch,
       ctrl_rst        => ctrl_rst,
       err_sts_out     => err_sts_data,
       read_if_start   => read_if_start,
@@ -216,7 +222,7 @@ begin  -- rtl
       write_if_start  => write_if_start,
       delay_if_sts_in => delay_if_status,
       delay_if_start  => delay_if_start,
-      desc_bank       => desc_bank
+      desc_mem        => desc_mem
     );
 
 end architecture rtl;

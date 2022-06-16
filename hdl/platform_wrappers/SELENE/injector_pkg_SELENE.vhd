@@ -51,6 +51,7 @@ package injector_pkg_selene is
     dbits         : integer range 32 to  128            := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s are allowed]
     MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
     tech          : integer range  0 to NTECH           := inferred;-- Target technology
+    two_injectors : boolean                             := FALSE;   -- Implement two SafeTI modules for continuous transaction requests
     -- APB configuration  
     pindex        : integer                             := 0;       -- APB configuartion slave index
     paddr         : integer                             := 0;       -- APB configuartion slave address

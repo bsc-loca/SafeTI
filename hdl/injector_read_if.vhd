@@ -25,9 +25,9 @@ use safety.injector_pkg.all;
 
 entity injector_read_if is
   generic (
-    dbits           : integer range 32 to  128  := 32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;  -- Maximum number of bytes per transaction
-    ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
+    dbits           : integer range 8 to 1024 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST  : integer range 8 to 4096 := 1024;    -- Maximum number of bytes per transaction
+    ASYNC_RST       : boolean                 := FALSE    -- Allow asynchronous reset flag
     );
   port (
     rstn            : in  std_ulogic;                     -- Active low reset
@@ -36,7 +36,8 @@ entity injector_read_if is
     ctrl_rst        : in  std_ulogic;                     -- Reset signal from APB interface through grdmac_ctrl
     err_sts_in      : in  std_ulogic;                     -- Core error status from APB status register 
     read_if_start   : in  std_ulogic;                     -- Start control signal
-    d_des_in        : in  data_dsc_strct_type;            -- Data descriptor needs to executed
+    desc_ctrl       : in  descriptor_control;             -- Control word of the descriptor to be executed
+    desc_actaddr    : in  descriptor_actionaddr;          -- Action address word of the descriptor to be executed
     status_out      : out d_ex_sts_out_type;              -- M2b status out signals 
     -- Generic bus master interface
     read_if_bmi     : in  bm_miso;                        -- BM interface signals to READ_IF,through crontrol module
@@ -117,18 +118,16 @@ begin
   -- Combinational process
   -----------------------------------------------------------------------------
   
-  comb : process (read_if_bmi, r, d_des_in, read_if_start, err_sts_in)
+  comb : process (read_if_bmi, r, desc_ctrl, desc_actaddr, read_if_start, err_sts_in)
 
     variable v             : read_if_reg_type;
     variable remaining     : std_logic_vector(18 downto 0);  -- Remaining size to be read after each burst
-    variable bmst_rd_req   : std_ulogic;                     -- bus master read request variable
     variable rem_bits      : integer range 0 to 120;         -- bits to fetch when current size is less than dbits/8
   begin
 
     -- Default values 
     v                := r;
     remaining        := (others => '0');
-    bmst_rd_req      := '0';
     read_if_bmo      <= BM_CTRL_REG_RST;
     rem_bits         := 0;
 
@@ -136,26 +135,24 @@ begin
     case r.read_if_state is
       when idle =>
         -- Default values
-        v.sts.operation := '0';
-        v.curr_size     := (others => '0');
-        v.sts.read_if_err   := '0';
-        v.bmst_rd_busy  := '0';
+        v.sts.operation   := '0';
+        v.sts.comp        := '0';
+        v.curr_size       := (others => '0');
+        v.sts.read_if_err := '0';
+        v.bmst_rd_busy    := '0';
 
         -- Operation starts when start signal from control block arrives and no errors are present
         if read_if_start = '1' and err_sts_in = '0' then
           v.err_state      := (others => '0');
           v.sts.operation  := '1';
           v.sts.comp       := '0';
-          v.tot_size       := d_des_in.ctrl.size;
+          v.tot_size       := desc_ctrl.size;
           v.inc            := (others => '0');
           v.bmst_rd_err    := '0';
-          --if or_vector(d_des_in.ctrl.size) = '0' then
-          --  v.sts.comp := '1';
-          --end if;
-          v.curr_size := find_burst_size(fixed_addr => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+          v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
                                          max_bsize  => MAX_SIZE_BURST,
                                          bm_bytes   => dbits/8,
-                                         total_size => d_des_in.ctrl.size
+                                         total_size => desc_ctrl.size
                                          );
           v.read_if_state := exec_data_desc;
         end if; -- No Restart (or resume) bit for the moment
@@ -164,16 +161,16 @@ begin
       when exec_data_desc =>
         if or_vector(r.curr_size) /= '0' then  -- More data remaining to be fetched
           if r.bmst_rd_busy = '0' then
-            if d_des_in.ctrl.src_fix_adr = '1' then
+            if desc_ctrl.type_spec = '1' then
               -- If souce address is fixed, data is read in a looped manner from same source address. Single access. No burst              
-              read_if_bmo.rd_addr <= d_des_in.src_addr;
+              read_if_bmo.rd_addr <= desc_actaddr.addr;
             else
              -- If souce address is not fixed, data is read as a burst. source address is incremented between bursts.
-              read_if_bmo.rd_addr <= add_vector(d_des_in.src_addr, r.inc, read_if_bmo.rd_addr'length);
+              read_if_bmo.rd_addr <= add_vector(desc_actaddr.addr, r.inc, read_if_bmo.rd_addr'length);
             end if;
-            read_if_bmo.rd_size <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length); -- AHB interface understands value 0 as 1 byte
-            bmst_rd_req := '1';
-            if bmst_rd_req = '1' and read_if_bmi.rd_req_grant = '1' then
+            read_if_bmo.rd_size <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length); -- interface understands value 0 as 1 byte
+            read_if_bmo.rd_req  <= '1';
+            if read_if_bmi.rd_req_grant = '1' then
               v.bmst_rd_busy  := '1';
               v.read_if_state := read_data;
             end if;
@@ -209,7 +206,7 @@ begin
           if read_if_bmi.rd_done = '1' then
             if v.bmst_rd_err = '0' then  -- no bus master error                    
               if or_vector(remaining) /= '0' then
-                v.curr_size := find_burst_size(fixed_addr => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+                v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
                                                max_bsize  => MAX_SIZE_BURST,
                                                bm_bytes   => dbits/8,
                                                total_size => '0' & remaining
@@ -258,7 +255,6 @@ begin
     status_out.write_if_err  <= r.sts.write_if_err;
     status_out.operation     <= r.sts.operation;
     status_out.comp          <= r.sts.comp;
-    read_if_bmo.rd_req       <= bmst_rd_req;
      
   end process comb;
 

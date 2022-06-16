@@ -24,9 +24,9 @@ use safety.injector_pkg.all;
 
 entity injector_write_if is
   generic (
-    dbits           : integer range 32 to  128  := 32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST  : integer range 32 to 4096  := 4096;  -- Maximum number of bytes per transaction
-    ASYNC_RST       : boolean                   := FALSE  -- Allow asynchronous reset flag
+    dbits           : integer range 8 to 1024 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST  : integer range 8 to 4096 := 1024;    -- Maximum number of bytes per transaction
+    ASYNC_RST       : boolean                 := FALSE    -- Allow asynchronous reset flag
     );
   port (
     rstn            : in  std_ulogic;                     -- Active low reset
@@ -35,7 +35,8 @@ entity injector_write_if is
     ctrl_rst        : in  std_ulogic;                     -- Reset signal from APB interface through injector_ctrl
     err_sts_in      : in  std_ulogic;                     -- Core error status from APB status register 
     write_if_start  : in  std_ulogic;                     -- Start control signal
-    d_des_in        : in  data_dsc_strct_type;            -- Data descriptor needs to executed
+    desc_ctrl       : in  descriptor_control;             -- Control word of the descriptor to be executed
+    desc_actaddr    : in  descriptor_actionaddr;          -- Action address word of the descriptor to be executed
     status_out      : out d_ex_sts_out_type;              -- Write_if status out signals 
     -- Generic bus master interface
     write_if_bmi    : in  bm_miso;                        -- BM interface signals to write_if,through control module 
@@ -112,7 +113,7 @@ begin
   -- Combinational process
   -----------------------------------------------------------------------------
   
-  comb : process (write_if_bmi, r, d_des_in, write_if_start, err_sts_in)
+  comb : process (write_if_bmi, r, desc_ctrl, desc_actaddr, write_if_start, err_sts_in)
     variable v             : write_if_reg_type;
     variable sz_aftr_write : std_logic_vector(log_2(MAX_SIZE_BURST)-1 downto 0);  -- Index for data remaining to be transferred
     variable err           : std_logic_vector(2 downto 0);   -- error variable
@@ -133,20 +134,18 @@ begin
         v.curr_size         := (others => '0');
         v.sts.write_if_err  := '0';
         v.bmst_wr_busy      := '0';
+
         -- Operation starts when start signal from control block arrives and no errors are present
         if write_if_start  = '1' and err_sts_in = '0' then
           v.err_state       := (others => '0');          
           v.sts.operation   := '1';
           v.sts.comp        := '0';
-          v.tot_size        := d_des_in.ctrl.size;
+          v.tot_size        := desc_ctrl.size;
           v.inc             := (others => '0');
-          if or_vector(d_des_in.ctrl.size) = '0' then
-            v.sts.comp      := '1';
-          end if;
-          v.curr_size := find_burst_size( fixed_addr  => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+          v.curr_size := find_burst_size( fixed_addr  => desc_ctrl.type_spec,
                                           max_bsize   => MAX_SIZE_BURST,
                                           bm_bytes    => dbits/8,
-                                          total_size  => d_des_in.ctrl.size
+                                          total_size  => desc_ctrl.size
                                           );
           v.write_if_state := first_word;
         end if;
@@ -154,13 +153,13 @@ begin
      
       when first_word =>  -- First data passed with write initiation
         if or_vector(r.curr_size) /= '0' then
-          if d_des_in.ctrl.dest_fix_adr = '1' then
-            write_if_bmo.wr_addr <= d_des_in.dest_addr;
+          if desc_ctrl.type_spec = '1' then
+            write_if_bmo.wr_addr <= desc_actaddr.addr;
           else
-            write_if_bmo.wr_addr <= add_vector(d_des_in.dest_addr, r.inc, write_if_bmo.wr_addr'length);
+            write_if_bmo.wr_addr <= add_vector(desc_actaddr.addr, r.inc, write_if_bmo.wr_addr'length);
           end if;
           if r.bmst_wr_busy = '0' then
-            write_if_bmo.wr_size <= sub_vector(r.curr_size, 1, write_if_bmo.wr_size'length); -- AHB interface understands value 0 as 1 byte
+            write_if_bmo.wr_size <= sub_vector(r.curr_size, 1, write_if_bmo.wr_size'length); -- interface understands value 0 as 1 byte
             write_if_bmo.wr_req  <= '1';
             if write_if_bmi.wr_req_grant = '1' then
               v.bmst_wr_busy  := '1';
@@ -193,7 +192,7 @@ begin
         if write_if_bmi.wr_full = '0' then
         -- r.curr_size is the remaining data size to be processed after writing second
         -- data or any of the data writes that comes after second data.
-        -- Control reaches in write_burst state only if d_des_in.ctrl.size >=
+        -- Control reaches in write_burst state only if desc_ctrl.size >=
         -- two words with dbits/8 size each.
           if to_integer(unsigned(r.curr_size)) >= dbits/8 then
             sz_aftr_write     := sub_vector(r.curr_size, dbits/8, sz_aftr_write'length);
@@ -218,7 +217,7 @@ begin
           v.bmst_wr_busy := '0';
           if write_if_bmi.wr_err = '0' then
             if or_vector(r.tot_size) /= '0' then --Start again if there are remaining bytes
-              v.curr_size := find_burst_size(fixed_addr => d_des_in.ctrl.src_fix_adr or d_des_in.ctrl.dest_fix_adr,
+              v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
                                              max_bsize  => MAX_SIZE_BURST,
                                              bm_bytes   => dbits/8,
                                              total_size => r.tot_size

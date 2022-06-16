@@ -20,9 +20,9 @@ use safety.axi4_pkg.all;
 entity injector_axi is
   generic (
     -- SafeTI configuration
-    dexc_Nmax     : integer range  1 to  128            :=  8;      -- Maximum number of descriptor slots. [Only power of 2s allowed]
-    dbits         : integer range 32 to  128            := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
+    mem_Ndesc     : integer range  1 to  128            :=   16;    -- Maximum number of descriptor slots. [Only power of 2s allowed]
+    dbits         : integer range 32 to  128            :=   32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum number of bytes allowed at a burst transaction.
     tech          : integer range  0 to numTech         := typeTech;-- Target technology
     -- APB configuration  
     pindex        : integer                             := 0;       -- APB configuartion slave index
@@ -30,13 +30,13 @@ entity injector_axi is
     pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
     pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 0;       -- APB configuartion slave irq
     -- AXI Manager configuration
-    ID_R_WIDTH    : integer range  0 to   32            := 4;       -- AXI ID's bus width.
-    ID_W_WIDTH    : integer range  0 to   32            := 4;       -- AXI ID's bus width.
-    ADDR_WIDTH    : integer range 12 to   64            := 32;      -- AXI address bus width. (Tested only for 32 bits)
+    ID_R_WIDTH    : integer range  0 to   32            :=   4;     -- AXI ID's bus width.
+    ID_W_WIDTH    : integer range  0 to   32            :=   4;     -- AXI ID's bus width.
+    ADDR_WIDTH    : integer range 12 to   64            :=  32;     -- AXI address bus width. (Tested only for 32 bits)
     DATA_WIDTH    : integer range  8 to 1024            := 128;     -- AXI data bus width. [Only power of 2s are allowed]
-    axi_id        : integer range  0 to 32**2-1         := 0;       -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
-    rd_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
-    wr_n_fifo_regs: integer range  2 to  256            := 4;       -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    axi_id        : integer range  0 to 32**2-1         :=   0;     -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    rd_n_fifo_regs: integer range  2 to  256            :=   4;     -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs: integer range  2 to  256            :=   4;     -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
     -- Asynchronous reset configuration
     ASYNC_RST     : boolean                             := FALSE    -- Allow asynchronous reset flag
   );
@@ -103,7 +103,7 @@ begin
   -- injector core
   core : injector
     generic map (
-      desc_Nmax       => dexc_Nmax,
+      mem_Ndesc       => mem_Ndesc,
       dbits           => dbits,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
       pindex          => pindex,

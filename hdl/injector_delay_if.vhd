@@ -29,7 +29,8 @@ entity injector_delay_if is
     ctrl_rst        : in  std_ulogic;           -- Reset signal from APB interface through injector
     err_sts_in      : in  std_ulogic;           -- Core error status from APB status register 
     delay_if_start  : in  std_ulogic;           -- Start control signal
-    d_des_in        : in  data_dsc_strct_type;  -- Data descriptor input
+    desc_ctrl       : in  descriptor_control;   -- Control word of the descriptor to be executed
+    desc_branch     : in  descriptor_branch;    -- Branch word of the descriptor to be executed
     status_out      : out d_ex_sts_out_type     -- Delay status out signals 
     );
 end entity injector_delay_if;
@@ -71,7 +72,7 @@ architecture rtl of injector_delay_if is
     delay_if_state      : delay_if_state_type;            -- DELAY_IF states
     sts                 : d_ex_sts_out_type;              -- Status signals 
     tot_size            : std_logic_vector(19 downto 0);  -- Total size of delay cycles
-    curr_size           : std_logic_vector(18 downto 0);  -- Remaining delay cycles
+    curr_size           : std_logic_vector(19 downto 0);  -- Remaining delay cycles
     err_state           : std_logic_vector(4 downto 0);   -- Error state
   end record;
 
@@ -98,7 +99,7 @@ begin
   -- Combinational process
   -----------------------------------------------------------------------------
   
-  comb : process (r, d_des_in, delay_if_start, err_sts_in)
+  comb : process (r, desc_ctrl, desc_branch, delay_if_start, err_sts_in)
     variable v : delay_if_reg_type;
   
   begin
@@ -118,17 +119,14 @@ begin
           v.err_state      := (others => '0');
           v.sts.operation  := '1';
           v.sts.comp       := '0';
-          v.tot_size       := d_des_in.ctrl.size;
-          if or_vector(d_des_in.ctrl.size) = '0' then
-            v.sts.comp := '1';
-          end if;
+          v.tot_size       := desc_ctrl.size;
           v.delay_if_state := exec_data_desc;
         end if;
         ----------     
         
       when exec_data_desc =>
         
-        if ( to_integer(unsigned(r.curr_size)) < to_integer(unsigned(r.tot_size)) ) then  
+        if ( unsigned(r.curr_size) < unsigned(r.tot_size) ) then  
           v.curr_size := add_vector(r.curr_size, 1, v.curr_size'length);
         else                           
           v.sts.comp       := '1';
