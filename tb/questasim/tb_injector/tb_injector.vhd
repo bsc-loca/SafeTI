@@ -90,13 +90,13 @@ architecture rtl of tb_injector is
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, last)
   constant descriptors1   : descriptor_bank_tb(0 to 6) := (
-    write_descriptor(               4, 63, WRT, action_addr, '1', '0' ), -- 64 write transactions of   4 bytes
-    write_descriptor(               8, 31, WRT, action_addr, '1', '0' ), -- 32 write transactions of   8 bytes
-    write_descriptor(              16, 15,  RD, action_addr, '1', '0' ), -- 16  read transactions of  16 bytes
-    write_descriptor(              32,  7,  RD, action_addr, '1', '0' ), --  8  read transactions of  32 bytes
-    write_descriptor(              64,  3, WRT, action_addr, '1', '0' ), --  4 write transactions of  64 bytes
-    write_descriptor(             128,  1, WRT, action_addr, '1', '0' ), --  2 write transactions of 128 bytes
-    write_descriptor(             256,  0,  RD, action_addr, '1', '1' )  --  1  read transaction  of 256 bytes
+    write_descriptor(               4, 63, WRT, action_addr, '0', '0' ), -- 64 write transactions of   4 bytes
+    write_descriptor(               8, 31, WRT, action_addr, '0', '0' ), -- 32 write transactions of   8 bytes
+    write_descriptor(              16, 15,  RD, action_addr, '0', '0' ), -- 16  read transactions of  16 bytes
+    write_descriptor(              32,  7,  RD, action_addr, '0', '0' ), --  8  read transactions of  32 bytes
+    write_descriptor(              64,  3, WRT, action_addr, '0', '0' ), --  4 write transactions of  64 bytes
+    write_descriptor(             128,  1, WRT, action_addr, '0', '0' ), --  2 write transactions of 128 bytes
+    write_descriptor(             256,  0,  RD, action_addr, '0', '1' )  --  1  read transaction  of 256 bytes
   );
 
   -- Descriptors to load into injector's fifo for test 2 write (size, count, action, addr, addrfix, last)
@@ -104,9 +104,9 @@ architecture rtl of tb_injector is
     write_descriptor(MAX_SIZE_BURST-4,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount below size beat
     write_descriptor(  MAX_SIZE_BURST,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount equal size beat
     write_descriptor(MAX_SIZE_BURST+4,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0, WRT, action_addr, '1', '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0, WRT, action_addr, '1', '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0, WRT, action_addr, '1', '1' )  -- With fix addr, check if it really fixes the addr
+    write_descriptor(               3,  0, WRT, action_addr, '0', '0' ), -- With fix addr, check if reads lower of a word
+    write_descriptor(               4,  0, WRT, action_addr, '0', '0' ), -- With fix addr, check if reads a word
+    write_descriptor(              15,  0, WRT, action_addr, '0', '1' )  -- With fix addr, check if it really fixes the addr
   );
 
   -- Descriptors to load into injector's fifo for test 2 read (size, count, action, addr, addrfix, last)
@@ -114,9 +114,9 @@ architecture rtl of tb_injector is
     write_descriptor(MAX_SIZE_BURST-4,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount below size beat
     write_descriptor(  MAX_SIZE_BURST,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount equal size beat
     write_descriptor(MAX_SIZE_BURST+4,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0,  RD, action_addr, '1', '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0,  RD, action_addr, '1', '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0,  RD, action_addr, '1', '1' )  -- With fix addr, check if it really fixes the addr
+    write_descriptor(               3,  0,  RD, action_addr, '0', '0' ), -- With fix addr, check if reads lower of a word
+    write_descriptor(               4,  0,  RD, action_addr, '0', '0' ), -- With fix addr, check if reads a word
+    write_descriptor(              15,  0,  RD, action_addr, '0', '1' )  -- With fix addr, check if it really fixes the addr
   );
 
 
@@ -190,10 +190,10 @@ begin  -- rtl
     configure_injector(clk, apb_inj_addr, inj_config1, apbo, apbi);
 
     -- Test all descriptors from TEST 1 once
-    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors1, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
-    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors1, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully twice!";
 
     -- Reset injector
@@ -230,7 +230,7 @@ begin  -- rtl
     configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
 
     -- Test all descriptors from TEST 2 write
-    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors2w, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors2w, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor write batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
@@ -256,7 +256,7 @@ begin  -- rtl
     configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
 
     -- Test all descriptors from TEST 2 read
-    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors2r, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
+    test_descriptor_batch(clk, bm_mosi, bm_miso, descriptors2r, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor read batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)

@@ -6,3 +6,10 @@ ci/axi4_manager/*
 ci/.questa.log
 synthesis/output/*
 synthesis/vivado*
+**/work
+**/safety
+**/noInclude
+**/vsim.wlf
+**/modelsim.ini
+**/transcript
+**/.lquesta.log

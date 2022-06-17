@@ -58,7 +58,7 @@ architecture rtl of injector_write_if is
 
   -- Constants for injector_write_if present state
   constant WRITE_IF_IDLE      : std_logic_vector(4 downto 0) := "01000"; -- 0x08
-  constant WRITE_IF_FIRST_W   : std_logic_vector(4 downto 0) := "01001"; -- 0x09
+  constant WRITE_IF_REQUEST   : std_logic_vector(4 downto 0) := "01001"; -- 0x09
   constant WRITE_IF_BURST     : std_logic_vector(4 downto 0) := "01010"; -- 0x0A
   constant WRITE_IF_CHECK     : std_logic_vector(4 downto 0) := "01011"; -- 0x0B
 
@@ -68,22 +68,22 @@ architecture rtl of injector_write_if is
 
   -- WRITE_IF states --
   -- idle             : Starting state. Waits for 'write_if_start' signal to proceed
-  -- exec_data_desc   : Execute data descriptor.
-  -- write_init       : Initiate write and latch first data
+  -- write_request    : Request write transaction and maybe first beat
   -- write_burst      : Continue data write in the burst until done
   -- write_data_check : Check if data burst write was successful.
 
 
-  type write_if_state_type is (idle, first_word, write_burst, write_data_check);
+  type write_if_state_type is (idle, request, write_burst, write_data_check);
 
   --WRITE_IF reg type
   type write_if_reg_type is record
     write_if_state    : write_if_state_type;                    -- WRITE_IF states
     sts               : d_ex_sts_out_type;                      -- WRITE_IF status signals
+    wr_req            : std_logic;                              -- Request write transaction flag
     tot_size          : std_logic_vector(19 downto 0);          -- Total size of data to write 
     curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be written
     inc               : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
-    bmst_wr_busy      : std_ulogic;                             -- bus master write busy
+    bmst_wr_busy      : std_ulogic;                             -- Ongoing write transaction flag (goes low between repetitions)
     err_state         : std_logic_vector(4 downto 0);           -- Error state
   end record;
 
@@ -91,12 +91,13 @@ architecture rtl of injector_write_if is
   constant WRITE_IF_REG_RES : write_if_reg_type := (
     write_if_state    => idle,
     sts               => D_EX_STS_RST,
+    wr_req            => '0',
     tot_size          => (others => '0'),
     curr_size         => (others => '0'),
     inc               => (others => '0'),
     bmst_wr_busy      => '0',
     err_state         => (others => '0')
-    );
+  );
 
   -----------------------------------------------------------------------------
   -- Signal declaration
@@ -114,16 +115,12 @@ begin
   -----------------------------------------------------------------------------
   
   comb : process (write_if_bmi, r, desc_ctrl, desc_actaddr, write_if_start, err_sts_in)
-    variable v             : write_if_reg_type;
-    variable sz_aftr_write : std_logic_vector(log_2(MAX_SIZE_BURST)-1 downto 0);  -- Index for data remaining to be transferred
-    variable err           : std_logic_vector(2 downto 0);   -- error variable
+    variable v    : write_if_reg_type;
     
   begin
     -- Default values
-    v                := r;
-    sz_aftr_write    := (others => '0');
-    err              := (others => '0');
-    write_if_bmo     <= BM_CTRL_REG_RST;
+    v             := r;
+    write_if_bmo  <= BM_MOSI_RST;
 
     -- WRITE_IF state machine
     case r.write_if_state is
@@ -139,7 +136,6 @@ begin
         if write_if_start  = '1' and err_sts_in = '0' then
           v.err_state       := (others => '0');          
           v.sts.operation   := '1';
-          v.sts.comp        := '0';
           v.tot_size        := desc_ctrl.size;
           v.inc             := (others => '0');
           v.curr_size := find_burst_size( fixed_addr  => desc_ctrl.type_spec,
@@ -147,58 +143,48 @@ begin
                                           bm_bytes    => dbits/8,
                                           total_size  => desc_ctrl.size
                                           );
-          v.write_if_state := first_word;
+          v.write_if_state := request;
         end if;
       ----------
      
-      when first_word =>  -- First data passed with write initiation
-        if or_vector(r.curr_size) /= '0' then
+      when request =>  -- Write request and first beat
+          -- Set first burst address, size and request write transaction
           if desc_ctrl.type_spec = '1' then
             write_if_bmo.wr_addr <= desc_actaddr.addr;
           else
             write_if_bmo.wr_addr <= add_vector(desc_actaddr.addr, r.inc, write_if_bmo.wr_addr'length);
           end if;
-          if r.bmst_wr_busy = '0' then
-            write_if_bmo.wr_size <= sub_vector(r.curr_size, 1, write_if_bmo.wr_size'length); -- interface understands value 0 as 1 byte
-            write_if_bmo.wr_req  <= '1';
-            if write_if_bmi.wr_req_grant = '1' then
-              v.bmst_wr_busy  := '1';
-              if to_integer(unsigned(r.curr_size)) >= dbits/8 then
-                sz_aftr_write := sub_vector(r.curr_size, dbits/8, sz_aftr_write'length);
-                v.curr_size   := sub_vector(r.curr_size, dbits/8, v.curr_size'length);  -- Size pending, after writing first data
-                v.inc         := add_vector(r.inc, dbits/8, v.inc'length);
-                v.tot_size    := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
-                if or_vector(sz_aftr_write) /= '0' then
-                  v.write_if_state := write_burst;
-                else
-                  v.write_if_state := write_data_check;
-                end if;
+          write_if_bmo.wr_size <= sub_vector(r.curr_size, 1, write_if_bmo.wr_size'length); -- interface understands value 0 as 1 byte
+          v.wr_req := '1';
+
+          if (write_if_bmi.wr_req_grant and r.wr_req) = '1' then
+            v.bmst_wr_busy    := '1';
+            v.wr_req          := '0';
+            if write_if_bmi.wr_full = '0' then
+              if to_integer(unsigned(r.curr_size)) > dbits/8 then
+                v.curr_size       := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
+                v.inc             := add_vector(r.inc, dbits/8, v.inc'length);
+                v.tot_size        := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
+                v.write_if_state  := write_burst;
               else
-                v.curr_size   := (others => '0');  -- Size pending, after writing first data
-                v.inc         := add_vector(r.inc, r.curr_size, v.inc'length);
-                v.tot_size    := sub_vector(r.tot_size, r.curr_size, v.tot_size'length);
-                v.write_if_state := write_data_check;
+                v.curr_size       := (others => '0');
+                v.inc             := add_vector(r.inc, r.curr_size, v.inc'length);
+                v.tot_size        := sub_vector(r.tot_size, r.curr_size, v.tot_size'length);
+                v.write_if_state  := write_data_check; -- No more data
               end if;
+            else
+              v.write_if_state    := write_burst;
             end if;
           end if;
-        else
-          v.sts.comp        := '1';
-          v.write_if_state  := idle;
-        end if;
       ----------
         
       when write_burst =>
-        write_if_bmo.wr_req <= '0';
         if write_if_bmi.wr_full = '0' then
         -- r.curr_size is the remaining data size to be processed after writing second
         -- data or any of the data writes that comes after second data.
         -- Control reaches in write_burst state only if desc_ctrl.size >=
         -- two words with dbits/8 size each.
-          if to_integer(unsigned(r.curr_size)) >= dbits/8 then
-            sz_aftr_write     := sub_vector(r.curr_size, dbits/8, sz_aftr_write'length);
-            if or_vector(sz_aftr_write) = '0' then -- more data to be writen after current data write
-              v.write_if_state := write_data_check;
-            end if;
+          if to_integer(unsigned(r.curr_size)) > dbits/8 then
             v.curr_size       := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
             v.inc             := add_vector(r.inc, dbits/8, v.inc'length);
             v.tot_size        := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
@@ -214,15 +200,15 @@ begin
       when write_data_check =>
         -- Evaluate if burst has finished
         if write_if_bmi.wr_done = '1' then
-          v.bmst_wr_busy := '0';
           if write_if_bmi.wr_err = '0' then
-            if or_vector(r.tot_size) /= '0' then --Start again if there are remaining bytes
+            -- Request additional burst if there's still data to be transfered
+            if r.tot_size /= (r.tot_size'range => '0') then
               v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
                                              max_bsize  => MAX_SIZE_BURST,
                                              bm_bytes   => dbits/8,
                                              total_size => r.tot_size
                                              );
-              v.write_if_state  := first_word;
+              v.write_if_state  := request;
             else
               v.bmst_wr_busy    := '0';
               v.sts.comp        := '1';
@@ -230,9 +216,9 @@ begin
               v.write_if_state  := idle;
             end if;
           else
-            v.sts.write_if_err := '1';
-            v.err_state        := WRITE_IF_CHECK;
-            v.write_if_state   := idle;
+            v.sts.write_if_err  := '1';
+            v.err_state         := WRITE_IF_CHECK;
+            v.write_if_state    := idle;
           end if;
         end if;
         ----------
@@ -241,6 +227,8 @@ begin
         v.write_if_state := idle;
         ----------         
     end case;  --WRITE_IF state machine
+
+    
     ----------------------
     -- Signal update --
     ----------------------
@@ -252,8 +240,8 @@ begin
       status_out.state <= r.err_state;
     else
       case r.write_if_state is
-        when first_word =>
-          status_out.state <= WRITE_IF_FIRST_W;
+        when request =>
+          status_out.state <= WRITE_IF_REQUEST;
         when write_burst =>
           status_out.state <= WRITE_IF_BURST;
         when write_data_check =>
@@ -267,6 +255,7 @@ begin
     status_out.write_if_err <= r.sts.write_if_err;
     status_out.operation    <= r.sts.operation;
     status_out.comp         <= r.sts.comp;
+    write_if_bmo.wr_req     <= r.wr_req;
   end process comb;
 
   -----------------------------------------------------------------------------

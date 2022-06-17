@@ -78,8 +78,8 @@ architecture rtl of injector is
   signal delay_if_start     : std_ulogic;
   --Control
   signal ctrl_rst           : std_ulogic;
-  signal ctrl_bmo           : bm_miso;
-  signal ctrl_bmi           : bm_mosi;
+  signal ctrl_bmi           : bm_miso;
+  signal ctrl_bmo           : bm_mosi;
   signal curr_desc          : curr_des_out_type;
   signal curr_desc_ptr      : std_logic_vector(31 downto 0);
   signal desc_ctrl          : descriptor_control;
@@ -99,8 +99,8 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Glue logic - Signal assignments
   -----------------------------------------------------------------------------
-   bm0_mosi     <= ctrl_bmi;
-   ctrl_bmo     <= bm0_miso;
+   bm0_mosi     <= ctrl_bmo;
+   ctrl_bmi     <= bm0_miso;
   
   -----------------------------------------------------------------------------
   -- Component instantiation
@@ -205,8 +205,8 @@ begin  -- rtl
       curr_desc_ptr   => curr_desc_ptr,
       status          => status,
       irq_flag_sts    => irq_flag_sts,
-      bm_in           => ctrl_bmo,
-      bm_out          => ctrl_bmi,
+      bm_in           => ctrl_bmi,
+      bm_out          => ctrl_bmo,
       read_if_bm_in   => read_if_bmi,
       read_if_bm_out  => read_if_bmo,
       write_if_bm_in  => write_if_bmi,

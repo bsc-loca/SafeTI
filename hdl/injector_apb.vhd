@@ -77,7 +77,7 @@ begin -- rtl
   -- Combinational process
   -----------------------------------------------------------------------------
   
-  comb : process (apbi, r, sts_in, curr_desc_in, curr_desc_ptr, irq_flag_sts)
+  comb : process (apbi, r, r_desc_mem, r_desc_apb_ptr, sts_in, curr_desc_in, curr_desc_ptr, irq_flag_sts)
     variable v                  : injector_reg_type;
     variable v_desc_mem         : descriptor_memory(r_desc_mem'range);
     variable v_desc_apb_ptr     : unsigned(r_desc_apb_ptr'range);

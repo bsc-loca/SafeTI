@@ -24,7 +24,7 @@ use safety.injector_pkg.all;
 
 entity injector_ctrl is
   generic (
-    dbits             : integer range 8 to 1024 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    dbits             : integer range 8 to 1024 := 32;      -- Data bus width of BM at injector. [Only power of 2s allowed]
     mem_Ndesc         : integer range 1 to  256 := 16;      -- Maximum number of descriptors allowed
     ASYNC_RST         : boolean                 := FALSE    -- Allow asynchronous reset flag
     );
@@ -100,19 +100,17 @@ architecture rtl of injector_ctrl is
   --- Control FSM states ---
 
   -- IDLE =>
-  -- Execution starts from idle state and comes back after completing a FIFO write of the current descriptor 
-  -- found in memory. Core processes a descriptor queue only if there are no errors and the core is enabled. 
-  -- If the execution is ongoing and not last descriptor nor FIFO is full, core proceeds with the next 
-  -- descriptor fetch. Else if the whole queue is completely read from memory, the transaction execution 
-  -- starts from the top of the FIFO. If the core is disabled or if there is an error, injector goes 
-  -- in to a paused state.
+  -- Default state when errors occur or the injector is off. When the injector is enabled and no error flags 
+  -- are high, the IDLE state will proceed to the READ_MEM state. However, when the injector program has been 
+  -- completed the injector program, the execution will return to this IDLE state to check for the queue flag.
+  -- If the queue flag is high, the program will be restarted from pointer 0. If instead is low, it will turn 
+  -- off the injector and remain on the IDLE state.
   -- 
   -- READ_MEM =>
   -- Pre-loads all possible descriptor words into registers from the program memory (desc_mem).
   -- 
   -- DECODE_DESC =>
-  -- Decodes the descriptor words and distributes them on the different
-  -- type of the descriptor and jumps to respective states: 
+  -- Decodes the descriptor words and distributes them on the different modules, jumping to the respective states: 
   -- When the descriptor type is a Read Descriptor: it sends read_if_start signal to injector_read_if entity.
   -- When the descriptor type is a Write Descriptor: it sends write_if_start signal to injector_write_if entity.
   -- When the descriptor type is a Delay Descriptor: it sends delay_if_start signal to injector_delay_if entity.
@@ -152,13 +150,12 @@ architecture rtl of injector_ctrl is
     err_flag            : std_ulogic;                     -- Error flag
     dcomp_flg           : std_ulogic;                     -- Descriptor completed flag
     init_error          : std_ulogic;                     -- Error occured before starting current descriptor execution
-    bmst_wr_busy        : std_ulogic;                     -- bus master write busy
-    bmst_rd_busy        : std_ulogic;                     -- bus master read busy
     bmst_rd_err         : std_ulogic;                     -- bus master read error
     err_status          : std_ulogic;                     -- register to find the falling edge of err_status input signal
     sts                 : status_out_type;                -- Status register   
-    fifo_finished       : std_ulogic;                     -- FIFO is fully read flag
+    mem_finished        : std_ulogic;                     -- Program memory is fully read flag
   end record;
+
   -- Reset value for injector_ctrl local reg type
   constant CTRL_REG_RST : ctrl_reg_type := (
     state               => idle,
@@ -177,12 +174,10 @@ architecture rtl of injector_ctrl is
     err_flag            => '0',
     dcomp_flg           => '0',
     init_error          => '0',
-    bmst_wr_busy        => '0',
-    bmst_rd_busy        => '0',
     bmst_rd_err         => '0',
     err_status          => '0',
     sts                 => STATUS_OUT_RST,
-    fifo_finished       => '0'
+    mem_finished        => '0'
     );
 
   -----------------------------------------------------------------------------
@@ -190,9 +185,6 @@ architecture rtl of injector_ctrl is
   -----------------------------------------------------------------------------
 
   signal r, rin         : ctrl_reg_type;
-  signal desc_ctrl      : descriptor_control;   -- Control word for the ongoing descriptor
-  signal bmst           : bm_mosi;              -- Bus master control signals
-  signal inj_reset      : std_ulogic;           -- Reset injector
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
@@ -203,20 +195,6 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Assignments
   -----------------------------------------------------------------------------
-  -- Bus master signal assignment switch logic. Based on the current state bus
-  -- master signals are driven by READ_IF or WRITE_IF or control unit.
-
-  bm_out.rd_addr <= read_if_bm_in.rd_addr  when ( r.state = read_if  ) else bmst.rd_addr;
-  bm_out.rd_req  <= read_if_bm_in.rd_req   when ( r.state = read_if  ) else bmst.rd_req;
-  bm_out.rd_size <= read_if_bm_in.rd_size  when ( r.state = read_if  ) else bmst.rd_size;
-  bm_out.rd_descr<= bmst.rd_req;
-    
-  bm_out.wr_addr <= write_if_bm_in.wr_addr when ( r.state = write_if ) else bmst.wr_addr;
-  bm_out.wr_req  <= write_if_bm_in.wr_req  when ( r.state = write_if ) else bmst.wr_req;
-  bm_out.wr_size <= write_if_bm_in.wr_size when ( r.state = write_if ) else bmst.wr_size;
-  bm_out.wr_data <= write_if_bm_in.wr_data when ( r.state = write_if ) else bmst.wr_data;
-
-
 
   -- Deassert the start signal when the READ_IF, WRITE_IF, DELAY_IF operation has started.
   read_if_start   <= '0' when read_if_sts_in.operation  = '1' else r.read_if_start;
@@ -226,20 +204,13 @@ begin  -- rtl
   -----------------------------------------------------------------------------
   -- Combinational logic
   ----------------------------------------------------------------------------- 
-  comb : process (r, ctrl, active, read_if_sts_in, write_if_sts_in, delay_if_sts_in, 
-    read_if_bm_in, write_if_bm_in, err_status, bm_in, bmst)
+  comb : process (r, desc_mem, ctrl, active, read_if_sts_in, write_if_sts_in, delay_if_sts_in, 
+    read_if_bm_in, write_if_bm_in, err_status, bm_in)
     variable v           : ctrl_reg_type; 
-    variable remainder   : integer range 0 to 96;           -- Variable for BM read_data handling
-    variable bmst_rd_req : std_ulogic;                      -- Bus master read request variable
-    variable bmst_wr_req : std_ulogic;                      -- Bus master write request variable
 
   begin
     --Variable initialization
     v           := r;
-    remainder   := 0;
-    bmst_rd_req := '0';
-    bmst_wr_req := '0';
-    bmst        <= BM_CTRL_REG_RST;
 
     -- TODO: Kick flag. Whenever the ctrl.kick is set, this flag is set. This indicates addition of new
     -- descriptors or resuming Injector operation after a pause
@@ -275,42 +246,33 @@ begin  -- rtl
         v.sts.rd_data_err     := '0';
         v.sts.wr_data_err     := '0';
         v.sts.rd_nxt_ptr_err  := '0';
-        v.bmst_rd_busy        := '0';
-        v.bmst_wr_busy        := '0';
         v.bmst_rd_err         := '0';
         v.sts.desc_comp       := '0';
+        v.desc_ctrl           := DESCRIPTOR_CTRL_RST;
+        v.desc_actaddr        := DESCRIPTOR_ACTADDR_RST;
+        v.desc_branch         := DESCRIPTOR_BRANCH_RST;
+        v.desc_word_0         := (others => '0');
+        v.desc_word_1         := (others => '0');
 
         if (ctrl.en = '1' and err_status = '0' and r.err_flag = '0') then  -- Enabled and no error
-          -- clear any latched events
-          v.err_flag   := '0';
-          v.err_state  := (others => '0');
           if active = '0' then
             -- Initial starting after reset.
             -- Start descriptor read from first descriptor pointer
             v.sts.ongoing   := '1';
-            v.sts.comp      := '0';
-            v.dcomp_flg     := '0';
-            v.fifo_finished := '0';
-            v.desc_ctrl     := DESCRIPTOR_CTRL_RST;
             v.state         := read_mem; --fetch_desc;
           elsif r.sts.ongoing = '1' or r.sts.kick = '1' or v.sts.kick = '1' then
             if r.init_error = '1' then  -- Taking up the same descriptor to fetch again since previously
                                         -- it encountered an error before reaching decoding state
               v.sts.ongoing := '1';
-              v.desc_ctrl   := DESCRIPTOR_CTRL_RST;
               v.state       := idle; --fetch_desc;
             else  -- No initial desc read error
-              if r.fifo_finished = '1' then  -- When fifo is fully Read, update Completed Flag
-                v.sts.ongoing   := '0';
-                v.dcomp_flg     := '0';
-                v.sts.desc_comp := '0';
+              if r.mem_finished = '1' then  -- When program memory is fully Read, update Completed Flag
                 if(ctrl.qmode = '0') then
         -- Normal Queue execution finished, update flags and end execution
                   v.sts.comp    := '1';
                 else
-        -- Queue Mode, re-enter FIFO and restart execution
+        -- Queue Mode, re-enter memory program from pointer 0 and restart execution
                   v.sts.ongoing   := '1';
-                  v.fifo_finished := '0';
                   v.state         := read_mem;
                 end if;
               end if;
@@ -322,21 +284,18 @@ begin  -- rtl
         -----------
 
       when read_mem =>
-        if r.fifo_finished = '0' then
-          v.dcomp_flg     := '0';
-          v.sts.desc_comp := '0';
+        v.dcomp_flg     := '0';
+        v.sts.desc_comp := '0';
+        
+        -- Finish operation if the desc_ptr goes above the program memory length or if previous descriptor was last.
+        if ( (r.desc_ptr >= to_unsigned(mem_Ndesc - 1, r.desc_ptr'length)) or (r.desc_ctrl.last = '1') ) then
+          v.desc_ptr      := (others => '0');
+          v.mem_finished  := '1';
+          v.state         := idle;
+        else -- Increase number of words whenever any new descriptor require more words.
+          v.desc_word_0   := desc_mem(to_integer(r.desc_ptr(log_2(mem_Ndesc) - 1 downto 0)));
+          v.desc_word_1   := desc_mem(to_integer(r.desc_ptr(log_2(mem_Ndesc) - 1 downto 0) + 1));
           v.state         := decode_desc;
-          
-          -- Finish operation if the desc_ptr goes above the program memory length or if previous descriptor was last.
-          if ( (r.desc_ptr >= to_unsigned(mem_Ndesc - 1, r.desc_ptr'length)) or (r.desc_ctrl.last = '1') ) then
-            v.desc_ptr      := (others => '0');
-            v.fifo_finished := '1';
-          else
-            v.desc_word_0   := desc_mem(to_integer(r.desc_ptr(log_2(mem_Ndesc) - 1 downto 0)));
-            v.desc_word_1   := desc_mem(to_integer(r.desc_ptr(log_2(mem_Ndesc) - 1 downto 0) + 1));
-          end if;
-        else
-          v.state := idle;
         end if;
         -----------
 
@@ -349,19 +308,16 @@ begin  -- rtl
             v.read_if_start   := '1';
             v.state           := read_if;
             v.desc_actaddr    := serial_2_desc_actaddr(r.desc_word_1);
-            v.desc_ptr        := r.desc_ptr + 2;
             
           when WRITE_OP =>
             v.write_if_start  := '1';
             v.state           := write_if;
             v.desc_actaddr    := serial_2_desc_actaddr(r.desc_word_1);
-            v.desc_ptr        := r.desc_ptr + 2;
           
           when DELAY_OP =>
             v.delay_if_start  := '1';
             v.state           := delay_if;
             v.desc_branch     := serial_2_desc_branch(r.desc_word_1);
-            v.desc_ptr        := r.desc_ptr + 2;
 
           when others => -- Implement METADATA OPERATIONS (which include many more words on descriptor)
             v.sts.decode_desc_err := '1';
@@ -374,14 +330,17 @@ begin  -- rtl
 
       when read_if =>
         -- Check whether the transaction was successfull or not
+        v.read_if_start       := '0';
         if( (r.read_if_start = '0') and (read_if_sts_in.comp = '1') ) then 
            if( (r.rep_count < r.desc_ctrl.count) and (or_vector(r.desc_ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
-              v.state         := decode_desc;
+              v.read_if_start := '1';
+              v.state         := read_if;
            else          
               v.sts.desc_comp := '1';
               v.dcomp_flg     := '1';
               v.rep_count     := (others => '0');
+              v.desc_ptr      := r.desc_ptr + 2; -- READ descriptor type has 2 words
               v.state         := read_mem;
            end if;
         elsif read_if_sts_in.read_if_err = '1' then  -- READ_IF error
@@ -394,45 +353,51 @@ begin  -- rtl
         -----------
 
       when write_if =>
+      v.write_if_start      := '0';
         -- Check whether the transaction was successfull or not
         if (r.write_if_start = '0' and write_if_sts_in.comp = '1') then
           -- Check the descriptor repetition count parameter
           if( (r.rep_count < r.desc_ctrl.count) and (or_vector(r.desc_ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
             v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
-            v.state         := decode_desc;
+            v.write_if_start:= '1';
+            v.state         := write_if;
           else
             v.sts.desc_comp := '1';
             v.dcomp_flg     := '1';
             v.rep_count     := (others => '0');
+            v.desc_ptr      := r.desc_ptr + 2; -- WRITE descriptor type has 2 words
             v.state         := read_mem;
           end if;
         elsif write_if_sts_in.write_if_err = '1' then
-          v.sts.err           := '1';
-          v.err_flag          := '1';
-          v.err_state         := write_if_sts_in.state;
-          v.sts.wr_data_err   := '1';
-          v.state             := idle;
+          v.sts.err         := '1';
+          v.err_flag        := '1';
+          v.err_state       := write_if_sts_in.state;
+          v.sts.wr_data_err := '1';
+          v.state           := idle;
         end if;
         -----------
 
       when delay_if =>
+      v.delay_if_start      := '0';
         -- Check whether the transaction was successfull or not
         if (r.delay_if_start = '0' and delay_if_sts_in.comp = '1') then
           if( (r.rep_count < r.desc_ctrl.count) and (or_vector(r.desc_ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
-            v.rep_count       := add_vector(r.rep_count, 1, r.rep_count'length);
-            v.state           := decode_desc;
+            v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
+            v.delay_if_start:= '1';
+            v.state         := delay_if;
           else
-            v.sts.desc_comp   := '1';
-            v.dcomp_flg       := '1';
-            v.rep_count       := (others => '0');
-            v.state           := read_mem;
+            v.sts.desc_comp := '1';
+            v.dcomp_flg     := '1';
+            v.rep_count     := (others => '0');
+            v.desc_ptr      := r.desc_ptr + 2; -- DELAY descriptor type has 2 words
+            v.state         := read_mem;
           end if;
         elsif delay_if_sts_in.delay_if_err = '1' then
-          v.sts.err           := '1';
-          v.err_flag          := '1';
-          v.err_state         := delay_if_sts_in.state;
-          v.sts.wr_data_err   := '1';
-          v.state             := idle;
+          v.sts.err         := '1';
+          v.err_flag        := '1';
+          v.err_state       := delay_if_sts_in.state;
+          v.sts.wr_data_err := '1';
+          v.state           := idle;
         end if;
  
       when others =>
@@ -443,17 +408,22 @@ begin  -- rtl
     -- Signal update    --
     ----------------------
 
-    -- Demultiplex Bus Master signals and drive READ_IF or WRITE_IF 
-    if r.state = read_if then           --READ_IF
-      read_if_bm_out <= bm_in;
-      write_if_bm_out <= BM_MISO_RST;
-    elsif r.state = write_if then       --WRITE_IF
-      write_if_bm_out <= bm_in;
-      read_if_bm_out <= BM_MISO_RST;
-    else                                --to not infeer in latch when neither
-      write_if_bm_out <= BM_MISO_RST;
-      read_if_bm_out <= BM_MISO_RST;
-    end if;
+    -- Default outputs
+    read_if_bm_out      <= BM_MISO_RST;
+    write_if_bm_out     <= BM_MISO_RST;
+    bm_out              <= BM_MOSI_RST;
+
+    -- Redirect BM input and output to the especific module in use.
+    case r.state is
+      when read_if =>   -- READ_IF     
+        read_if_bm_out  <= bm_in;
+        bm_out          <= read_if_bm_in;
+      when write_if =>  -- WRITE_IF
+        write_if_bm_out <= bm_in;
+        bm_out          <= write_if_bm_in;
+      when others =>
+        null;
+    end case;
 
     -- state decoding for status display
     if r.err_flag = '1' then
@@ -509,11 +479,8 @@ begin  -- rtl
     desc_actaddr_out    <= r.desc_actaddr;
     desc_branch_out     <= r.desc_branch;
     ctrl_rst      <= ctrl.rst or err_status;
-    inj_reset     <= ctrl.rst or err_status;
     curr_desc_ptr <= (31 downto r.desc_ptr'high + 1 => '0') & std_logic_vector(r.desc_ptr);
     err_sts_out   <= err_status;
-    bmst.rd_req   <= bmst_rd_req;
-    bmst.wr_req   <= bmst_wr_req;
     
   end process comb;
 

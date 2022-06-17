@@ -358,7 +358,7 @@ begin  -- rtl
 
     report "Test 1 descriptor batch has been completed succesfully once!";  
     -- Test all descriptors from TEST 1 for second time (queue test)
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl);
+    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl);
     report "Test 1 descriptor batch has been completed succesfully twice!";
 
 
@@ -398,7 +398,7 @@ begin  -- rtl
     configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
 
     -- Test all descriptors from TEST 2 write
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
+    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor write batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
@@ -424,7 +424,7 @@ begin  -- rtl
     --load_descriptors(clk, apb_inj_addr, descriptors2r, apbi);
 
     -- Test all descriptors from TEST 2 read
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BURST, apbo.irq(pirq), wait_descr_compl); 
+    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl); 
     report "Test 2 descriptor read batch has been completed succesfully!";
 
     -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)

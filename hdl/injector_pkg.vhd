@@ -69,7 +69,6 @@ constant META_OP    : std_logic_vector(2 downto 0) := "111";
     rd_addr       : std_logic_vector(31 downto 0);
     rd_size       : std_logic_vector(11 downto 0);
     rd_req        : std_logic;
-    rd_descr      : std_logic;
     -- Write channel
     wr_addr       : std_logic_vector(31 downto 0);
     wr_size       : std_logic_vector(11 downto 0);
@@ -96,25 +95,12 @@ constant META_OP    : std_logic_vector(2 downto 0) := "111";
     rd_addr   => (others => '0'),
     rd_size   => (others => '0'),
     rd_req    => '0',
-    rd_descr  => '0',
     -- Write channel
     wr_addr   => (others => '0'),
     wr_size   => (others => '0'),
     wr_req    => '0',
     wr_data   => (others => '0')
     );  
-
-  -- Reset value for Bus Master control registers
-  constant BM_CTRL_REG_RST : bm_mosi := (
-    rd_addr   => (others => '0'),
-    rd_size   => (others => '0'),
-    rd_req    => '0',
-    rd_descr  => '0',
-    wr_addr   => (others => '0'),
-    wr_size   => (others => '0'),
-    wr_req    => '0',
-    wr_data   => (others => '0')
-    );
 
   type apb_slave_in_type is record
     sel             : std_logic_vector ( 0 to APB_SLAVE_NMAX-1 );
@@ -481,7 +467,7 @@ constant META_OP    : std_logic_vector(2 downto 0) := "111";
   -------------------------------------------------------------------------------
   -- Subprograms
   -------------------------------------------------------------------------------
-  function find_burst_size(fixed_addr       : std_ulogic;
+  function find_burst_size(fixed_addr       : std_logic;
                            max_bsize        : integer;
                            bm_bytes         : integer;
                            total_size       : std_logic_vector(19 downto 0)
@@ -693,7 +679,7 @@ package body injector_pkg is
 
   -- Function to determine the burst size based on maximum burst limit
   function find_burst_size(
-    fixed_addr      : std_ulogic;
+    fixed_addr      : std_logic;
     max_bsize       : integer;
     bm_bytes        : integer;
     total_size      : std_logic_vector(19 downto 0)

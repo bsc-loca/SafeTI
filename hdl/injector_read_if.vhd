@@ -60,7 +60,7 @@ architecture rtl of injector_read_if is
   -- Constants for read_if present state
   constant READ_IF_IDLE       : std_logic_vector(4 downto 0) := "00101"; -- 0x05
   constant READ_IF_EXEC       : std_logic_vector(4 downto 0) := "00110"; -- 0x06
-  constant READ_IF_DATA_READ  : std_logic_vector(4 downto 0) := "00111"; -- 0x07
+  constant READ_IF_DATA  : std_logic_vector(4 downto 0) := "00111"; -- 0x07
 
   -----------------------------------------------------------------------------
   -- Type and record 
@@ -71,24 +71,24 @@ architecture rtl of injector_read_if is
   -- Starting state. Waits for 'read_if_start_in' signal to proceed.
   -- Decides on size of the current burst to be transferred
   --
-  -- exec_data_desc =>
+  -- request =>
   -- Initiates bus master interface burst read transfer from source address.
   --
   -- read_data =>
   -- Reads each data word from bus master interface output and writes to FIFO
   -- unitl the total data is transferred.
 
-  type read_if_state_type is (idle, exec_data_desc, read_data);
+  type read_if_state_type is (idle, request, read_data);
 
   --READ_IF reg type
   type read_if_reg_type is record
     read_if_state       : read_if_state_type;                     -- READ_IF states
-    sts                 : d_ex_sts_out_type;                      -- M2b status signals 
+    sts                 : d_ex_sts_out_type;                      -- M2b status signals
+    rd_req              : std_logic;                              -- Request read transaction flag
     tot_size            : std_logic_vector(19 downto 0);          -- Total size of data to read
-    curr_size           : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be read
+    curr_size           : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining bytes to be read in the burst
     inc                 : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
     bmst_rd_busy        : std_ulogic;                             -- bus master read busy
-    bmst_rd_err         : std_ulogic;                             -- bus master read error
     err_state           : std_logic_vector(4 downto 0);           -- Error state
   end record;
 
@@ -96,13 +96,13 @@ architecture rtl of injector_read_if is
   constant READ_IF_REG_RES : read_if_reg_type := (
     read_if_state       => idle,
     sts                 => D_EX_STS_RST,
+    rd_req              => '0',
     tot_size            => (others => '0'),
     curr_size           => (others => '0'),
     inc                 => (others => '0'),
     bmst_rd_busy        => '0',
-    bmst_rd_err         => '0',
     err_state           => (others => '0')
-    );
+  );
 
   -----------------------------------------------------------------------------
   -- Signal declaration
@@ -119,17 +119,12 @@ begin
   -----------------------------------------------------------------------------
   
   comb : process (read_if_bmi, r, desc_ctrl, desc_actaddr, read_if_start, err_sts_in)
-
-    variable v             : read_if_reg_type;
-    variable remaining     : std_logic_vector(18 downto 0);  -- Remaining size to be read after each burst
-    variable rem_bits      : integer range 0 to 120;         -- bits to fetch when current size is less than dbits/8
+    variable v  : read_if_reg_type;
   begin
 
     -- Default values 
-    v                := r;
-    remaining        := (others => '0');
-    read_if_bmo      <= BM_CTRL_REG_RST;
-    rem_bits         := 0;
+    v           := r;
+    read_if_bmo <= BM_MOSI_RST;
 
     -- READ_IF state machine
     case r.read_if_state is
@@ -142,119 +137,107 @@ begin
         v.bmst_rd_busy    := '0';
 
         -- Operation starts when start signal from control block arrives and no errors are present
-        if read_if_start = '1' and err_sts_in = '0' then
+        if(read_if_start = '1' and err_sts_in = '0') then
           v.err_state      := (others => '0');
           v.sts.operation  := '1';
-          v.sts.comp       := '0';
           v.tot_size       := desc_ctrl.size;
           v.inc            := (others => '0');
-          v.bmst_rd_err    := '0';
           v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
                                          max_bsize  => MAX_SIZE_BURST,
                                          bm_bytes   => dbits/8,
                                          total_size => desc_ctrl.size
                                          );
-          v.read_if_state := exec_data_desc;
+          v.read_if_state := request;
         end if; -- No Restart (or resume) bit for the moment
       ----------     
         
-      when exec_data_desc =>
-        if or_vector(r.curr_size) /= '0' then  -- More data remaining to be fetched
-          if r.bmst_rd_busy = '0' then
-            if desc_ctrl.type_spec = '1' then
-              -- If souce address is fixed, data is read in a looped manner from same source address. Single access. No burst              
-              read_if_bmo.rd_addr <= desc_actaddr.addr;
-            else
-             -- If souce address is not fixed, data is read as a burst. source address is incremented between bursts.
-              read_if_bmo.rd_addr <= add_vector(desc_actaddr.addr, r.inc, read_if_bmo.rd_addr'length);
-            end if;
-            read_if_bmo.rd_size <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length); -- interface understands value 0 as 1 byte
-            read_if_bmo.rd_req  <= '1';
-            if read_if_bmi.rd_req_grant = '1' then
-              v.bmst_rd_busy  := '1';
-              v.read_if_state := read_data;
-            end if;
-          end if;
-        else                             -- Data fetch completed
-          v.sts.comp      := '1';
-          v.sts.operation := '0';
-          v.read_if_state := idle;
+      when request =>
+        -- Set action address, size and request read transaction
+        if(desc_ctrl.type_spec = '1') then
+          read_if_bmo.rd_addr <= desc_actaddr.addr;
+        else
+          read_if_bmo.rd_addr <= add_vector(desc_actaddr.addr, r.inc, read_if_bmo.rd_addr'length);
+        end if;
+        read_if_bmo.rd_size   <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length); -- interface understands value 0 as 1 byte
+        v.rd_req              := '1';
+
+        if((read_if_bmi.rd_req_grant and r.rd_req) = '1') then
+          v.bmst_rd_busy      := '1';
+          v.rd_req            := '0';
+          v.read_if_state     := read_data;
         end if;
       ----------
         
       when read_data =>
-        -- If rd_valid is asserted and if there are no errors, data is valid.
-        -- On each valid, dbits number of bits fetched through Bus master interface
-        if read_if_bmi.rd_valid = '1' then
-          if read_if_bmi.rd_err = '1' then
-            v.bmst_rd_err := '1';
-          elsif r.bmst_rd_err = '0' then
-            if to_integer(unsigned(r.curr_size)) >= dbits/8 then
-              v.curr_size    := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
-              v.inc          := add_vector(r.inc, dbits/8, v.inc'length);
-              remaining      := sub_vector(r.tot_size, dbits/8, remaining'length);
-              v.tot_size     := '0' & remaining;
-            else                        --curr_size is less than dbits/8
-              v.curr_size    := (others => '0');
-              v.inc          := add_vector(r.inc, r.curr_size, v.inc'length);
-              remaining      := sub_vector(r.tot_size, r.curr_size, remaining'length);
-              v.tot_size     := '0' & remaining;
-            end if;
+        -- Check if interface is delivering valid data
+        if(read_if_bmi.rd_valid = '1') then
+          if(read_if_bmi.rd_err = '1') then -- In case of an error during read transaction,
+            v.sts.read_if_err := '1';       -- notify it to sts, but continue with transaction.
+            v.err_state       := READ_IF_DATA;
           end if;
 
-          -- Check if read burst is done
-          if read_if_bmi.rd_done = '1' then
-            if v.bmst_rd_err = '0' then  -- no bus master error                    
-              if or_vector(remaining) /= '0' then
+          if(to_integer(unsigned(r.curr_size)) > dbits/8) then
+            v.curr_size       := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
+            v.inc             := add_vector(r.inc, dbits/8, v.inc'length);
+            v.tot_size        := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
+          else
+            v.inc             := add_vector(r.inc, r.curr_size, v.inc'length);
+            v.tot_size        := sub_vector(r.tot_size, r.curr_size, v.tot_size'length);
+            -- At the last read beat of the burst, the rd_done flag must be set to high.
+            if(read_if_bmi.rd_done = '1') then
+              -- In case there's still more data to be read, request another burst.
+              if(v.tot_size /= (v.tot_size'range => '0')) then
                 v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
                                                max_bsize  => MAX_SIZE_BURST,
                                                bm_bytes   => dbits/8,
-                                               total_size => '0' & remaining
+                                               total_size => v.tot_size
                                                );
+                v.read_if_state := request;
                 v.bmst_rd_busy  := '0';
-                v.read_if_state := exec_data_desc;
-              else                      -- Data fetch completed
+              else -- If the descriptor repetition is finished, return to idle
                 v.read_if_state := idle;
                 v.sts.operation := '0';
                 v.bmst_rd_busy  := '0';
                 v.sts.comp      := '1';
               end if;
-            else                        --bus master error
-              v.bmst_rd_err     := '1';
+            else -- If the burst is not done, flag an error and return to idle.
               v.sts.read_if_err := '1';
-              v.err_state       := READ_IF_DATA_READ;
-              v.read_if_state   := idle;
+              v.err_state       := READ_IF_DATA;
             end if;
-            v.bmst_rd_busy := '0';
           end if;
         end if;
       ----------
+
       when others =>
         v.read_if_state := idle;
       ----------         
     end case;  --READ_IF state machine
+
+
     ----------------------
     -- Signal update --
     ----------------------
+    
     -- State decoding for status display
     if r.sts.read_if_err = '1' then
       status_out.state <= r.err_state;
     else
       case r.read_if_state is
-        when exec_data_desc =>
+        when request =>
           status_out.state <= READ_IF_EXEC;
         when read_data =>
-          status_out.state <= READ_IF_DATA_READ;
+          status_out.state <= READ_IF_DATA;
         when others =>
           status_out.state <= READ_IF_IDLE;
       end case;
     end if;
 
-    rin                      <= v;
-    status_out.read_if_err   <= r.sts.read_if_err;
-    status_out.write_if_err  <= r.sts.write_if_err;
-    status_out.operation     <= r.sts.operation;
-    status_out.comp          <= r.sts.comp;
+    rin                     <= v;
+    status_out.read_if_err  <= r.sts.read_if_err;
+    status_out.write_if_err <= r.sts.write_if_err;
+    status_out.operation    <= r.sts.operation;
+    status_out.comp         <= r.sts.comp;
+    read_if_bmo.rd_req      <= r.rd_req;
      
   end process comb;
 

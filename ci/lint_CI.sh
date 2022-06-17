@@ -2,14 +2,14 @@ RED='\033[7;31m'
 GREEN='\033[7;32m'
 BLUE='\033[7;36m'
 NC='\033[0m' # No Color
-TOP='injector'
+TOP='injector_axi'
 ############
 ## TOP $TOP.sv
 ############
 # Run Spyglass
 printf "Please wait, running Spyglass\n"
 ./local_spyglass.sh \
-../hdl/$TOP.vhd 
+../hdl/$TOP.vhd
 #../hdl/$TOP.vhd  1> /dev/null
 # TODO: add remaining files here
 #Capture is there is a problem with the script

@@ -778,7 +778,7 @@ begin -- rtl
                     rd_data_fwidth(8*k+7 downto 8*k) := rd.fifo(to_integer(unsigned(rd.bm_index)))(8*k+7 downto 8*k);
                   else
                     rd_fifo_offset := sub_vector(k, rd.bm_counter, rd.bm_counter'length);
-                    if( to_integer(unsigned(rd_fifo_offset)) < DATA_WIDTH/8) then
+                    if( to_integer(unsigned(rd_fifo_offset)) < DATA_WIDTH/8 ) then
                       rd_data_fwidth(8*k+7 downto 8*k) := rd.fifo(to_integer(unsigned(rd_bm_next_index)))
                                                         (       8*to_integer(unsigned(rd_fifo_offset))+7 
                                                         downto  8*to_integer(unsigned(rd_fifo_offset)) );
@@ -1136,12 +1136,14 @@ begin -- rtl
             for k in dbits/8 - 1 downto 0 loop
               wr_fifo_offset := add_vector(wr.bm_counter, k, wr_fifo_offset'length);
               
-              if(wr_fifo_offset < std_logic_vector(to_unsigned(DATA_WIDTH/8, wr_fifo_offset'length))) then
-                wr.fifo(to_integer(unsigned(wr.bm_index)))( 8*to_integer(unsigned(wr_fifo_offset)) + 7 
-                downto 8*to_integer(unsigned(wr_fifo_offset)) ) <= wr.bm_data_buffer(8*k+7 downto 8*k);
+              if( to_integer(unsigned(wr_fifo_offset)) < DATA_WIDTH/8 ) then
+                wr.fifo(to_integer(unsigned(wr.bm_index)))
+                       (      8*to_integer(unsigned(wr_fifo_offset)) + 7 
+                       downto 8*to_integer(unsigned(wr_fifo_offset)) ) <= wr.bm_data_buffer(8*k+7 downto 8*k);
               else
-                wr.fifo(to_integer(unsigned(wr_bm_next_index)))( 8*to_integer(unsigned(wr_fifo_offset(log_2(dbits/8)-1 downto 0))) + 7 
-								downto 8*to_integer(unsigned(wr_fifo_offset(log_2(dbits/8)-1 downto 0))) ) <= wr.bm_data_buffer(8*k+7 downto 8*k);
+                wr.fifo(to_integer(unsigned(wr_bm_next_index)))
+                       (      8*to_integer(unsigned(wr_fifo_offset(log_2(dbits/8)-1 downto 0))) + 7 
+								       downto 8*to_integer(unsigned(wr_fifo_offset(log_2(dbits/8)-1 downto 0))) ) <= wr.bm_data_buffer(8*k+7 downto 8*k);
               end if;
 
             end loop;
