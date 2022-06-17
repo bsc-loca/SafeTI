@@ -21,7 +21,7 @@ echo "$TOP/consolidated_reports/${TOP}_lint_lint_rtl/moresimple.rpt"
 test -f $TOP/consolidated_reports/${TOP}_lint_lint_rtl/moresimple.rpt || exit 2
 # Check outcome
 printf "UNIT - : ${BLUE} $TOP ${BLUE}${NC}\n"
-cat $TOP/consolidated_reports/${TOP}lint_lint_rtl/moresimple.rpt  | grep -i 'error\|Syntax' | GREP_COLORS='mt=01;31'  egrep -i --color=always error\|syntax
+cat $TOP/consolidated_reports/${TOP}_lint_lint_rtl/moresimple.rpt  | grep -i 'error\|Syntax' | GREP_COLORS='mt=01;31'  egrep -i --color=always error\|syntax
 if [ $? -ne 0 ]; then
 printf "SPYGLASS - Chech for errors: ${GREEN}PASS${GREEN}${NC}\n"
 cat $TOP/consolidated_reports/${TOP}lint_lint_rtl/moresimple.rpt  | GREP_COLORS='mt=01;33'  egrep -i --color=always 'warning'
