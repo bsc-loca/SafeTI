@@ -17,11 +17,11 @@ echo "#!SPYGLASS_PROJECT_FILE" >> /tmp/$N/$N.prj
 echo "#!VERSION 3.0" >> /tmp/$N/$N.prj
 echo "##Data Import Section" >> /tmp/$N/$N.prj
 # Add here your files and submodules
+echo "read_file -type vhdl $PWD/../hdl/injector_axi.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_ahb.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_apb.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_ctrl.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/fifo.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_delay_if.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_read_if.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_write_if.vhd" >> /tmp/$N/$N.prj
@@ -33,9 +33,9 @@ echo "set_option libhdlfiles safety {/tmp/$N/safety/injector_pkg.vhd}" >> /tmp/$
 echo "##Common Options Section" >> /tmp/$N/$N.prj
 echo "set_option mthresh 5000000" >> /tmp/$N/$N.prj                             
 echo "set_option projectwdir ." >> /tmp/$N/$N.prj
-echo "set_option top $N" >> /tmp/$N/$N.prj                           
-echo "set_option elab_precompile yes" >> /tmp/$N/$N.prj                         
-echo "set_option hdllibdu yes" >> /tmp/$N/$N.prj                                
+echo "set_option top $N" >> /tmp/$N/$N.prj 
+echo "set_option elab_precompile yes" >> /tmp/$N/$N.prj 
+echo "set_option hdllibdu yes" >> /tmp/$N/$N.prj
 echo "set_option designread_enable_synthesis no" >> /tmp/$N/$N.prj
 echo "set_option language_mode mixed" >> /tmp/$N/$N.prj
 echo "set_option designread_disable_flatten no" >> /tmp/$N/$N.prj
