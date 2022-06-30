@@ -1,6 +1,6 @@
 #!/bin/bash
 #Script description: Generates a spyglass project 
-    # and retrieves the results. 
+# and retrieves the results. 
 #Format parameters
 FN="$(basename -- $1)"
 N="${FN%%.*}"
@@ -28,10 +28,12 @@ echo "read_file -type vhdl $PWD/../hdl/injector_write_if.vhd" >> /tmp/$N/$N.prj
 # Set library name and path
 echo "set_option lib safety {$PWD/safety}" >> /tmp/$N/$N.prj
 # BSC library files
-cp ../hdl/injector_pkg.vhd  /tmp/$N/safety
+cp ../hdl/injector_pkg.vhd /tmp/$N/safety
+cp ../hdl/axi4_pkg.vhd /tmp/$N/safety
 echo "set_option libhdlfiles safety {/tmp/$N/safety/injector_pkg.vhd}" >> /tmp/$N/$N.prj
+echo "set_option libhdlfiles safety {/tmp/$N/safety/axi4_pkg.vhd}" >> /tmp/$N/$N.prj
 echo "##Common Options Section" >> /tmp/$N/$N.prj
-echo "set_option mthresh 5000000" >> /tmp/$N/$N.prj                             
+echo "set_option mthresh 5000000" >> /tmp/$N/$N.prj
 echo "set_option projectwdir ." >> /tmp/$N/$N.prj
 echo "set_option top $N" >> /tmp/$N/$N.prj 
 echo "set_option elab_precompile yes" >> /tmp/$N/$N.prj 
