@@ -49,10 +49,10 @@ package axi4_pkg is
     aw_id           : std_logic_vector(  31 downto 0 );
     aw_addr         : std_logic_vector(  63 downto 0 );
     aw_len          : std_logic_vector(   7 downto 0 );
+    aw_size         : std_logic_vector(   2 downto 0 );
     aw_burst        : std_logic_vector(   1 downto 0 );
     aw_lock         : std_logic;
     aw_cache        : std_logic_vector(   3 downto 0 );
-    aw_size         : std_logic_vector(   2 downto 0 );
     aw_prot         : std_logic_vector(   2 downto 0 );
     aw_qos          : std_logic_vector(   3 downto 0 );
     aw_region       : std_logic_vector(   3 downto 0 );

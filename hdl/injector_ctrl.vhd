@@ -332,7 +332,7 @@ begin  -- rtl
         -- Check whether the transaction was successfull or not
         v.read_if_start       := '0';
         if( (r.read_if_start = '0') and (read_if_sts_in.comp = '1') ) then 
-           if( (r.rep_count < r.desc_ctrl.count) and (or_vector(r.desc_ctrl.count) = '1') ) then -- Check COUNT parameter in Ctrl Desc Register
+           if( (r.rep_count < r.desc_ctrl.count) ) then -- Check COUNT parameter in Ctrl Desc Register
               v.rep_count     := add_vector(r.rep_count, 1, r.rep_count'length);
               v.read_if_start := '1';
               v.state         := read_if;

@@ -60,7 +60,7 @@ architecture rtl of injector_read_if is
   -- Constants for read_if present state
   constant READ_IF_IDLE       : std_logic_vector(4 downto 0) := "00101"; -- 0x05
   constant READ_IF_EXEC       : std_logic_vector(4 downto 0) := "00110"; -- 0x06
-  constant READ_IF_DATA  : std_logic_vector(4 downto 0) := "00111"; -- 0x07
+  constant READ_IF_DATA       : std_logic_vector(4 downto 0) := "00111"; -- 0x07
 
   -----------------------------------------------------------------------------
   -- Type and record 

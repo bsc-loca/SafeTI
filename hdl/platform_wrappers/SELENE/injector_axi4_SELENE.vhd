@@ -171,7 +171,7 @@ begin  -- rtl
   begin
     if(mux = '0' or two_injectors = FALSE) then
   -- BM SafeTI input (MISO)
-      bm_in_injector.rd_data        <= bm_out_manager.rd_data(dbits-1 downto 0) & (bm_in_injector.rd_data'high downto dbits => '0');
+      bm_in_injector.rd_data        <= (bm_in_injector.rd_data'high downto dbits => '0') & bm_out_manager.rd_data(dbits-1 downto 0);
       bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
       bm_in_injector.rd_valid       <= bm_out_manager.rd_valid;
       bm_in_injector.rd_done        <= bm_out_manager.rd_done;
@@ -191,16 +191,16 @@ begin  -- rtl
       bm_in_injector1.wr_done       <= '0';
       bm_in_injector1.wr_err        <= '0';
   -- BM SafeTI output (MOSI)
-      bm_in_manager.rd_addr         <= (63 downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
+      bm_in_manager.rd_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
       bm_in_manager.rd_size         <= bm_out_injector.rd_size;
       bm_in_manager.rd_req          <= bm_out_injector.rd_req;
-      bm_in_manager.wr_addr         <= (63 downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
+      bm_in_manager.wr_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
       bm_in_manager.wr_size         <= bm_out_injector.wr_size;
       bm_in_manager.wr_req          <= bm_out_injector.wr_req;
-      bm_in_manager.wr_data         <= (1023 downto dbits => '0') & bm_out_injector.wr_data(bm_in_injector.rd_data'high downto bm_in_injector.rd_data'length-dbits);
+      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto dbits => '0') & bm_out_injector.wr_data(dbits - 1 downto 0);
     else
   -- BM SafeTI input (MISO)
-      bm_in_injector1.rd_data       <= bm_out_manager.rd_data(dbits-1 downto 0) & (bm_in_injector1.rd_data'high downto dbits => '0');
+      bm_in_injector1.rd_data       <= (bm_in_injector1.rd_data'high downto dbits => '0') & bm_out_manager.rd_data(dbits-1 downto 0);
       bm_in_injector1.rd_req_grant  <= bm_out_manager.rd_req_grant;
       bm_in_injector1.rd_valid      <= bm_out_manager.rd_valid;
       bm_in_injector1.rd_done       <= bm_out_manager.rd_done;
@@ -220,13 +220,13 @@ begin  -- rtl
       bm_in_injector.wr_done        <= '0';
       bm_in_injector.wr_err         <= '0';
   -- BM SafeTI output (MOSI)
-      bm_in_manager.rd_addr         <= (63 downto bm_out_injector1.rd_addr'length => '0') & bm_out_injector1.rd_addr;
+      bm_in_manager.rd_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector1.rd_addr'length => '0') & bm_out_injector1.rd_addr;
       bm_in_manager.rd_size         <= bm_out_injector1.rd_size;
       bm_in_manager.rd_req          <= bm_out_injector1.rd_req;
-      bm_in_manager.wr_addr         <= (63 downto bm_out_injector1.wr_addr'length => '0') & bm_out_injector1.wr_addr;
+      bm_in_manager.wr_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector1.wr_addr'length => '0') & bm_out_injector1.wr_addr;
       bm_in_manager.wr_size         <= bm_out_injector1.wr_size;
       bm_in_manager.wr_req          <= bm_out_injector1.wr_req;
-      bm_in_manager.wr_data         <= (1023 downto dbits => '0') & bm_out_injector1.wr_data(bm_in_injector1.rd_data'high downto bm_in_injector1.rd_data'length-dbits);
+      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto dbits => '0') & bm_out_injector1.wr_data(dbits - 1 downto 0);
     end if;
   end process comb;
   

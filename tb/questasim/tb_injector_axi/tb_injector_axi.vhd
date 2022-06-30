@@ -84,7 +84,7 @@ architecture rtl of tb_injector_axi is
   constant size_vector    : array_integer(0 to 16) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34, 0);
   constant addr_vector    : addr_bank(0 to 1)     := (X"0000_0000", X"0000_0000");
 
-  -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, nextraddr, last)
+  -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, last)
   constant descriptors1   : descriptor_bank_tb(0 to 6) := (
     write_descriptor(               4, 63,  RD, action_addr, '0', '0' ), -- 64 write transactions of   4 bytes
     write_descriptor(               8, 31,  RD, action_addr, '0', '0' ), -- 32 write transactions of   8 bytes
@@ -316,7 +316,9 @@ begin  -- rtl
     end loop;
     end loop;
 
-    stop;
+    rstn        <= '1';
+
+    --stop;
       
     -- Reset injector
     AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
@@ -335,12 +337,6 @@ begin  -- rtl
     apbi.en     <= '0';
     wait for 1 us;
 
-    -- To reset loaded descriptors, it is required to use the reset low input
-    rstn        <= '0';
-    wait until rising_edge(clk);  wait until rising_edge(clk);
-    rstn        <= '1';
-
-
 
     ----------------------------------------
     --               TEST 1               --
@@ -356,11 +352,11 @@ begin  -- rtl
     configure_injector(clk, apb_inj_addr, inj_config1, apbo, apbi);
     AXI_com   <= TRUE;   -- Change BM connections to AXI subordinate
 
-    report "Test 1 descriptor batch has been completed succesfully once!";  
-    -- Test all descriptors from TEST 1 for second time (queue test)
-    test_descriptor_batch(clk, bm_in, bm_out, descriptors1, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl);
-    report "Test 1 descriptor batch has been completed succesfully twice!";
+    for i in descriptors1'range loop
+      wait until falling_edge(apbo.irq(pirq));
+    end loop;
 
+    report "Test 1 descriptor batch has been completed!";  
 
     -- Reset injector
     configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
@@ -378,70 +374,78 @@ begin  -- rtl
     apbi.en     <= '0';
     wait for 1 us;
 
-    -- To reset loaded descriptors, it is required to use the reset low input
-    rstn        <= '0';
-    wait until rising_edge(clk);  wait until rising_edge(clk);
-    rstn        <= '1';
+    --stop;
 
-    stop;
 
     ----------------------------------------
-    --               TEST 2               --
+    --               TEST 2 WR            --
     ----------------------------------------
 
     -- Load descriptors for test 2 write
-    report "Test 2: Loading write descriptor batch!";
-    --load_descriptors(clk, apb_inj_addr, descriptors2w, apbi);
+    report "Test 2 WR: Loading write descriptor batch!";
+    load_descriptors(clk, apb_inj_addr, descriptors2w, apbi);
 
     -- Configure injector for test 2 write
-    report "Test 2: Load write configuration and start injector!";
+    report "Test 2 WR: Load write configuration and start injector!";
     configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
-
-    -- Test all descriptors from TEST 2 write
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2w, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl); 
-    report "Test 2 descriptor write batch has been completed succesfully!";
-
-    -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
-    for i in 0 to 9 loop
-      wait until rising_edge(clk); 
-    end loop;
-    --assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
-    --                                  & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
-    --                                  & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
-
-    -- To reset loaded descriptors, it is required to use the reset low input
-    rstn        <= '0';
-    wait until rising_edge(clk);  wait until rising_edge(clk);
-    rstn        <= '1';
     
+    for i in descriptors1'range loop
+      wait until falling_edge(apbo.irq(pirq));
+    end loop;
+
+    report "Test 2 WR descriptor batch has been completed!"; 
+
+    -- Reset injector
+    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
+
+    -- Check if reset has worked
+    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
+    apbi.en     <= '1';
+    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
+    apbi.wr_en  <= '0';
+    wait until rising_edge(clk); wait until rising_edge(clk);
+    if(or_vector(apbo.rdata) = '1') then
+      assert FALSE report "Test 2 WR: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
+    else           report "Test 2 WR: Injector has been reset successfully!";
+    end if;
+    apbi.en     <= '0';
+    wait for 1 us;
+
+
+    ----------------------------------------
+    --               TEST 2 RD            --
+    ----------------------------------------
 
     -- Configure injector for test 2 read
-    report "Test 2: Load read configuration and start injector!";
+    report "Test 2 RD: Load read configuration and start injector!";
     configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
 
     -- Load descriptors for test 2 read
-    report "Test 2: Loading read descriptor batch!";
-    --load_descriptors(clk, apb_inj_addr, descriptors2r, apbi);
+    report "Test 2 RD: Loading read descriptor batch!";
+    load_descriptors(clk, apb_inj_addr, descriptors2r, apbi);
 
-    -- Test all descriptors from TEST 2 read
-    --test_descriptor_batch(clk, bm_in, bm_out, descriptors2r, MAX_SIZE_BURST, dbits, apbo.irq(pirq), wait_descr_compl); 
-    report "Test 2 descriptor read batch has been completed succesfully!";
-
-    -- Check if the injector is looping execution (non-queue mode shoould not repeat descriptors)
-    for i in 0 to 9 loop
-      wait until rising_edge(clk); 
+    for i in descriptors1'range loop
+      wait until falling_edge(apbo.irq(pirq));
     end loop;
-    --assert (bm_in.rd_req or bm_in.wr_req) = '0'   report "Test 2: Injector non-queue mode FAILED!" & LF 
-    --                                  & "         The injector is looping descriptors even though it shouldn't due to non-queue mode operation." & LF
-    --                                  & "         (Make sure the configuration of the injector does not assert the queue mode bit)" severity failure;
 
-    -- To reset loaded descriptors, it is required to use the reset low input
-    rstn        <= '0';
-    wait until rising_edge(clk);  wait until rising_edge(clk);
-    rstn        <= '1';
+    report "Test 2 RD descriptor batch has been completed!"; 
 
+    -- Reset injector
+    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
 
+    -- Check if reset has worked
+    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
+    apbi.en     <= '1';
+    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
+    apbi.wr_en  <= '0';
+    wait until rising_edge(clk); wait until rising_edge(clk);
+    if(or_vector(apbo.rdata) = '1') then
+      assert FALSE report "Test 2 RD: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
+    else           report "Test 2 RD: Injector has been reset successfully!";
+    end if;
+    apbi.en     <= '0';
     wait for 1 us;
+
     report "TEST SUCCESSFULLY FINISHED!"; stop; -- VHDL2008
     assert FALSE report "TEST SUCCESSFULLY FINISHED!" severity failure; -- !VHDL2008
 

@@ -16,7 +16,6 @@ read_vhdl ../hdl/injector_ctrl.vhd
 read_vhdl ../hdl/injector_read_if.vhd
 read_vhdl ../hdl/injector_write_if.vhd
 read_vhdl ../hdl/injector_delay_if.vhd
-read_vhdl ../hdl/fifo.vhd
 read_vhdl -library safety ../hdl/axi4_pkg.vhd
 read_vhdl ../hdl/injector_axi.vhd
 read_vhdl ../hdl/axi4_manager.vhd
