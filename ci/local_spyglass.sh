@@ -18,6 +18,7 @@ echo "#!VERSION 3.0" >> /tmp/$N/$N.prj
 echo "##Data Import Section" >> /tmp/$N/$N.prj
 # Add here your files and submodules
 echo "read_file -type vhdl $PWD/../hdl/injector_axi.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/axi4_manager.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_ahb.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_apb.vhd" >> /tmp/$N/$N.prj
