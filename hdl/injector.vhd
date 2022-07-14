@@ -18,16 +18,16 @@ use safety.injector_pkg.all;
 entity injector is
   generic (
     -- Injector configuration
-    mem_Ndesc     : integer range 1 to  256          :=   16;     -- Maximum number of programmable descriptors [Only power of 2s allowed]
-    dbits         : integer range 8 to 1024          :=   32;     -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST: integer range 8 to 4096          := 1024;     -- Maximum number of bytes allowed at a burst transaction.
+    mem_Ndesc     : integer range 1 to  256           :=   16;    -- Maximum number of programmable descriptors [Only power of 2s allowed]
+    dbits         : integer range 8 to 1024           :=   32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
+    MAX_SIZE_BURST: integer range 8 to 4096           := 1024;    -- Maximum number of bytes allowed at a burst transaction.
     -- APB configuration  
     pindex        : integer                           := 0;       -- APB configuartion slave index
     paddr         : integer                           := 0;       -- APB configuartion slave address
     pmask         : integer                           := 16#FFF#; -- APB configuartion slave mask
     pirq          : integer range 0 to APB_IRQ_NMAX-1 := 0;       -- APB configuartion slave irq
     -- Asynchronous reset configuration
-    ASYNC_RST     : boolean                           := FALSE    -- Allow asynchronous reset
+    ASYNC_RST     : boolean                           := TRUE     -- Allow asynchronous reset
     );
   port (
     rstn          : in  std_ulogic;           -- Reset

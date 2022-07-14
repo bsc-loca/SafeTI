@@ -123,6 +123,8 @@ package axi4_pkg is
     rd_fixed_addr   : std_logic;
     rd_axi_cache    : std_logic_vector(   3 downto 0);
     rd_axi_prot     : std_logic_vector(   2 downto 0);
+    rd_axi_qos      : std_logic_vector(   3 downto 0);
+    rd_axi_region   : std_logic_vector(   3 downto 0);
     -- Write channel
     wr_addr         : std_logic_vector(  63 downto 0);
     wr_size         : std_logic_vector(  11 downto 0);
@@ -131,6 +133,8 @@ package axi4_pkg is
     wr_fixed_addr   : std_logic;
     wr_axi_cache    : std_logic_vector(   3 downto 0);
     wr_axi_prot     : std_logic_vector(   2 downto 0);
+    wr_axi_qos      : std_logic_vector(   3 downto 0);
+    wr_axi_region   : std_logic_vector(   3 downto 0);
   end record;
 
   type array_integer          is array (natural range <>) of integer;

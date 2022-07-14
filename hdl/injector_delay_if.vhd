@@ -20,7 +20,7 @@ use safety.injector_pkg.all;
 
 entity injector_delay_if is
   generic (
-    ASYNC_RST       : boolean := FALSE          -- Allow asynchronous reset flag
+    ASYNC_RST       : boolean := TRUE           -- Allow asynchronous reset flag
     );
   port (
     rstn            : in  std_ulogic;           -- Active low reset

@@ -50,7 +50,7 @@ entity tb_injector_axi_reset is
     rd_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
     wr_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
     -- Asynchronous reset configuration
-    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (default=FALSE)
+    ASYNC_RST         : boolean                             := TRUE       -- Allow asynchronous reset flag (default=TRUE)
     );
 
 end entity tb_injector_axi_reset;

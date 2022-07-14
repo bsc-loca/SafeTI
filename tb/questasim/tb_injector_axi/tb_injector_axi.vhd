@@ -49,7 +49,7 @@ entity tb_injector_axi is
     rd_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
     wr_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
     -- Asynchronous reset configuration
-    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag (default=FALSE)
+    ASYNC_RST         : boolean                             := TRUE       -- Allow asynchronous reset flag (default=TRUE)
     );
 
 end entity tb_injector_axi;
@@ -61,7 +61,7 @@ architecture rtl of tb_injector_axi is
 
   -- Testbench thresholds (maximum number of clock cycles allowed for the signals to be asserted before an error message)
   -- constant req_threshold  : integer                       := 2;  -- Requests (injector asserted) and granted requests (testbench asserted) (default=2)
-  -- constant descr_compl_thereshold : integer               := 0;  -- Waiting threshold for descriptor completition flag (injector asserted) (default=0)
+  constant descr_compl_thereshold : integer               := 4096*2;  -- Waiting threshold for descriptor completition flag (injector asserted)
 
   -- Pointers
   constant apb_inj_addr   : std_logic_vector(31 downto 0) := X"000" & std_logic_vector(to_unsigned(paddr, 12)) & X"00"; -- Location of the injector at APB memory
@@ -81,8 +81,9 @@ architecture rtl of tb_injector_axi is
   --constant size_vector    : array_integer(0 to 1) := (4096, 0);
   --constant addr_vector    : addr_bank(0 to 16)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005", X"0000_0006", 
   --X"0000_0007", X"0000_0008", X"0000_0009", X"0000_000A", X"0000_000B", X"0000_000C", X"0000_000D", X"0000_000E", X"0000_000F", X"0000_0000");
-  constant size_vector    : array_integer(0 to 16) := (1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 18, 31, 32, 33, 34, 0);
-  constant addr_vector    : addr_bank(0 to 1)     := (X"0000_0000", X"0000_0000");
+  constant size_vector    : array_integer(0 to 40) := (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,
+                                                       64,128,256,512,1024,2048,4095,4096,4097);
+  constant addr_vector    : addr_bank(0 to 3)     := (X"0000_0000", X"0000_0001", X"0000_000F", X"0000_0010");
 
   -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, last)
   constant descriptors1   : descriptor_bank_tb(0 to 6) := (
@@ -283,9 +284,9 @@ begin  -- rtl
     ----------------------------------------
     --               TEST X               --
     ----------------------------------------
-    for m in 0 to addr_vector'high-1 loop -- addr_vector'range
     for k in 0 to 1 loop -- 0 for reads, 1 for writes
-    for j in 0 to size_vector'high-1 loop -- size_vector'range
+    for m in addr_vector'range loop -- addr_vector'range
+    for j in size_vector'range loop -- size_vector'range
 
       apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
@@ -304,11 +305,11 @@ begin  -- rtl
       wait until rising_edge(clk);
       AXI_com   <= TRUE;
 
-      if(k=0) then
-        wait until rising_edge(bm_in_injector.rd_done); -- Wait for interface to complete transaction
-      else
-        wait until rising_edge(bm_in_injector.wr_done); -- Wait for interface to complete transaction
-      end if;
+      -- Wait for descriptor completion or crash if takes too long.
+      wait_descr_compl <= '1';
+      wait until rising_edge(apbo.irq(pindex));
+      wait_descr_compl <= '0';
+      
       wait for 20 ns;
       rstn      <= '0';
 
@@ -318,7 +319,7 @@ begin  -- rtl
 
     rstn        <= '1';
 
-    --stop;
+    stop;
       
     -- Reset injector
     AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
@@ -453,10 +454,10 @@ begin  -- rtl
 
 
   -- Counters used to count how many clk cycles X signals get stuck
-  -- interrupt_test : process(clk)
-  -- begin 
-  --   if(clk = '1' and clk'event) then
-  --     -- Increment counters if the signal stays asserted
+  interrupt_test : process(clk)
+  begin 
+    if(clk = '1' and clk'event) then
+      -- Increment counters if the signal stays asserted
   --     if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
   --       else limit_rd_req_grant <= 0; end if;
   --     if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
@@ -465,11 +466,11 @@ begin  -- rtl
   --       else limit_rd_req <= 0; end if;
   --     if(bm_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
   --       else limit_wr_req <= 0; end if;
-  --     if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
-  --       else limit_descr_compl <= 0; end if;
-  --   end if;
+      if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
+        else limit_descr_compl <= 0; end if;
+    end if;
 
-  --   -- Crash test with error if something gets stuck for Y threshold
+    -- Crash test with error if something gets stuck for Y threshold
   --   if(
   --     limit_rd_req_grant > req_threshold or
   --     limit_wr_req_grant > req_threshold
@@ -484,13 +485,13 @@ begin  -- rtl
   --     assert FALSE report "TEST GOT STUCK DUE TO INJECTOR NOT REQUESTING TRANSACTION!" severity failure;
   --   end if;
 
-  --   if(
-  --     limit_descr_compl > descr_compl_thereshold
-  --   ) then
-  --     assert FALSE report "The testbench has finished descriptor but the injector has not set the completion flag (apbo.irq is 0)." severity failure;
-  --   end if;
+    if(
+      limit_descr_compl > descr_compl_thereshold
+    ) then
+      assert FALSE report "The the injector took too long to assert the descriptor completion flag (apbo.irq is 0)." severity failure;
+    end if;
 
-  -- end process interrupt_test;
+  end process interrupt_test;
 
 
   -----------------------------------------------------------------------------

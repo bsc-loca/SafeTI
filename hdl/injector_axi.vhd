@@ -21,7 +21,6 @@ entity injector_axi is
   generic (
     -- SafeTI configuration
     mem_Ndesc     : integer range  1 to  128            :=   16;    -- Maximum number of descriptor slots. [Only power of 2s allowed]
-    dbits         : integer range 32 to  128            :=   32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum number of bytes allowed at a burst transaction.
     tech          : integer range  0 to numTech         := typeTech;-- Target technology
     -- APB configuration  
@@ -76,7 +75,7 @@ begin
   bm_in_manager.wr_addr         <= (63 downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
   bm_in_manager.wr_size         <= bm_out_injector.wr_size;
   bm_in_manager.wr_req          <= bm_out_injector.wr_req;
-  bm_in_manager.wr_data         <= (1023 downto dbits => '0') & bm_out_injector.wr_data(bm_in_injector.rd_data'high downto bm_in_injector.rd_data'length-dbits);
+  bm_in_manager.wr_data         <= (1023 downto DATA_WIDTH => '0') & bm_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
 
   bm_in_manager.rd_fixed_addr   <= '0';
   bm_in_manager.rd_axi_cache    <= "0011";
@@ -85,7 +84,7 @@ begin
   bm_in_manager.wr_axi_cache    <= "0011";
   bm_in_manager.wr_axi_prot     <= "001";
 
-  bm_in_injector.rd_data        <= bm_out_manager.rd_data(dbits-1 downto 0) & (bm_in_injector.rd_data'high downto dbits => '0');
+  bm_in_injector.rd_data        <= bm_out_manager.rd_data(1023 downto DATA_WIDTH) & (DATA_WIDTH - 1 downto 0 => '0');
   bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
   bm_in_injector.rd_valid       <= bm_out_manager.rd_valid;
   bm_in_injector.rd_done        <= bm_out_manager.rd_done;
@@ -104,7 +103,7 @@ begin
   core : injector
     generic map (
       mem_Ndesc       => mem_Ndesc,
-      dbits           => dbits,
+      dbits           => DATA_WIDTH,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
       pindex          => pindex,
       paddr           => paddr,
@@ -128,7 +127,7 @@ begin
       ADDR_WIDTH      => ADDR_WIDTH,
       DATA_WIDTH      => DATA_WIDTH,
       axi_id          => axi_id,
-      dbits           => dbits,
+      dbits           => DATA_WIDTH,
       rd_n_fifo_regs  => rd_n_fifo_regs,
       wr_n_fifo_regs  => wr_n_fifo_regs,
       ASYNC_RST       => ASYNC_RST

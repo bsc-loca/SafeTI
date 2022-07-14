@@ -26,7 +26,7 @@ entity injector_ctrl is
   generic (
     dbits             : integer range 8 to 1024 := 32;      -- Data bus width of BM at injector. [Only power of 2s allowed]
     mem_Ndesc         : integer range 1 to  256 := 16;      -- Maximum number of descriptors allowed
-    ASYNC_RST         : boolean                 := FALSE    -- Allow asynchronous reset flag
+    ASYNC_RST         : boolean                 := TRUE     -- Allow asynchronous reset flag
     );
   port (
     rstn              : in  std_ulogic;                     -- Active low reset signal

@@ -27,7 +27,7 @@ entity injector_read_if is
   generic (
     dbits           : integer range 8 to 1024 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST  : integer range 8 to 4096 := 1024;    -- Maximum number of bytes per transaction
-    ASYNC_RST       : boolean                 := FALSE    -- Allow asynchronous reset flag
+    ASYNC_RST       : boolean                 := TRUE     -- Allow asynchronous reset flag
     );
   port (
     rstn            : in  std_ulogic;                     -- Active low reset
@@ -82,26 +82,26 @@ architecture rtl of injector_read_if is
 
   --READ_IF reg type
   type read_if_reg_type is record
-    read_if_state       : read_if_state_type;                     -- READ_IF states
-    sts                 : d_ex_sts_out_type;                      -- M2b status signals
-    rd_req              : std_logic;                              -- Request read transaction flag
-    tot_size            : std_logic_vector(19 downto 0);          -- Total size of data to read
-    curr_size           : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining bytes to be read in the burst
-    inc                 : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
-    bmst_rd_busy        : std_ulogic;                             -- bus master read busy
-    err_state           : std_logic_vector(4 downto 0);           -- Error state
+    read_if_state     : read_if_state_type;                     -- READ_IF states
+    sts               : d_ex_sts_out_type;                      -- M2b status signals
+    rd_req            : std_logic;                              -- Request read transaction flag
+    tot_size          : std_logic_vector(desc_ctrl.size'length - 1 downto 0); -- Total size of data to be read
+    curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0);     -- Remaining bytes to be read in the burst
+    inc               : std_logic_vector(desc_ctrl.size'length - 1 downto 0); -- For data destination address increment (20 bits)
+    bmst_rd_busy      : std_ulogic;                             -- bus master read busy
+    err_state         : std_logic_vector(4 downto 0);           -- Error state
   end record;
 
   -- Reset value for READ_IF reg type
   constant READ_IF_REG_RES : read_if_reg_type := (
-    read_if_state       => idle,
-    sts                 => D_EX_STS_RST,
-    rd_req              => '0',
-    tot_size            => (others => '0'),
-    curr_size           => (others => '0'),
-    inc                 => (others => '0'),
-    bmst_rd_busy        => '0',
-    err_state           => (others => '0')
+    read_if_state     => idle,
+    sts               => D_EX_STS_RST,
+    rd_req            => '0',
+    tot_size          => (others => '0'),
+    curr_size         => (others => '0'),
+    inc               => (others => '0'),
+    bmst_rd_busy      => '0',
+    err_state         => (others => '0')
   );
 
   -----------------------------------------------------------------------------

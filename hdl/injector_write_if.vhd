@@ -26,7 +26,7 @@ entity injector_write_if is
   generic (
     dbits           : integer range 8 to 1024 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST  : integer range 8 to 4096 := 1024;    -- Maximum number of bytes per transaction
-    ASYNC_RST       : boolean                 := FALSE    -- Allow asynchronous reset flag
+    ASYNC_RST       : boolean                 := TRUE     -- Allow asynchronous reset flag
     );
   port (
     rstn            : in  std_ulogic;                     -- Active low reset
@@ -80,9 +80,9 @@ architecture rtl of injector_write_if is
     write_if_state    : write_if_state_type;                    -- WRITE_IF states
     sts               : d_ex_sts_out_type;                      -- WRITE_IF status signals
     wr_req            : std_logic;                              -- Request write transaction flag
-    tot_size          : std_logic_vector(19 downto 0);          -- Total size of data to write 
-    curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0); -- Remaining size in the burst, to be written
-    inc               : std_logic_vector(21 downto 0);          -- For data destination address increment (22 bits)
+    tot_size          : std_logic_vector(desc_ctrl.size'length - 1 downto 0); -- Total size of data to write 
+    curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0);     -- Remaining size in the burst, to be written
+    inc               : std_logic_vector(desc_ctrl.size'length - 1 downto 0); -- For data destination address increment (20 bits)
     bmst_wr_busy      : std_ulogic;                             -- Ongoing write transaction flag (goes low between repetitions)
     err_state         : std_logic_vector(4 downto 0);           -- Error state
   end record;
@@ -157,24 +157,10 @@ begin
           write_if_bmo.wr_size <= sub_vector(r.curr_size, 1, write_if_bmo.wr_size'length); -- interface understands value 0 as 1 byte
           v.wr_req := '1';
 
-          if (write_if_bmi.wr_req_grant and r.wr_req) = '1' then
+          if( (write_if_bmi.wr_req_grant and r.wr_req) = '1' ) then
             v.bmst_wr_busy    := '1';
             v.wr_req          := '0';
-            if write_if_bmi.wr_full = '0' then
-              if to_integer(unsigned(r.curr_size)) > dbits/8 then
-                v.curr_size       := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
-                v.inc             := add_vector(r.inc, dbits/8, v.inc'length);
-                v.tot_size        := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
-                v.write_if_state  := write_burst;
-              else
-                v.curr_size       := (others => '0');
-                v.inc             := add_vector(r.inc, r.curr_size, v.inc'length);
-                v.tot_size        := sub_vector(r.tot_size, r.curr_size, v.tot_size'length);
-                v.write_if_state  := write_data_check; -- No more data
-              end if;
-            else
-              v.write_if_state    := write_burst;
-            end if;
+            v.write_if_state  := write_burst;
           end if;
       ----------
         

@@ -21,8 +21,8 @@ entity injector_apb is
     paddr           : integer                           := 0;         -- APB configuartion slave address
     pmask           : integer                           := 16#FFF#;   -- APB configuartion slave mask
     pirq            : integer range 0 to APB_IRQ_NMAX-1 := 0;         -- APB configuartion slave irq
-    mem_Ndesc       : integer range 1 to 512            := 16;        -- Maximum number of descriptors allowed
-    ASYNC_RST       : boolean                           := FALSE      -- Allow asynchronous reset flag
+    mem_Ndesc       : integer range 1 to 1024           := 16;        -- Maximum number of descriptor words allowed
+    ASYNC_RST       : boolean                           := TRUE       -- Allow asynchronous reset flag
     );
   port (
     rstn            : in  std_ulogic;                       -- Reset

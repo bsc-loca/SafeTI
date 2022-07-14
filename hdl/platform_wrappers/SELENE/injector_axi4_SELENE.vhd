@@ -24,7 +24,6 @@ use techmap.gencomp.all;
 entity injector_axi4_SELENE is
   generic (
     -- SafeTI configuration
-    dbits         : integer range  8 to 1024            :=   32;    -- Data width of BM and FIFO at injector. [Only power of 2s are allowed]
     MAX_SIZE_BURST: integer range  8 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
     tech          : integer range  0 to NTECH           := inferred;-- Target technology
     two_injectors : boolean                             := FALSE;   -- Implement two SafeTI modules for continuous transaction requests
@@ -39,6 +38,10 @@ entity injector_axi4_SELENE is
     ADDR_WIDTH    : integer range 12 to   64            :=  32;     -- AXI address bus width. (Tested only for 32 bits)
     DATA_WIDTH    : integer range  8 to 1024            := 128;     -- AXI data bus width. [Only power of 2s are allowed]
     axi_id        : integer range  0 to 32**2-1         :=   0;     -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    axi_cache     : std_logic_vector(3 downto 0)        := "0000";  -- AXI CACHE signaling profile.
+    axi_prot      : std_logic_vector(2 downto 0)        := "000";   -- AXI PROT signaling profile.
+    axi_qos       : std_logic_vector(2 downto 0)        := "000";   -- AXI QOS signaling profile.
+    axi_region    : std_logic_vector(3 downto 0)        := "0000";  -- AXI REGION signaling profile.
     rd_n_fifo_regs: integer range  2 to  256            :=   4;     -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
     wr_n_fifo_regs: integer range  2 to  256            :=   4      -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
   );
@@ -161,8 +164,8 @@ begin  -- rtl
   apbi_inj.touten   <= apbi.testoen;
   apbi_inj.tinen    <= apbi.testin;
   -- APB Slave output from the injectors
-  apbo.prdata       <= apbo_inj.rdata or apbo_inj1.rdata;
-  apbo.pirq         <= apbo_inj.irq or apbo_inj1.irq;
+  apbo.prdata       <= apbo_inj.rdata or apbo_inj1.rdata when two_injectors else apbo_inj.rdata;
+  apbo.pirq         <= apbo_inj.irq   or apbo_inj1.irq   when two_injectors else apbo_inj.irq;
   apbo.pindex       <= apbo_inj.index;
   apbo.pconfig      <= pconfig;
 
@@ -171,7 +174,7 @@ begin  -- rtl
   begin
     if(mux = '0' or two_injectors = FALSE) then
   -- BM SafeTI input (MISO)
-      bm_in_injector.rd_data        <= (bm_in_injector.rd_data'high downto dbits => '0') & bm_out_manager.rd_data(dbits-1 downto 0);
+      bm_in_injector.rd_data        <= (bm_in_injector.rd_data'high downto DATA_WIDTH => '0') & bm_out_manager.rd_data(DATA_WIDTH-1 downto 0);
       bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
       bm_in_injector.rd_valid       <= bm_out_manager.rd_valid;
       bm_in_injector.rd_done        <= bm_out_manager.rd_done;
@@ -197,10 +200,10 @@ begin  -- rtl
       bm_in_manager.wr_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
       bm_in_manager.wr_size         <= bm_out_injector.wr_size;
       bm_in_manager.wr_req          <= bm_out_injector.wr_req;
-      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto dbits => '0') & bm_out_injector.wr_data(dbits - 1 downto 0);
+      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto DATA_WIDTH => '0') & bm_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
     else
   -- BM SafeTI input (MISO)
-      bm_in_injector1.rd_data       <= (bm_in_injector1.rd_data'high downto dbits => '0') & bm_out_manager.rd_data(dbits-1 downto 0);
+      bm_in_injector1.rd_data       <= (bm_in_injector1.rd_data'high downto DATA_WIDTH => '0') & bm_out_manager.rd_data(DATA_WIDTH-1 downto 0);
       bm_in_injector1.rd_req_grant  <= bm_out_manager.rd_req_grant;
       bm_in_injector1.rd_valid      <= bm_out_manager.rd_valid;
       bm_in_injector1.rd_done       <= bm_out_manager.rd_done;
@@ -226,16 +229,21 @@ begin  -- rtl
       bm_in_manager.wr_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector1.wr_addr'length => '0') & bm_out_injector1.wr_addr;
       bm_in_manager.wr_size         <= bm_out_injector1.wr_size;
       bm_in_manager.wr_req          <= bm_out_injector1.wr_req;
-      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto dbits => '0') & bm_out_injector1.wr_data(dbits - 1 downto 0);
+      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto DATA_WIDTH => '0') & bm_out_injector1.wr_data(DATA_WIDTH - 1 downto 0);
     end if;
   end process comb;
   
+  -- Network profile signaling
   bm_in_manager.rd_fixed_addr <= '0';
-  bm_in_manager.rd_axi_cache  <= "0011";
-  bm_in_manager.rd_axi_prot   <= "001";
+  bm_in_manager.rd_axi_cache  <= axi_cache;
+  bm_in_manager.rd_axi_prot   <= axi_prot;
+  bm_in_manager.rd_axi_qos    <= axi_qos;
+  bm_in_manager.rd_axi_region <= axi_region;
   bm_in_manager.wr_fixed_addr <= '0';
-  bm_in_manager.wr_axi_cache  <= "0011";
-  bm_in_manager.wr_axi_prot   <= "001";
+  bm_in_manager.wr_axi_cache  <= axi_cache;
+  bm_in_manager.wr_axi_prot   <= axi_prot;
+  bm_in_manager.wr_axi_qos    <= axi_qos;
+  bm_in_manager.wr_axi_region <= axi_region;
 
 
   -----------------------------------------------------------------------------
@@ -250,7 +258,7 @@ begin  -- rtl
     elsif rising_edge(clk) then
       if rstn = '0' then
         mux <= '0';
-      else
+      elsif(two_injectors) then
         if(mux = '0') then
           mux <= bm_in_injector.rd_done or bm_in_injector.wr_done;
         else
@@ -268,7 +276,7 @@ begin  -- rtl
   -- injector core
   core : injector
     generic map (
-      dbits         => dbits,
+      dbits         => DATA_WIDTH,
       MAX_SIZE_BURST=> MAX_SIZE_BURST,
       pindex        => pindex,
       paddr         => paddr,
@@ -289,7 +297,7 @@ begin  -- rtl
   second_injector : if(two_injectors) generate
   core1 : injector
     generic map (
-      dbits         => dbits,
+      dbits         => DATA_WIDTH,
       MAX_SIZE_BURST=> MAX_SIZE_BURST,
       pindex        => pindex,
       paddr         => paddr,
@@ -315,7 +323,7 @@ begin  -- rtl
       ADDR_WIDTH    => ADDR_WIDTH,
       DATA_WIDTH    => DATA_WIDTH,
       axi_id        => axi_id,
-      dbits         => dbits,
+      dbits         => DATA_WIDTH,
       rd_n_fifo_regs=> rd_n_fifo_regs,
       wr_n_fifo_regs=> wr_n_fifo_regs,
       ASYNC_RST     => ASYNC_RST

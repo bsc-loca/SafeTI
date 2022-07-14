@@ -60,7 +60,7 @@ entity tb_injector is
     pmask             : integer                           := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
     pirq              : integer range 0 to APB_IRQ_NMAX-1 := 6;         -- APB configuartion slave irq (default=6)
     -- Injector configuration
-    ASYNC_RST         : boolean                           := FALSE      -- Allow asynchronous reset flag (default=FALSE)
+    ASYNC_RST         : boolean                           := TRUE       -- Allow asynchronous reset flag (default=TRUE)
     );
 
 end entity tb_injector;

@@ -30,7 +30,7 @@ entity injector_ahb is
     -- Bus master configuration
     hindex            : integer                             := 0;         -- AHB master index
     -- Asynchronous reset configuration
-    ASYNC_RST         : boolean                             := FALSE      -- Allow asynchronous reset flag
+    ASYNC_RST         : boolean                             := TRUE       -- Allow asynchronous reset flag
     );
   port (
     rstn              : in  std_ulogic;           -- Reset
