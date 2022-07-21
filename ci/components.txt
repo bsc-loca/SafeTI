@@ -4,7 +4,10 @@
 ../hdl/axi4_manager.vhd
 ../hdl/injector.vhd
 ../hdl/injector_apb.vhd
-../hdl/injector_ctrl.vhd
+../hdl/injector_fetch.vhd
+../hdl/injector_decode.vhd
+../hdl/injector_exe.vhd
+../hdl/injector_control.vhd
 ../hdl/injector_delay_if.vhd
 ../hdl/injector_read_if.vhd
 ../hdl/injector_write_if.vhd

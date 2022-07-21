@@ -18,7 +18,7 @@ use safety.injector_pkg.all;
 entity injector is
   generic (
     -- Injector configuration
-    mem_Ndesc     : integer range 1 to  256           :=   16;    -- Maximum number of programmable descriptors [Only power of 2s allowed]
+    PC_LEN        : integer range 2 to   10           :=    4;    -- Set the maximum number of programmable descriptor words to 2^^PC_LEN
     dbits         : integer range 8 to 1024           :=   32;    -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST: integer range 8 to 4096           := 1024;    -- Maximum number of bytes allowed at a burst transaction.
     -- APB configuration  
@@ -50,19 +50,16 @@ architecture rtl of injector is
   -- Constant declaration
   -----------------------------------------------------------------------------
 
-  attribute sync_set_reset         : string;
-  attribute sync_set_reset of rstn : signal is "true";
 
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------  
   -- APB interface signals
-  signal ctrl_reg           : injector_ctrl_reg_type;
+  signal gen_config         : injector_config_type;
   signal err_status         : std_ulogic;
   signal err_sts_data       : std_ulogic;
   signal status             : status_out_type;
   signal active             : std_ulogic;
-  signal desc_mem           : descriptor_memory(mem_Ndesc - 1 downto 0);
   -- READ_IF
   signal read_if_status     : d_ex_sts_out_type;
   signal read_if_start      : std_ulogic;
@@ -121,7 +118,7 @@ begin  -- rtl
       clk             => clk,
       apbi            => apbi,
       apbo            => apbo,
-      ctrl_out        => ctrl_reg,
+      gen_config_out  => gen_config,
       active          => active,
       err_status      => err_status,
       irq_flag_sts    => irq_flag_sts,
@@ -198,7 +195,7 @@ begin  -- rtl
     port map (
       rstn            => rstn,
       clk             => clk,
-      ctrl            => ctrl_reg,
+      gen_config      => gen_config,
       active          => active,
       err_status      => err_status,
       curr_desc_out   => curr_desc,

@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      injector_ahb_SELENE
 -- File:        injector_ahb_SELENE.vhd
 -- Author:      Oriol Sala
 -- Description: injector top level entity for SELENE platform.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -31,7 +31,7 @@ entity injector_ahb_SELENE is
     dbits             : integer range 32 to  128      := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST    : integer range 32 to 1024      := 1024;      -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
     tech              : integer range  0 to NTECH     := inferred;  -- Target technology
-    -- APB configuration  
+    -- APB configuration
     pindex            : integer                       := 0;         -- APB configuartion slave index
     paddr             : integer                       := 0;         -- APB configuartion slave address
     pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
@@ -70,8 +70,8 @@ architecture rtl of injector_ahb_SELENE is
   -- Plug and Play Information (APB slave interface)
   constant interrupt  : std_logic_vector( 6 downto 0 ) := conv_std_logic_vector(pirq, 7);
   constant pconfig    : apb_config_type := (
-    0 => (conv_std_logic_vector(VENDOR_CONTRIB, 8) & conv_std_logic_vector(16#000#, 12) & interrupt(6 downto 5) 
-          & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)), 
+    0 => (conv_std_logic_vector(VENDOR_CONTRIB, 8) & conv_std_logic_vector(16#000#, 12) & interrupt(6 downto 5)
+          & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)),
     1 => (conv_std_logic_vector(paddr, 12) & "0000" & conv_std_logic_vector(pmask, 12) & "0001"));
 
   -- Bus master interface burst chop mask
@@ -95,7 +95,7 @@ architecture rtl of injector_ahb_SELENE is
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
-  
+
 begin  -- rtl
 
   -----------------
@@ -121,11 +121,11 @@ begin  -- rtl
   apbo.pirq         <= apbo_inj.irq;
   apbo.pindex       <= apbo_inj.index;
   apbo.pconfig      <= pconfig;
-  
+
   apbi_inj.sel      <= apbi.psel;
   apbi_inj.en       <= apbi.penable;
   apbi_inj.addr     <= apbi.paddr;
-  apbi_inj.write    <= apbi.pwrite;
+  apbi_inj.wr_en    <= apbi.pwrite;
   apbi_inj.wdata    <= apbi.pwdata;
   apbi_inj.irq      <= apbi.pirq;
   apbi_inj.ten      <= apbi.testen;
@@ -145,8 +145,7 @@ begin  -- rtl
       -- SafeTI configuration
       dbits             => dbits,             -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
       MAX_SIZE_BURST    => MAX_SIZE_BURST,    -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
-      tech              => tech,              -- Target technology
-      -- APB configuration  
+      -- APB configuration
       pindex            => pindex,            -- APB configuartion slave index
       paddr             => paddr,             -- APB configuartion slave address
       pmask             => pmask,             -- APB configuartion slave mask
@@ -180,7 +179,7 @@ begin  -- rtl
       burst_chop_mask  => MAX_SIZE_BURST,
       bm_info_print    => 1,
       hindex           => hindex
-      )        
+      )
     port map (
       clk              => clk,
       rstn             => rstn,
@@ -209,9 +208,6 @@ begin  -- rtl
       excl_done        => open,
       excl_err         => open
       );
-  
-  
+
+
 end architecture rtl;
-
-
-

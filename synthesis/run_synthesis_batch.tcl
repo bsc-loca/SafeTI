@@ -12,7 +12,10 @@ read_vhdl -library safety ../hdl/injector_pkg.vhd
 read_vhdl ../hdl/injector_ahb.vhd
 read_vhdl ../hdl/injector.vhd
 read_vhdl ../hdl/injector_apb.vhd
-read_vhdl ../hdl/injector_ctrl.vhd
+read_vhdl ../hdl/injector_fetch.vhd
+read_vhdl ../hdl/injector_decode.vhd
+read_vhdl ../hdl/injector_exe.vhd
+read_vhdl ../hdl/injector_control.vhd
 read_vhdl ../hdl/injector_read_if.vhd
 read_vhdl ../hdl/injector_write_if.vhd
 read_vhdl ../hdl/injector_delay_if.vhd

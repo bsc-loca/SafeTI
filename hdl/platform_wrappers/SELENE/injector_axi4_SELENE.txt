@@ -6,8 +6,10 @@
 ./bsc_safeti/hdl/axi4_manager.vhd
 ./bsc_safeti/hdl/injector.vhd
 ./bsc_safeti/hdl/injector_apb.vhd
-./bsc_safeti/hdl/injector_ctrl.vhd
-./bsc_safeti/hdl/fifo.vhd
+./bsc_safeti/hdl/injector_fetch.vhd
+./bsc_safeti/hdl/injector_decode.vhd
+./bsc_safeti/hdl/injector_exe.vhd
+./bsc_safeti/hdl/injector_control.vhd
 ./bsc_safeti/hdl/injector_delay_if.vhd
 ./bsc_safeti/hdl/injector_read_if.vhd
 ./bsc_safeti/hdl/injector_write_if.vhd

@@ -21,7 +21,6 @@ entity injector_ahb is
     -- SafeTI configuration
     dbits             : integer range 32 to 1024            :=   32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
     MAX_SIZE_BURST    : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction.
-    tech              : integer range  0 to numTech         := typeTech;  -- Target technology
     -- APB configuration  
     pindex            : integer                             := 0;         -- APB configuartion slave index
     paddr             : integer                             := 0;         -- APB configuartion slave address

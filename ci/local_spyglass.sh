@@ -1,6 +1,6 @@
 #!/bin/bash
-#Script description: Generates a spyglass project 
-# and retrieves the results. 
+#Script description: Generates a spyglass project
+# and retrieves the results.
 #Format parameters
 FN="$(basename -- $1)"
 N="${FN%%.*}"
@@ -22,7 +22,10 @@ echo "read_file -type vhdl $PWD/../hdl/axi4_manager.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_ahb.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_apb.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector_ctrl.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_fetch.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_decode.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_exe.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_control.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_delay_if.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_read_if.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_write_if.vhd" >> /tmp/$N/$N.prj
@@ -36,8 +39,8 @@ echo "set_option libhdlfiles safety {/tmp/$N/safety/axi4_pkg.vhd}" >> /tmp/$N/$N
 echo "##Common Options Section" >> /tmp/$N/$N.prj
 echo "set_option mthresh 5000000" >> /tmp/$N/$N.prj
 echo "set_option projectwdir ." >> /tmp/$N/$N.prj
-echo "set_option top $N" >> /tmp/$N/$N.prj 
-echo "set_option elab_precompile yes" >> /tmp/$N/$N.prj 
+echo "set_option top $N" >> /tmp/$N/$N.prj
+echo "set_option elab_precompile yes" >> /tmp/$N/$N.prj
 echo "set_option hdllibdu yes" >> /tmp/$N/$N.prj
 echo "set_option designread_enable_synthesis no" >> /tmp/$N/$N.prj
 echo "set_option language_mode mixed" >> /tmp/$N/$N.prj
