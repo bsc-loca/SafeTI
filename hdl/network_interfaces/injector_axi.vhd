@@ -20,31 +20,25 @@ use safety.axi4_pkg.all;
 entity injector_axi is
   generic (
     -- SafeTI configuration
-    mem_Ndesc     : integer range  1 to  128            :=   16;    -- Maximum number of descriptor slots. [Only power of 2s allowed]
-    MAX_SIZE_BURST: integer range 32 to 4096            := 4096;    -- Maximum number of bytes allowed at a burst transaction.
-    tech          : integer range  0 to numTech         := typeTech;-- Target technology
-    -- APB configuration  
-    pindex        : integer                             := 0;       -- APB configuartion slave index
-    paddr         : integer                             := 0;       -- APB configuartion slave address
-    pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
-    pirq          : integer range 0 to APB_IRQ_NMAX - 1 := 0;       -- APB configuartion slave irq
+    PC_LEN          : integer                         := 4;   -- Length of PC register
+    MAX_SIZE_BURST: integer range 32 to 4096          := 4096;    -- Maximum number of bytes allowed at a burst transaction.
     -- AXI Manager configuration
-    ID_R_WIDTH    : integer range  0 to   32            :=   4;     -- AXI ID's bus width.
-    ID_W_WIDTH    : integer range  0 to   32            :=   4;     -- AXI ID's bus width.
-    ADDR_WIDTH    : integer range 12 to   64            :=  32;     -- AXI address bus width. (Tested only for 32 bits)
-    DATA_WIDTH    : integer range  8 to 1024            := 128;     -- AXI data bus width. [Only power of 2s are allowed]
-    axi_id        : integer range  0 to 32**2-1         :=   0;     -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
-    rd_n_fifo_regs: integer range  2 to  256            :=   2;     -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
-    wr_n_fifo_regs: integer range  2 to  256            :=   2;     -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    ID_R_WIDTH    : integer range  0 to   32          :=   4;     -- AXI ID's bus width.
+    ID_W_WIDTH    : integer range  0 to   32          :=   4;     -- AXI ID's bus width.
+    ADDR_WIDTH    : integer range 12 to   64          :=  32;     -- AXI address bus width. (Tested only for 32 bits)
+    DATA_WIDTH    : integer range  8 to 1024          := 128;     -- AXI data bus width. [Only power of 2s are allowed]
+    axi_id        : integer range  0 to 32**2-1       :=   0;     -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    rd_n_fifo_regs: integer range  2 to  256          :=   2;     -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs: integer range  2 to  256          :=   2;     -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
     -- Asynchronous reset configuration
-    ASYNC_RST     : boolean                             := FALSE    -- Allow asynchronous reset flag
+    ASYNC_RST       : boolean                         := TRUE -- Allow asynchronous reset flag
   );
   port (
     rstn          : in  std_ulogic;         -- Reset
     clk           : in  std_ulogic;         -- Clock
     -- APB interface signals
-    apbi          : in  apb_slave_in_type;  -- APB slave input
-    apbo          : out apb_slave_out_type; -- APB slave output
+    apbi          : in  apb_slave_in;       -- APB slave input
+    apbo          : out apb_slave_out;      -- APB slave output
     -- AXI interface signals
     axi4mi        : in  axi4_miso;          -- AXI4 master input 
     axi4mo        : out axi4_mosi           -- AXI4 master output
@@ -71,16 +65,17 @@ begin
 
   bm_in_manager.rd_addr         <= (63 downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
   bm_in_manager.rd_size         <= bm_out_injector.rd_size;
+  bm_in_manager.rd_fixed_addr   <= bm_out_injector.rd_fix_addr;
   bm_in_manager.rd_req          <= bm_out_injector.rd_req;
   bm_in_manager.wr_addr         <= (63 downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
   bm_in_manager.wr_size         <= bm_out_injector.wr_size;
+  bm_in_manager.wr_fixed_addr   <= bm_out_injector.wr_fix_addr;
   bm_in_manager.wr_req          <= bm_out_injector.wr_req;
   bm_in_manager.wr_data         <= (1023 downto DATA_WIDTH => '0') & bm_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
 
-  bm_in_manager.rd_fixed_addr   <= '0';
+  
   bm_in_manager.rd_axi_cache    <= "0011";
   bm_in_manager.rd_axi_prot     <= "001";
-  bm_in_manager.wr_fixed_addr   <= '0';
   bm_in_manager.wr_axi_cache    <= "0011";
   bm_in_manager.wr_axi_prot     <= "001";
 
@@ -99,16 +94,12 @@ begin
   -- Component instantiation
   -----------------------------------------------------------------------------
 
-  -- injector core
-  core : injector
+  -- Injector core
+  core : injector_core
     generic map (
-      mem_Ndesc       => mem_Ndesc,
-      dbits           => DATA_WIDTH,
+      PC_LEN          => PC_LEN,
+      CORE_DATA_WIDTH => DATA_WIDTH,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
-      pindex          => pindex,
-      paddr           => paddr,
-      pmask           => pmask,
-      pirq            => pirq,
       ASYNC_RST       => ASYNC_RST
     )
     port map (
@@ -116,10 +107,11 @@ begin
       clk             => clk,
       apbi            => apbi,
       apbo            => apbo,
-      bm0_miso        => bm_in_injector,
-      bm0_mosi        => bm_out_injector
+      bm_out          => bm_out_injector,
+      bm_in           => bm_in_injector
     );
 
+  -- AXI4 Manager interface
   axi4M : axi4_manager
     generic map (
       ID_R_WIDTH      => ID_R_WIDTH,

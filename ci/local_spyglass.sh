@@ -17,23 +17,23 @@ echo "#!SPYGLASS_PROJECT_FILE" >> /tmp/$N/$N.prj
 echo "#!VERSION 3.0" >> /tmp/$N/$N.prj
 echo "##Data Import Section" >> /tmp/$N/$N.prj
 # Add here your files and submodules
-echo "read_file -type vhdl $PWD/../hdl/injector_axi.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/axi4_manager.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector_ahb.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/network_interfaces/injector_ahb.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/network_interfaces/injector_axi.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/network_interfaces/axi4_manager.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_core.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_apb.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_fetch.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_decode.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_exe.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_control.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector_delay_if.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector_read_if.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector_write_if.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_delay.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_read.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_write.vhd" >> /tmp/$N/$N.prj
 # Set library name and path
 echo "set_option lib safety {$PWD/safety}" >> /tmp/$N/$N.prj
 # BSC library files
 cp ../hdl/injector_pkg.vhd /tmp/$N/safety
-cp ../hdl/axi4_pkg.vhd /tmp/$N/safety
+cp ../hdl/network_interfaces/axi4_pkg.vhd /tmp/$N/safety
 echo "set_option libhdlfiles safety {/tmp/$N/safety/injector_pkg.vhd}" >> /tmp/$N/$N.prj
 echo "set_option libhdlfiles safety {/tmp/$N/safety/axi4_pkg.vhd}" >> /tmp/$N/$N.prj
 echo "##Common Options Section" >> /tmp/$N/$N.prj

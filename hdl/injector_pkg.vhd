@@ -11,14 +11,6 @@ use ieee.numeric_std.all;
 
 
 package injector_pkg is
-  -- User defined parameters START --
-
-    -- APB bus generics
-    constant APB_SLAVE_NMAX     : integer :=  16;   -- Max number of slaves at APB bus
-    constant APB_IRQ_NMAX       : integer :=  32;   -- Max number of interrupts at APB bus
-    constant APB_TEST_WIDTH     : integer :=   4;   -- apb_slave_in test in enable (tinen)
-
-  -- User defined parameters END --
 
 -------------------------------------------------------------------------------
 -- Parametric constants 
@@ -42,6 +34,19 @@ package injector_pkg is
   constant OP_WRITE_FIX   : std_logic_vector(4 downto 0) := "00110";
   constant OP_META        : std_logic_vector(4 downto 0) := "11111"; -- TODO: Use META type to add new descriptor words.
 
+  -- Debug states
+  constant DEBUG_STATE_IDLE               : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00000";
+  constant DEBUG_STATE_1st_EXE            : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00001";
+  constant DEBUG_STATE_NORMAL             : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00010";
+  constant DEBUG_STATE_INTERFACE_REQUEST  : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00011";
+  constant DEBUG_STATE_INTERFACE_TRANSFER : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00100";
+
+  -- Pipeline stage indexing
+  constant PL_APB           : integer := 0;
+  constant PL_FETCH         : integer := 1;
+  constant PL_DECODE        : integer := 2;
+  constant PL_EXE           : integer := 3;
+
 
 -------------------------------------------------------------------------------
 -- Common types 
@@ -49,6 +54,10 @@ package injector_pkg is
 
   -- Descriptor words type
   type desc_words is array (0 to MAX_DESC_LEN - 1) of std_logic_vector(31 downto 0);
+
+  -- Common signal arrays of the pipeline stages
+  type pipeline_pc_array    is array (1 to 3) of unsigned(9 downto 0);
+  type pipeline_state_array is array (1 to 3) of std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
   
 
 -------------------------------------------------------------------------------
@@ -74,61 +83,31 @@ package injector_pkg is
     -- Read channel
     rd_addr           : std_logic_vector(31 downto 0);
     rd_size           : std_logic_vector(11 downto 0);
+    rd_fix_addr       : std_logic;
     rd_req            : std_logic;
     -- Write channel
     wr_addr           : std_logic_vector(31 downto 0);
     wr_size           : std_logic_vector(11 downto 0);
+    wr_fix_addr       : std_logic;
     wr_req            : std_logic;
     wr_data           : std_logic_vector(127 downto 0);
   end record bm_mosi;
 
-  -- Reset value for Bus Master interface signals
-  constant RESET_BM_MISO : bm_miso := (
-    -- Read channel
-    rd_data           => (others => '0'),
-    rd_req_grant      => '0',
-    rd_valid          => '0',
-    rd_done           => '0',
-    rd_err            => '0',
-    -- Write channel
-    wr_req_grant      => '0',
-    wr_full           => '0',
-    wr_done           => '0',
-    wr_err            => '0'
-  );
-
-  constant RESET_BM_MOSI : bm_mosi := (
-    -- Read channel
-    rd_addr           => (others => '0'),
-    rd_size           => (others => '0'),
-    rd_req            => '0',
-    -- Write channel
-    wr_addr           => (others => '0'),
-    wr_size           => (others => '0'),
-    wr_req            => '0',
-    wr_data           => (others => '0')
-  );  
-
   -- APB bus types
   type apb_slave_in is record
-    sel               : std_logic_vector ( 0 to APB_SLAVE_NMAX-1 );
+    sel               : std_logic;
     en                : std_logic;
-    addr              : std_logic_vector ( 31 downto 0 );
+    addr              : std_logic_vector( 31 downto 0 );
     wr_en             : std_logic;
-    wdata             : std_logic_vector ( 31 downto 0 );
-    irq               : std_logic_vector ( APB_IRQ_NMAX-1   downto 0 );
-    ten               : std_logic;
-    trst              : std_logic;
-    scnen             : std_logic;
-    touten            : std_logic;
-    tinen             : std_logic_vector ( APB_TEST_WIDTH-1 downto 0 );
+    wdata             : std_logic_vector( 31 downto 0 );
+    irq               : std_logic;
   end record apb_slave_in;
 
   type apb_slave_out is record -- Lacks config, but it is added on the platform wrapper.
     rdata             : std_logic_vector( 31 downto 0 );
-    irq               : std_logic_vector( 31 downto 0 );
-    index             : integer range 0 to 15;
+    irq               : std_logic;
   end record apb_slave_out;
+
 
 -----------------------------------------------------------------------------
 -- Injector configuration type
@@ -136,12 +115,13 @@ package injector_pkg is
 
   -- Injector configuration register
   type injector_config is record
-    en                : std_ulogic;  -- Injector core enable
-    rst               : std_ulogic;  -- Injector core reset
-    qmode             : std_ulogic;  -- Queue mode
-    freeze_irq_en     : std_ulogic;  -- Freeze injector at interruption
-    irq_prog_compl_en : std_ulogic;  -- Program completion interrupt enable
-    irq_err_en        : std_ulogic;  -- Error interrupt enable
+    enable            : std_logic;  -- Injector core enable
+    reset_sw          : std_logic;  -- Injector core software reset
+    qmode             : std_logic;  -- Queue mode
+    irq_prog_compl_en : std_logic;  -- Program completion interrupt enable
+    irq_err_core_en   : std_logic;  -- Error interrupt enable for core errors
+    irq_err_net_en    : std_logic;  -- Error interrupt enable for network errors
+    freeze_irq_en     : std_logic;  -- Freeze injector at interruption       
   end record injector_config;
 
 
@@ -165,239 +145,86 @@ package injector_pkg is
 
   -- Decoded descriptor for DELAY descriptor type
   type operation_delay is record
-    num_cycles        : unsigned(19 downto 0);  -- On DECODE, the descriptor size is increased by 1 to set the real delay.
+    num_cycles        : unsigned(18 downto 0);
   end record operation_delay;
 
   -- Decoded descriptor for BRANCH descriptor type
-  type operation_branch is record
-    not_flag          : std_logic;
-    flags             : std_logic_vector(30 downto 15);
-    loop_times        : std_logic_vector(14 downto  9);
-    branch_ptr        : std_logic_vector( 8 downto  0);
-  end record operation_branch;
+  --type operation_branch is record
+  --  not_flag          : std_logic;
+  --  flags             : std_logic_vector(15 downto 0);
+  --  loop_times        : std_logic_vector( 5 downto 0);
+  --  branch_ptr        : std_logic_vector( 8 downto 0);
+  --end record operation_branch;
+
+  -- Type used to encapsulate connections from DECODE to EXE stages
+  type bus_decode_exe is record
+    subm_enable       : submodule_enable; -- Decoded descriptor type for specific submodule start
+    irq_desc          : std_logic;        -- Interruption flag for descriptor completion
+    last_desc         : std_logic;        -- Last descriptor flag in injector program
+    last_count        : std_logic;        -- Last iteration of the descriptor
+    delay             : operation_delay;  -- Control data to execute DELAY operations
+    rd_wr             : operation_rd_wr;  -- Control data to execute READ and WRITE operations
+  end record bus_decode_exe;
 
 
   -------------------------------------------------------------------------------
-  -- Types required by subprograms and components
+  -- Subprograms declaration
   -------------------------------------------------------------------------------
 
-  type array_integer          is array (natural range <>) of integer;
+  function find_burst_size(
+    fixed_addr        : std_logic;
+    max_bsize         : integer;
+    bm_bytes          : integer;
+    total_size        : unsigned(19 downto 0)
+  ) return unsigned;
 
-  -------------------------------------------------------------------------------
-  -- Subprograms
-  -------------------------------------------------------------------------------
-  function find_burst_size(fixed_addr       : std_logic;
-                           max_bsize        : integer;
-                           bm_bytes         : integer;
-                           total_size       : std_logic_vector(19 downto 0)
-                           ) return std_logic_vector;
-
-  -- Computes the ceil log base two from an integer. This function is NOT for describing hardware, just to compute bus lengths and that.
-  function log_2            (max_size         : integer) return integer;
-
-  -- Returns maximum value from an array of integers.
-  function max              (A : array_integer) return integer;
-
-  -- Unsigned addition and subtraction functions between std vectors and integers, returning a vector of len lenght
-  function add_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
-  function sub_vector       (A, B : std_logic_vector; len : natural) return std_logic_vector;
-  function add_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
-  function sub_vector       (A : std_logic_vector; B : integer; len : natural) return std_logic_vector;
-  function sub_vector       (A : integer; B : std_logic_vector; len : natural) return std_logic_vector;
-
-  -- OR_REDUCE substitude function, it just provides a low delay OR of all the bits from a std_logic_vector
-  function or_vector        (vect : std_logic_vector) return std_logic;
-  
-  -------------------------------------------------------------------------------
-  -- Components
-  -------------------------------------------------------------------------------
-
-  -- INJECTOR APB interface
-  component injector_apb is
-    generic (
-      pindex            : integer                 := 0;
-      paddr             : integer                 := 0;
-      pmask             : integer                 := 16#FF8#;
-      pirq              : integer                 := 0;
-      mem_Ndesc         : integer range 1 to 512  := 16;
-      ASYNC_RST         : boolean                 := FALSE
-    );
-    port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      apbi              : in  apb_slave_in;
-      apbo              : out apb_slave_out;
-      gen_config_out    : out injector_config;
-      active            : out std_ulogic;
-      err_status        : out std_ulogic;
-      irq_flag_sts      : in  std_ulogic;
-      curr_desc_in      : in  curr_des_out;
-      curr_desc_ptr     : in  std_logic_vector(31 downto 0);
-      sts_in            : in  status_out;
-      desc_mem_out      : out descriptor_memory
-    );
-  end component injector_apb;
-
-  -- Control Module
-  component injector_ctrl is
-    generic (
-      dbits             : integer range  8 to 1024  :=   32;
-      mem_Ndesc         : integer range  1 to  512  :=   16;
-      ASYNC_RST         : boolean                   := FALSE
-    );
-    port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      gen_config        : in  injector_config;
-      active            : in  std_ulogic;
-      err_status        : in  std_ulogic;
-      curr_desc_out     : out curr_des_out;
-      curr_desc_ptr     : out std_logic_vector(31 downto 0);
-      status            : out status_out;
-      irq_flag_sts      : out std_ulogic;
-      bm_in             : in  bm_miso;
-      bm_out            : out bm_mosi;
-      read_if_bm_in     : in  bm_mosi;
-      read_if_bm_out    : out bm_miso;
-      write_if_bm_in    : in  bm_mosi;
-      write_if_bm_out   : out bm_miso;
-      desc_ctrl_out     : out descriptor_control;
-      desc_actaddr_out  : out descriptor_actionaddr;
-      desc_branch_out   : out descriptor_branch;
-      ctrl_rst          : out std_ulogic;
-      err_sts_out       : out std_ulogic;
-      read_if_start     : out std_ulogic;
-      read_if_sts_in    : in  d_ex_sts_out;
-      write_if_sts_in   : in  d_ex_sts_out;
-      write_if_start    : out std_logic;
-      delay_if_sts_in   : in  d_ex_sts_out;
-      delay_if_start    : out std_logic;
-      desc_mem          : in descriptor_memory
-    );
-  end component injector_ctrl;
-
-  -- WRITE_IF
-  component injector_write_if is
-    generic (
-      dbits             : integer range  8 to 1024  :=   32;
-      MAX_SIZE_BURST    : integer range  8 to 4096  := 1024;
-      ASYNC_RST         : boolean                   := FALSE
-    );
-    port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      ctrl_rst          : in  std_ulogic;
-      err_sts_in        : in  std_ulogic;
-      write_if_start    : in  std_ulogic;
-      desc_ctrl         : in  descriptor_control;
-      desc_actaddr      : in  descriptor_actionaddr;
-      status_out        : out d_ex_sts_out;
-      write_if_bmi      : in  bm_miso;
-      write_if_bmo      : out bm_mosi
-    );
-   end component injector_write_if;
-
-   -- READ_IF
-  component injector_read_if is
-    generic (
-      dbits             : integer range  8 to 1024  :=   32;
-      MAX_SIZE_BURST    : integer range  8 to 4096  := 1024;
-      ASYNC_RST         : boolean                   := FALSE
-    );
-    port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      ctrl_rst          : in  std_ulogic;
-      err_sts_in        : in  std_ulogic;
-      read_if_start     : in  std_ulogic;
-      desc_ctrl         : in  descriptor_control;
-      desc_actaddr      : in  descriptor_actionaddr;
-      status_out        : out d_ex_sts_out;
-      read_if_bmi       : in  bm_miso;
-      read_if_bmo       : out bm_mosi
-    );
-  end component injector_read_if;
-
-  -- DELAY_IF
-  component injector_delay_if is
-    generic (
-      ASYNC_RST         : boolean                   := FALSE
-    );
-    port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      ctrl_rst          : in  std_ulogic;
-      err_sts_in        : in  std_ulogic;
-      delay_if_start    : in  std_ulogic;
-      desc_ctrl         : in  descriptor_control;
-      desc_branch       : in  descriptor_branch;
-      status_out        : out d_ex_sts_out
-    );
-  end component injector_delay_if;
-
-  -- Injector core
-  component injector is
-    generic (
-      mem_Ndesc       : integer range 1 to  512           :=   16;
-      dbits           : integer range 8 to 1024           :=   32;
-      MAX_SIZE_BURST  : integer range 8 to 4096           := 1024;
-      pindex          : integer                           :=    0;
-      paddr           : integer                           :=    0;
-      pmask           : integer                           := 16#FFF#;
-      pirq            : integer range 0 to APB_IRQ_NMAX-1 :=    0;
-      ASYNC_RST       : boolean                           := FALSE
-    );
-    port (
-      rstn            : in  std_ulogic;
-      clk             : in  std_ulogic;
-      apbi            : in  apb_slave_in;
-      apbo            : out apb_slave_out;
-      bm0_mosi        : out bm_mosi;
-      bm0_miso        : in  bm_miso
-    );
-  end component injector;
-
-  -- INJECTOR AHB top level interface
-  component injector_ahb is
-    generic (
-      dbits           : integer range 8 to 1024           :=   32;
-      MAX_SIZE_BURST  : integer range 8 to 1024           := 1024;
-      pindex          : integer                           :=    0;
-      paddr           : integer                           :=    0;
-      pmask           : integer                           := 16#FFF#;
-      pirq            : integer range 0 to APB_IRQ_NMAX-1 :=    0;
-      hindex          : integer                           :=    0;
-      ASYNC_RST       : boolean                           := FALSE
-    );
-    port (
-      rstn            : in  std_ulogic;
-      clk             : in  std_ulogic;
-      apbi            : in  apb_slave_in;
-      apbo            : out apb_slave_out;
-      bm_mosi         : out bm_mosi;
-      bm_miso         : in  bm_miso
-    );
-  end component injector_ahb;
+  -- Computes the ceil log base two from an integer.
+  -- This function is NOT for describing hardware, just to compute bus lengths and pre-synthesis stuff.
+  function log_2(max_size : integer) return integer;
   
 
   -------------------------------------------------------------------------------
-  -- Procedures
+  -- Component declaration
   -------------------------------------------------------------------------------
+
+  component injector_core is
+    generic (
+      -- Injector configuration
+      PC_LEN            : integer range 2 to   10     :=    4;  -- Set the maximum number of programmable descriptor words to 2^PC_LEN
+      CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
+      MAX_SIZE_BURST    : integer range 8 to 4096     := 1024;  -- Maximum number of bytes allowed at a burst transaction.
+      ASYNC_RST         : boolean                     := TRUE   -- Allow asynchronous reset
+    );
+    port (
+      rstn              : in  std_ulogic;           -- Reset
+      clk               : in  std_ulogic;           -- Clock
+      -- APB interface signals
+      apbi              : in  apb_slave_in;         -- APB slave input
+      apbo              : out apb_slave_out;        -- APB slave output
+      -- Bus master signals
+      bm_out            : out bm_mosi;              -- Input to network interface
+      bm_in             : in  bm_miso               -- Output from network interface
+    );
+  end component injector_core;
 
 
 end package injector_pkg;
 
 package body injector_pkg is
 
+  -------------------------------------------------------------------------------
+  -- Functions body
+  -------------------------------------------------------------------------------
+
   -- Function to determine the burst size based on maximum burst limit
   function find_burst_size(
     fixed_addr          : std_logic;
     max_bsize           : integer;
     bm_bytes            : integer;
-    total_size          : std_logic_vector(19 downto 0)
-  ) return std_logic_vector is
+    total_size          : unsigned(19 downto 0)
+  ) return unsigned is
     variable temp       : integer;
-    variable burst_size : std_logic_vector(log_2(max_bsize) downto 0);
+    variable burst_size : unsigned(log_2(max_bsize) downto 0);
     variable total_int  : integer;
   begin
     total_int := to_integer(unsigned(total_size));
@@ -413,81 +240,10 @@ package body injector_pkg is
     else
       temp := total_int;
     end if;
-    burst_size := std_logic_vector(to_unsigned(temp, burst_size'length)); 
+    burst_size := to_unsigned(temp, burst_size'length); 
 
     return burst_size;
   end find_burst_size;
-
-  -- Maximum integer from an array of integers.
-  function max(A : array_integer) return integer is
-    variable temp : integer := 0;
-    variable k : integer := 0;
-  begin
-    for k in A'range loop
-      if(A(k) > temp) then
-        temp := A(k);
-      end if;
-    end loop;
-    return temp;
-  end max;
-
-  -- Addition function between std_logic_vectors, outputs with length assigned
-  function add_vector(
-    A, B : std_logic_vector;
-    len : natural) 
-  return std_logic_vector is
-    variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
-  begin
-    res := std_logic_vector(unsigned(A) + resize(unsigned(B), res'length));
-    return res(len - 1 downto 0);
-  end add_vector;
-
-  -- Addition function between std_logic_vector and integer, outputs with length assigned
-  function add_vector(
-    A : std_logic_vector;
-    B : integer;
-    len : natural) 
-  return std_logic_vector is
-    variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
-  begin
-    res := std_logic_vector(resize(unsigned(A), res'length) + to_unsigned(B, res'length));
-    return res(len - 1 downto 0);
-  end add_vector;
-
-  -- Subtract function between std_logic_vectors, outputs with length assigned
-  function sub_vector(
-    A, B : std_logic_vector;
-    len : natural) 
-  return std_logic_vector is
-    variable res : std_logic_vector(max((len, A'length, B'length)) - 1 downto 0);
-  begin
-    res := std_logic_vector(resize(unsigned(A), res'length) - resize(unsigned(B), res'length));
-    return res(len - 1 downto 0);
-  end sub_vector;
-
-  -- Subtract function between std_logic_vector and integer, outputs with length assigned
-  function sub_vector(
-    A : std_logic_vector;
-    B : integer;
-    len : natural) 
-  return std_logic_vector is
-    variable res : std_logic_vector(max((len, A'length)) - 1 downto 0);
-  begin
-    res := std_logic_vector(resize(unsigned(A), res'length) - to_unsigned(B, res'length));
-    return res(len - 1 downto 0);
-  end sub_vector;
-
-  -- Subtract function between integer and std_logic_vector, outputs with length assigned
-  function sub_vector(
-    A : integer;
-    B : std_logic_vector;
-    len : natural) 
-  return std_logic_vector is
-    variable res : std_logic_vector(max((len, B'length)) - 1 downto 0);
-  begin
-    res := std_logic_vector(to_unsigned(A, res'length) - resize(unsigned(B), res'length));
-    return res(len - 1 downto 0);
-  end sub_vector;
 
   -- Function used to compute bus lengths. DO NOT attempt to use it as 
   -- combinational logic, just to compute values pre-synthesis.
@@ -499,16 +255,6 @@ package body injector_pkg is
     end loop;
     return res;
   end log_2;
-
-  function or_vector(vect : std_logic_vector) return std_logic is
-    variable wool  : std_logic;
-  begin
-    wool := '0';
-    for i in vect'range loop
-      wool := wool or vect(i);
-    end loop;
-    return wool;
-  end or_vector;
-
+    
 
 end package body injector_pkg;

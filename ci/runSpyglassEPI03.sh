@@ -97,13 +97,13 @@ filename="$(basename -- $filepath)"
     exit
 EOF
    fi
-   scp $filepath $sshclient:/tmp/${username}Spyglass/$N
+   scp -o LogLevel=Error $filepath $sshclient:/tmp/${username}Spyglass/$N
   ;;
   1)	#Routine to load library name and create directory
    libname="$filename"
    echo "Library added: $libname"
    echo "set_option lib $libname {./$libname}" >> /tmp/importspy
-   ssh $sshclient << EOF
+   ssh -o LogLevel=Error $sshclient << EOF
    mkdir /tmp/${username}Spyglass/$N/$libname
    exit
 EOF
@@ -112,7 +112,7 @@ EOF
   *)	#Routine to load library files
    #echo "Library file added: $filename"
    echo "set_option libhdlfiles $libname {./$libname/$filename"} >> /tmp/importspy
-   scp $filepath $sshclient:/tmp/${username}Spyglass/$N/$libname
+   scp -o LogLevel=Error $filepath $sshclient:/tmp/${username}Spyglass/$N/$libname
   ;;
  esac
 fi
@@ -121,9 +121,9 @@ done < $1 #Read "components.txt" file
 
 #set the top for spyglass. must be the first argument of the script.
 echo "set_option top $N" >> /tmp/optionsspy
-scp /tmp/importspy $sshclient:/tmp/${username}Spyglass
-scp /tmp/optionsspy $sshclient:/tmp/${username}Spyglass
-ssh $sshclient << EOF
+scp -o LogLevel=Error /tmp/importspy $sshclient:/tmp/${username}Spyglass
+scp -o LogLevel=Error /tmp/optionsspy $sshclient:/tmp/${username}Spyglass
+ssh -o LogLevel=Error $sshclient << EOF
 cp $template /tmp/${username}Spyglass/$N/$N.prj;
 cd /tmp/${username}Spyglass/$N;
 sed -i '/Data Import Section/ r /tmp/${username}Spyglass/importspy' ./$N.prj;

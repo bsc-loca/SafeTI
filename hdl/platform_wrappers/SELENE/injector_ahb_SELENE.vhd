@@ -28,8 +28,10 @@ use techmap.gencomp.all;
 entity injector_ahb_SELENE is
   generic (
     -- SafeTI configuration
-    dbits             : integer range 32 to  128      := 32;        -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST    : integer range 32 to 1024      := 1024;      -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
+    PC_LEN            : integer range 2 to   10       :=    4;      -- Set the maximum number of programmable descriptor words to 2^PC_LEN
+    CORE_DATA_WIDTH   : integer range 8 to 1024       :=   32;      -- Data width of the injector core. [Only power of 2s allowed]
+    MAX_SIZE_BURST    : integer range 8 to 1024       := 1024;      -- Maximum number of bytes allowed at a burst transaction.
+    ASYNC_RST         : boolean                       := TRUE       -- Allow asynchronous reset
     tech              : integer range  0 to NTECH     := inferred;  -- Target technology
     -- APB configuration
     pindex            : integer                       := 0;         -- APB configuartion slave index
@@ -143,17 +145,10 @@ begin  -- rtl
   ahb : injector_ahb
     generic map(
       -- SafeTI configuration
-      dbits             => dbits,             -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-      MAX_SIZE_BURST    => MAX_SIZE_BURST,    -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
-      -- APB configuration
-      pindex            => pindex,            -- APB configuartion slave index
-      paddr             => paddr,             -- APB configuartion slave address
-      pmask             => pmask,             -- APB configuartion slave mask
-      pirq              => pirq,              -- APB configuartion slave irq
-      -- AHB configuration
-      hindex            => hindex,            -- AHB master index 0
-      -- Asynchronous reset configuration
-      ASYNC_RST         => ASYNC_RST          -- Allow asynchronous reset flag
+      PC_LEN            => PC_LEN,
+      CORE_DATA_WIDTH   => CORE_DATA_WIDTH,
+      MAX_SIZE_BURST    => MAX_SIZE_BURST,
+      ASYNC_RST         => ASYNC_RST
       )
     port map(
       rstn              => rstn,              -- Reset

@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      injector_ahb
 -- File:        injector_ahb.vhd
 -- Author:      Oriol Sala
 -- Description: injector top level entity.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -18,18 +18,11 @@ use safety.injector_pkg.all;
 
 entity injector_ahb is
   generic (
-    -- SafeTI configuration
-    dbits             : integer range 32 to 1024            :=   32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST    : integer range 32 to 1024            := 1024;      -- Maximum size of a beat at a burst transaction.
-    -- APB configuration  
-    pindex            : integer                             := 0;         -- APB configuartion slave index
-    paddr             : integer                             := 0;         -- APB configuartion slave address
-    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask
-    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 0;         -- APB configuartion slave irq
-    -- Bus master configuration
-    hindex            : integer                             := 0;         -- AHB master index
-    -- Asynchronous reset configuration
-    ASYNC_RST         : boolean                             := TRUE       -- Allow asynchronous reset flag
+    -- Injector configuration
+    PC_LEN            : integer range 2 to   10       :=    4;-- Set the maximum number of programmable descriptor words to 2^PC_LEN
+    CORE_DATA_WIDTH   : integer range 8 to 1024       :=   32;-- Data width of the injector core. [Only power of 2s allowed]
+    MAX_SIZE_BURST    : integer range 8 to 4096       := 1024;-- Maximum number of bytes allowed at a burst transaction.
+    ASYNC_RST         : boolean                       := TRUE -- Allow asynchronous reset
     );
   port (
     rstn              : in  std_ulogic;           -- Reset
@@ -61,7 +54,7 @@ architecture rtl of injector_ahb is
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
-  
+
 begin  -- rtl
 
   -----------------
@@ -73,26 +66,20 @@ begin  -- rtl
   -----------------------------------------------------------------------------
 
   -- injector core
-  core : injector
+  core : injector_core
     generic map (
-      dbits         => dbits,
-      MAX_SIZE_BURST=> MAX_SIZE_BURST,
-      pindex        => pindex,
-      paddr         => paddr,
-      pmask         => pmask,
-      pirq          => pirq,
-      ASYNC_RST     => ASYNC_RST
-      )
+      PC_LEN          => PC_LEN,
+      CORE_DATA_WIDTH => DATA_WIDTH,
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
+      ASYNC_RST       => ASYNC_RST
+    )
     port map (
-      rstn          => rstn,
-      clk           => clk,
-      apbi          => apbi,
-      apbo          => apbo,
-      bm0_mosi      => bm_mosi,
-      bm0_miso      => bm_miso
-      );
-  
+      rstn            => rstn,
+      clk             => clk,
+      apbi            => apbi,
+      apbo            => apbo,
+      bm_out          => bm_mosi,
+      bm_in           => bm_miso
+    );
+
 end architecture rtl;
-
-
-

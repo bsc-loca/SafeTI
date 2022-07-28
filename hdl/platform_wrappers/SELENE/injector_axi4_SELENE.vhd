@@ -24,6 +24,7 @@ use techmap.gencomp.all;
 entity injector_axi4_SELENE is
   generic (
     -- SafeTI configuration
+    INJ_MEM_LENGTH: integer range  2 to   10            :=    4;    -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
     MAX_SIZE_BURST: integer range  8 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
     tech          : integer range  0 to NTECH           := inferred;-- Target technology
     two_injectors : boolean                             := FALSE;   -- Implement two SafeTI modules for continuous transaction requests
@@ -77,6 +78,7 @@ architecture rtl of injector_axi4_SELENE is
           & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)), 
     1 => (conv_std_logic_vector(paddr, 12) & "0000" & conv_std_logic_vector(pmask, 12) & "0001"));
 
+
   -----------------------------------------------------------------------------
   -- Records and types
   -----------------------------------------------------------------------------
@@ -89,9 +91,9 @@ architecture rtl of injector_axi4_SELENE is
   signal axi_mi     : axi4_miso;
   signal axi_mo     : axi4_mosi;
   -- APB Subordinate interface signals (injector)
-  signal apbi_inj   : apb_slave_in_type;
-  signal apbo_inj   : apb_slave_out_type;
-  signal apbo_inj1  : apb_slave_out_type;
+  signal apbi_inj   : apb_slave_in;
+  signal apbo_inj   : apb_slave_out;
+  signal apbo_inj1  : apb_slave_out;
   -- BM interface signals between SafeTI (Manager) and AXI4 Manager interface (Subordinate)
   signal bm_out_injector  : safety.injector_pkg.bm_mosi;  -- Output from injector
   signal bm_in_injector   : safety.injector_pkg.bm_miso;  -- Input to injector
@@ -102,6 +104,7 @@ architecture rtl of injector_axi4_SELENE is
 
   signal mux        : std_logic; -- Multiplexer register used to redirect signals between injector modules
 
+  
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
@@ -152,28 +155,29 @@ begin  -- rtl
   axi4mo.r.ready    <= axi_mo.r_ready;
 
   -- APB Slave input to the injectors
-  apbi_inj.sel      <= apbi.psel;
+  apbi_inj.sel      <= apbi.psel(pindex);
   apbi_inj.en       <= apbi.penable;
   apbi_inj.addr     <= apbi.paddr;
   apbi_inj.wr_en    <= apbi.pwrite;
   apbi_inj.wdata    <= apbi.pwdata;
-  apbi_inj.irq      <= apbi.pirq;
-  apbi_inj.ten      <= apbi.testen;
-  apbi_inj.trst     <= apbi.testrst;
-  apbi_inj.scnen    <= apbi.scanen;
-  apbi_inj.touten   <= apbi.testoen;
-  apbi_inj.tinen    <= apbi.testin;
+  apbi_inj.irq      <= apbi.pirq(pirq);
+    -- Not supported signals
+  --apbi_inj.ten      <= apbi.testen;
+  --apbi_inj.trst     <= apbi.testrst;
+  --apbi_inj.scnen    <= apbi.scanen;
+  --apbi_inj.touten   <= apbi.testoen;
+  --apbi_inj.tinen    <= apbi.testin(apbi_inj.tinen'range) when (NTESTINBITS => 3) else (apbi_inj.tinen'high downto NTESTINBITS => '0') & apbi.testin;
   -- APB Slave output from the injectors
   apbo.prdata       <= apbo_inj.rdata or apbo_inj1.rdata when two_injectors else apbo_inj.rdata;
-  apbo.pirq         <= apbo_inj.irq   or apbo_inj1.irq   when two_injectors else apbo_inj.irq;
-  apbo.pindex       <= apbo_inj.index;
+  apbo.pirq(pirq)   <= apbo_inj.irq   or apbo_inj1.irq   when two_injectors else apbo_inj.irq;
+  apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 
   -- Multiplexed BM connection between AXI4 Manager interface and injectors
   comb : process(mux, bm_out_manager, bm_out_injector, bm_out_injector1)
   begin
     if(mux = '0' or two_injectors = FALSE) then
-  -- BM SafeTI input (MISO)
+    -- BM SafeTI input (MISO)
       bm_in_injector.rd_data        <= (bm_in_injector.rd_data'high downto DATA_WIDTH => '0') & bm_out_manager.rd_data(DATA_WIDTH-1 downto 0);
       bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
       bm_in_injector.rd_valid       <= bm_out_manager.rd_valid;
@@ -193,7 +197,7 @@ begin  -- rtl
       bm_in_injector1.wr_full       <= '0';
       bm_in_injector1.wr_done       <= '0';
       bm_in_injector1.wr_err        <= '0';
-  -- BM SafeTI output (MOSI)
+    -- BM SafeTI output (MOSI)
       bm_in_manager.rd_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
       bm_in_manager.rd_size         <= bm_out_injector.rd_size;
       bm_in_manager.rd_req          <= bm_out_injector.rd_req;
@@ -202,7 +206,7 @@ begin  -- rtl
       bm_in_manager.wr_req          <= bm_out_injector.wr_req;
       bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto DATA_WIDTH => '0') & bm_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
     else
-  -- BM SafeTI input (MISO)
+    -- BM SafeTI input (MISO)
       bm_in_injector1.rd_data       <= (bm_in_injector1.rd_data'high downto DATA_WIDTH => '0') & bm_out_manager.rd_data(DATA_WIDTH-1 downto 0);
       bm_in_injector1.rd_req_grant  <= bm_out_manager.rd_req_grant;
       bm_in_injector1.rd_valid      <= bm_out_manager.rd_valid;
@@ -222,7 +226,7 @@ begin  -- rtl
       bm_in_injector.wr_full        <= '0';
       bm_in_injector.wr_done        <= '0';
       bm_in_injector.wr_err         <= '0';
-  -- BM SafeTI output (MOSI)
+    -- BM SafeTI output (MOSI)
       bm_in_manager.rd_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector1.rd_addr'length => '0') & bm_out_injector1.rd_addr;
       bm_in_manager.rd_size         <= bm_out_injector1.rd_size;
       bm_in_manager.rd_req          <= bm_out_injector1.rd_req;
@@ -274,59 +278,53 @@ begin  -- rtl
   -----------------------------------------------------------------------------
 
   -- injector core
-  core : injector
+  core : injector_core
     generic map (
-      dbits         => DATA_WIDTH,
-      MAX_SIZE_BURST=> MAX_SIZE_BURST,
-      pindex        => pindex,
-      paddr         => paddr,
-      pmask         => pmask,
-      pirq          => pirq,
-      ASYNC_RST     => ASYNC_RST
+      PC_LEN          => INJ_MEM_LENGTH,
+      CORE_DATA_WIDTH => DATA_WIDTH,
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
+      ASYNC_RST       => ASYNC_RST
     )
     port map (
-      rstn          => rstn,
-      clk           => clk,
-      apbi          => apbi_inj,
-      apbo          => apbo_inj,
-      bm0_mosi      => bm_out_injector,
-      bm0_miso      => bm_in_injector
+      rstn            => rstn,
+      clk             => clk,
+      apbi            => apbi_inj,
+      apbo            => apbo_inj,
+      bm_out          => bm_out_injector,
+      bm_in           => bm_in_injector
     );
 
   -- second injector core
   second_injector : if(two_injectors) generate
-  core1 : injector
+  core1 : injector_core
     generic map (
-      dbits         => DATA_WIDTH,
-      MAX_SIZE_BURST=> MAX_SIZE_BURST,
-      pindex        => pindex,
-      paddr         => paddr,
-      pmask         => pmask,
-      pirq          => pirq,
-      ASYNC_RST     => ASYNC_RST
+      PC_LEN          => INJ_MEM_LENGTH,
+      CORE_DATA_WIDTH => DATA_WIDTH,
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
+      ASYNC_RST       => ASYNC_RST
     )
     port map (
-      rstn          => rstn,
-      clk           => clk,
-      apbi          => apbi_inj,
-      apbo          => apbo_inj1,
-      bm0_mosi      => bm_out_injector1,
-      bm0_miso      => bm_in_injector1
+      rstn            => rstn,
+      clk             => clk,
+      apbi            => apbi_inj,
+      apbo            => apbo_inj1,
+      bm_out          => bm_out_injector1,
+      bm_in           => bm_in_injector1
     );
     end generate second_injector;
 
   -- AXI4 Manager interface
   AXI4_M0 : axi4_manager
     generic map (
-      ID_R_WIDTH    => ID_R_WIDTH,
-      ID_W_WIDTH    => ID_W_WIDTH,
-      ADDR_WIDTH    => ADDR_WIDTH,
-      DATA_WIDTH    => DATA_WIDTH,
-      axi_id        => axi_id,
-      dbits         => DATA_WIDTH,
-      rd_n_fifo_regs=> rd_n_fifo_regs,
-      wr_n_fifo_regs=> wr_n_fifo_regs,
-      ASYNC_RST     => ASYNC_RST
+      ID_R_WIDTH      => ID_R_WIDTH,
+      ID_W_WIDTH      => ID_W_WIDTH,
+      ADDR_WIDTH      => ADDR_WIDTH,
+      DATA_WIDTH      => DATA_WIDTH,
+      axi_id          => axi_id,
+      dbits           => DATA_WIDTH,
+      rd_n_fifo_regs  => rd_n_fifo_regs,
+      wr_n_fifo_regs  => wr_n_fifo_regs,
+      ASYNC_RST       => ASYNC_RST
     )
     port map (
       rstn            => rstn,
