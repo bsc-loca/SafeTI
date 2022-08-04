@@ -2,6 +2,7 @@
 #Traces of the simulation are stored in vsim.wlf when Questa is launched with the gui (vsim-launch)
 
 hdl=../../../hdl
+hdl_sub=$(hdl)/exe_submodules
 
 #Compiles the files and creates the library safety
 compile: clean
@@ -10,7 +11,7 @@ compile: clean
 	vmap safety safety
 	vcom -2008 -work safety $(hdl)/injector_pkg.vhd $(hdl)/../tb/questasim/tb_injector_pkg.vhd
 	vcom -2008 tb_injector.vhd
-	vcom $(hdl)/injector.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_ctrl.vhd $(hdl)/injector_delay_if.vhd $(hdl)/injector_read_if.vhd $(hdl)/injector_write_if.vhd 
+	vcom $(hdl)/injector_core.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_fetch.vhd $(hdl)/injector_decode.vhd $(hdl)/injector_exe.vhd $(hdl)/injector_control.vhd $(hdl_sub)/injector_delay.vhd $(hdl_sub)/injector_read.vhd $(hdl_sub)/injector_write.vhd
 
 #Launches the simulation with the graphical interface
 vsim-launch: compile
@@ -18,8 +19,8 @@ vsim-launch: compile
 
 #Launches the simulation in batch mode
 vsim: compile
-	vsim -voptargs=+acc tb_injector -do "run -all" <<! 
-    
+	vsim -voptargs=+acc tb_injector -do "run -all" <<!
+
 #Analyzes the results of the simulation
 launch-tb : vsim
 	@echo "\n\n\n\n\n"
@@ -38,6 +39,5 @@ clean:
 	rm -rf work
 	rm -f modelsim.ini
 	rm -f transcript
-	rm -f vsim_stacktrace.vstf  
+	rm -f vsim_stacktrace.vstf
 	rm -f vsim.wlf
-

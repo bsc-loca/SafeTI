@@ -21,9 +21,9 @@ entity injector_control is
     disable           : out std_logic;                        -- Disable injector flag
     irq_send          : out std_logic;                        -- Send interruption flag
     -- Pipeline control signals
-    enable_pipeline   : out std_logic_vector(1 to 3);         -- Enable pipeline modules
-    rst_sw_pipeline   : out std_logic_vector(1 to 3);         -- Reset pipeline modules
-    irq_err_pipeline  : in  std_logic_vector(1 to 3);         -- Interruption from pipeline stages
+    enable_pipeline   : out pipeline_common_array;            -- Enable pipeline modules
+    rst_sw_pipeline   : out pipeline_common_array;            -- Reset pipeline modules
+    irq_err_pipeline  : in  pipeline_common_array;            -- Interruption from pipeline stages
     irq_err_network   : in  std_logic_vector(0 to 1);         -- Network interruptions (0 = READ, 1 = WRITE)
     -- EXE output signals
     exe_irq_desc_comp : in  std_logic;                        -- Interrupt enable for complete descriptor
@@ -36,10 +36,28 @@ end entity injector_control;
 architecture rtl of injector_control is
 
   -----------------------------------------------------------------------------
+  -- Types and reset constants declaration
+  -----------------------------------------------------------------------------
+
+  -- ON and OFF values for pipeline_common_array type
+  constant PIPELINE_COMMON_ON   : pipeline_common_array := (
+    fetch                => '1',
+    decode               => '1',
+    exe                  => '1'
+  );
+
+  constant PIPELINE_COMMON_OFF  : pipeline_common_array := (
+    fetch                => '0',
+    decode               => '0',
+    exe                  => '0'
+  );
+
+
+  -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------
 
-  signal interruption : std_logic;
+  signal irq_gen_apb    : std_logic; -- Generate APB interruption.
 
 
 begin
@@ -48,17 +66,19 @@ begin
   -----------------
 
   -- I/O assignments
-  irq_send  <= interruption and apb_config.enable;
+  enable_pipeline <= PIPELINE_COMMON_ON when (apb_config.enable = '1'  ) else PIPELINE_COMMON_OFF;
+  rst_sw_pipeline <= PIPELINE_COMMON_ON when (apb_config.reset_sw = '1') else PIPELINE_COMMON_OFF;
+  irq_send        <= irq_gen_apb and apb_config.enable;
 
   -- Interruption signal management
-  interruption <= 
-    (exe_desc_comp      and exe_irq_desc_comp           ) or
-    (exe_program_comp   and apb_config.irq_prog_compl_en) or
-    ((irq_err_pipeline(PL_FETCH) or irq_err_pipeline(PL_DECODE) or irq_err_pipeline(PL_EXE)) and apb_config.irq_err_core_en) or
-    ((irq_err_network(0) or irq_err_network(1)                                             ) and apb_config.irq_err_net_en );
+  irq_gen_apb <= 
+    (exe_desc_comp                                                                and exe_irq_desc_comp             ) or
+    (exe_program_comp                                                             and apb_config.irq_prog_compl_en  ) or
+    ((irq_err_pipeline.fetch or irq_err_pipeline.decode or irq_err_pipeline.exe ) and apb_config.irq_err_core_en    ) or
+    ((irq_err_network(0) or irq_err_network(1)                                  ) and apb_config.irq_err_net_en     );
 
   -- Disable signal management
-  disable <= interruption and apb_config.freeze_irq_en;
+  disable <= irq_gen_apb and apb_config.freeze_irq_en;
 
 
 end architecture rtl;

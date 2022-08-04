@@ -1,9 +1,8 @@
 -----------------------------------------------------------------------------   
--- Entity:      Injector Read Interface
--- File:        injector_read_if.vhd
--- Author:      Oriol Sala
--- Description: Read engine to read data from memory through a generic bus
--- master interface.
+-- Entity:      Injector READ submodule
+-- File:        injector_read.vhd
+-- Author:      Francisco Fuentes, Oriol Sala
+-- Description: Read engine to ensure correct read by part of the network interface.
 ------------------------------------------------------------------------------ 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -12,253 +11,222 @@ library safety;
 use safety.injector_pkg.all;
 
 
------------------------------------------------------------------------------------------
--- Entity to perform memory to buffer data transfer
------------------------------------------------------------------------------------------
---Injector Read IF deals with data fetch from memory. Data descriptor
---fields are passed from injector_ctrl. The FIFO is used as an infinite buffer to transfer
---the read transactions, once it is full, it will automatically restart from index 0.
---Thus, the data coming from the Read transactions are not saved. The Read IF will continue
---until the data size specified in d_desc.ctrl.size field is completely transferred.
---There is no Paused status.
-------------------------------------------------------------------------------------------
+------------------------------------------------
+-- Entity for READ submodule of the EXE stage --
+------------------------------------------------
 
-entity injector_read_if is
+entity injector_read is
   generic (
-    dbits           : integer range 8 to 1024 := 32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST  : integer range 8 to 4096 := 1024;    -- Maximum number of bytes per transaction
-    ASYNC_RST       : boolean                 := TRUE     -- Allow asynchronous reset flag
-    );
-  port (
-    rstn            : in  std_ulogic;                     -- Active low reset
-    clk             : in  std_ulogic;                     -- Clock
-    -- Signals to and from injector_ctrl
-    ctrl_rst        : in  std_ulogic;                     -- Reset signal from APB interface through grdmac_ctrl
-    err_sts_in      : in  std_ulogic;                     -- Core error status from APB status register 
-    read_if_start   : in  std_ulogic;                     -- Start control signal
-    desc_ctrl       : in  descriptor_control;             -- Control word of the descriptor to be executed
-    desc_actaddr    : in  descriptor_actionaddr;          -- Action address word of the descriptor to be executed
-    status_out      : out d_ex_sts_out_type;              -- M2b status out signals 
-    -- Generic bus master interface
-    read_if_bmi     : in  bm_miso;                        -- BM interface signals to READ_IF,through crontrol module
-    read_if_bmo     : out bm_mosi                         -- Signals from READ_IF to BM IF through control module
-    );
-end entity injector_read_if;
-
-------------------------------------------------------------------------------
--- Architecture of injector_read_if
-------------------------------------------------------------------------------
-
-architecture rtl of injector_read_if is
-  attribute sync_set_reset         : string;
-  attribute sync_set_reset of rstn : signal is "true";
-
-  -----------------------------------------------------------------------------
-  -- Constant declaration
-  -----------------------------------------------------------------------------
-
-  -- Constants for read_if present state
-  constant READ_IF_IDLE       : std_logic_vector(4 downto 0) := "00101"; -- 0x05
-  constant READ_IF_EXEC       : std_logic_vector(4 downto 0) := "00110"; -- 0x06
-  constant READ_IF_DATA       : std_logic_vector(4 downto 0) := "00111"; -- 0x07
-
-  -----------------------------------------------------------------------------
-  -- Type and record 
-  -----------------------------------------------------------------------------
-
-  -- READ_IF states --
-  -- idle =>
-  -- Starting state. Waits for 'read_if_start_in' signal to proceed.
-  -- Decides on size of the current burst to be transferred
-  --
-  -- request =>
-  -- Initiates bus master interface burst read transfer from source address.
-  --
-  -- read_data =>
-  -- Reads each data word from bus master interface output and writes to FIFO
-  -- unitl the total data is transferred.
-
-  type read_if_state_type is (idle, request, read_data);
-
-  --READ_IF reg type
-  type read_if_reg_type is record
-    read_if_state     : read_if_state_type;                     -- READ_IF states
-    sts               : d_ex_sts_out_type;                      -- M2b status signals
-    rd_req            : std_logic;                              -- Request read transaction flag
-    tot_size          : std_logic_vector(desc_ctrl.size'length - 1 downto 0); -- Total size of data to be read
-    curr_size         : std_logic_vector(log_2(MAX_SIZE_BURST) downto 0);     -- Remaining bytes to be read in the burst
-    inc               : std_logic_vector(desc_ctrl.size'length - 1 downto 0); -- For data destination address increment (20 bits)
-    bmst_rd_busy      : std_ulogic;                             -- bus master read busy
-    err_state         : std_logic_vector(4 downto 0);           -- Error state
-  end record;
-
-  -- Reset value for READ_IF reg type
-  constant READ_IF_REG_RES : read_if_reg_type := (
-    read_if_state     => idle,
-    sts               => D_EX_STS_RST,
-    rd_req            => '0',
-    tot_size          => (others => '0'),
-    curr_size         => (others => '0'),
-    inc               => (others => '0'),
-    bmst_rd_busy      => '0',
-    err_state         => (others => '0')
+    CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
+    MAX_SIZE_BURST    : integer range 8 to 4096     := 1024;  -- Maximum number of bytes per transaction
+    ASYNC_RST         : boolean                     := TRUE   -- Allow asynchronous reset flag
   );
+  port (
+  -- External I/O
+    rstn              : in  std_ulogic;                       -- Reset
+    clk               : in  std_ulogic;                       -- Clock
+    -- Interface Bus signals
+    ib_req_grant      : in  std_logic;                        -- Request granted by network interface
+    ib_req            : out std_logic;                        -- Transaction request for the network interface
+    ib_valid          : in  std_logic;                        -- Valid data beat from ongoing transaction
+    ib_done           : in  std_logic;                        -- Last valid data beat of the last requested transaction
+    ib_addr           : out std_logic_vector(31 downto 0);    -- Address where to execute the transaction
+    ib_size           : out std_logic_vector(11 downto 0);    -- Encoded number of bytes to transfer (-1 from real transfer size)
+    ib_addr_fix       : out std_logic;                        -- Transaction to execute on fixed address.
+  -- Internal I/O
+    enable            : in  std_logic;                        -- Enable descriptor execution
+    rst_sw            : in  std_logic;                        -- Software reset through APB
+    start             : in  std_logic;                        -- Start descriptor execution flag
+    busy              : out std_logic;                        -- Ongoing descriptor execution flag
+    desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
+    error             : out std_logic;                        -- Error flag
+    status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
+  );
+end entity injector_read;
+
+architecture rtl of injector_read is
+
+  -----------------------------------------------------------------------------
+  -- Types and reset constants declaration
+  -----------------------------------------------------------------------------
+
+  -- Reset values
+  constant RESET_OPERATION_RD_WR : operation_rd_wr := (
+    size_left       => (others => '0'),
+    size_burst      => (others => '0'),
+    addr            => (others => '0'),
+    addr_fix        => '0'
+  );
+
 
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------
-  signal r, rin : read_if_reg_type;
+
+  -- Registers
+  signal req_reg          : std_logic;        -- Request transaction register
+  signal desc_ongoing     : operation_rd_wr;  -- Register of the ongoing execution of the descriptor.
+  signal size_transf_rem  : unsigned(desc_ongoing.size_burst'range); -- Remaining bytes to transfer of the requested transaction.
+  signal transfer_on      : std_logic;        -- Ongoing transfer flag of the last granted transaction.
+  signal status_reg       : std_logic_vector(MAX_STATUS_LEN - 1 downto 0); -- Status register.
+
+  -- Signals
+  signal req              : std_logic;        -- Transaction request.
+  signal req_granted      : std_logic;        -- Transaction has been granted flag.
+  signal desc_to_exe      : operation_rd_wr;  -- Multiplex bus between DECODE and internal submodule registers.
+  signal not_last_transf  : std_logic;        -- Ongoing transfer of a granted transaction. Lowers on last transfer.
+  signal error_start      : std_logic;        -- Incorrect timing of the signal start from DECODE.
+  signal error_valid      : std_logic;        -- Incorrect timing of the signal ib_valid from interface.
+  signal error_done       : std_logic;        -- Incorrect timing of the signal ib_done from interface.
+
   
 begin
+
   -----------------------------------------------------------------------------
   -- Assignments
   -----------------------------------------------------------------------------
 
-  -----------------------------------------------------------------------------
-  -- Combinational process
-  -----------------------------------------------------------------------------
-  
-  comb : process (read_if_bmi, r, desc_ctrl, desc_actaddr, read_if_start, err_sts_in)
-    variable v  : read_if_reg_type;
-  begin
-
-    -- Default values 
-    v           := r;
-    read_if_bmo <= BM_MOSI_RST;
-
-    -- READ_IF state machine
-    case r.read_if_state is
-      when idle =>
-        -- Default values
-        v.sts.operation   := '0';
-        v.sts.comp        := '0';
-        v.curr_size       := (others => '0');
-        v.sts.read_if_err := '0';
-        v.bmst_rd_busy    := '0';
-
-        -- Operation starts when start signal from control block arrives and no errors are present
-        if(read_if_start = '1' and err_sts_in = '0') then
-          v.err_state      := (others => '0');
-          v.sts.operation  := '1';
-          v.tot_size       := desc_ctrl.size;
-          v.inc            := (others => '0');
-          v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
-                                         max_bsize  => MAX_SIZE_BURST,
-                                         bm_bytes   => dbits/8,
-                                         total_size => desc_ctrl.size
-                                         );
-          v.read_if_state := request;
-        end if; -- No Restart (or resume) bit for the moment
-      ----------     
-        
-      when request =>
-        -- Set action address, size and request read transaction
-        if(desc_ctrl.type_spec = '1') then
-          read_if_bmo.rd_addr <= desc_actaddr.addr;
-        else
-          read_if_bmo.rd_addr <= add_vector(desc_actaddr.addr, r.inc, read_if_bmo.rd_addr'length);
-        end if;
-        read_if_bmo.rd_size   <= sub_vector(r.curr_size, 1, read_if_bmo.rd_size'length); -- interface understands value 0 as 1 byte
-        v.rd_req              := '1';
-
-        if((read_if_bmi.rd_req_grant and r.rd_req) = '1') then
-          v.bmst_rd_busy      := '1';
-          v.rd_req            := '0';
-          v.read_if_state     := read_data;
-        end if;
-      ----------
-        
-      when read_data =>
-        -- Check if interface is delivering valid data
-        if(read_if_bmi.rd_valid = '1') then
-          if(read_if_bmi.rd_err = '1') then -- In case of an error during read transaction,
-            v.sts.read_if_err := '1';       -- notify it to sts, but continue with transaction.
-            v.err_state       := READ_IF_DATA;
-          end if;
-
-          if(to_integer(unsigned(r.curr_size)) > dbits/8) then
-            v.curr_size       := sub_vector(r.curr_size, dbits/8, v.curr_size'length);
-            v.inc             := add_vector(r.inc, dbits/8, v.inc'length);
-            v.tot_size        := sub_vector(r.tot_size, dbits/8, v.tot_size'length);
-          else
-            v.inc             := add_vector(r.inc, r.curr_size, v.inc'length);
-            v.tot_size        := sub_vector(r.tot_size, r.curr_size, v.tot_size'length);
-            -- At the last read beat of the burst, the rd_done flag must be set to high.
-            if(read_if_bmi.rd_done = '1') then
-              -- In case there's still more data to be read, request another burst.
-              if(v.tot_size /= (v.tot_size'range => '0')) then
-                v.curr_size := find_burst_size(fixed_addr => desc_ctrl.type_spec,
-                                               max_bsize  => MAX_SIZE_BURST,
-                                               bm_bytes   => dbits/8,
-                                               total_size => v.tot_size
-                                               );
-                v.read_if_state := request;
-                v.bmst_rd_busy  := '0';
-              else -- If the descriptor repetition is finished, return to idle
-                v.read_if_state := idle;
-                v.sts.operation := '0';
-                v.bmst_rd_busy  := '0';
-                v.sts.comp      := '1';
-              end if;
-            else -- If the burst is not done, flag an error and return to idle.
-              v.sts.read_if_err := '1';
-              v.err_state       := READ_IF_DATA;
-            end if;
-          end if;
-        end if;
-      ----------
-
-      when others =>
-        v.read_if_state := idle;
-      ----------         
-    end case;  --READ_IF state machine
+  -- I/O assignments
+  ib_req          <= req;
+  ib_addr         <= std_logic_vector(desc_to_exe.addr);
+  ib_size         <= std_logic_vector(desc_to_exe.size_burst(ib_size'range));
+  ib_addr_fix     <= desc_to_exe.addr_fix;
+  busy            <= req_reg or transfer_on;
+  error           <= error_start or error_valid or error_done;
+  status          <= status_reg;
 
 
-    ----------------------
-    -- Signal update --
-    ----------------------
-    
-    -- State decoding for status display
-    if r.sts.read_if_err = '1' then
-      status_out.state <= r.err_state;
-    else
-      case r.read_if_state is
-        when request =>
-          status_out.state <= READ_IF_EXEC;
-        when read_data =>
-          status_out.state <= READ_IF_DATA;
-        when others =>
-          status_out.state <= READ_IF_IDLE;
-      end case;
-    end if;
+  -- Request combinational conditions. Do not request any transaction if EXE is disabled or if it's transfering.
+  req             <= enable and (start or req_reg) and not(transfer_on);
 
-    rin                     <= v;
-    status_out.read_if_err  <= r.sts.read_if_err;
-    status_out.write_if_err <= r.sts.write_if_err;
-    status_out.operation    <= r.sts.operation;
-    status_out.comp         <= r.sts.comp;
-    read_if_bmo.rd_req      <= r.rd_req;
-     
-  end process comb;
+  -- Request grant conditions.
+  req_granted     <= ib_req_grant and req;
+
+  -- Multiplex control data to execute descriptor between input and stored on register.
+  desc_to_exe     <= desc_ongoing when (req_reg = '1' or transfer_on = '1') else desc_data;
+
+  -- Set the not_last_transf flag to check for when the ib_done flag must be high.
+  not_last_transf <= '1' when (size_transf_rem > to_unsigned(CORE_DATA_WIDTH/8, size_transf_rem'length)) else '0';
+
+  -- Error signaling assignment.
+    -- The start signal must not be high when a descriptor is being executed.
+  error_start     <= start and (transfer_on or req_reg);
+    -- The valid signal must not be high when no transfer is expected.
+  error_valid     <= ib_valid and not(transfer_on);
+    -- The done signal must not be high when valid is not high and it is not the last transfer.
+  error_done      <= ib_done and (not(ib_valid) or not(not_last_transf) or not(transfer_on));
+
 
   -----------------------------------------------------------------------------
   -- Sequential Process
   -----------------------------------------------------------------------------
 
-  seq : process (clk, rstn)
+  seq0 : process(clk, rstn)
   begin
-    if (rstn = '0' and ASYNC_RST) then
-      r <= READ_IF_REG_RES;
+    if(rstn = '0' and ASYNC_RST) then
+      req_reg             <= '0';
+      desc_ongoing        <= RESET_OPERATION_RD_WR;
+      size_transf_rem     <= (others => '0');
+      transfer_on         <= '0';
+      status_reg          <= DEBUG_STATE_IDLE;
     elsif rising_edge(clk) then
-      if rstn = '0' or ctrl_rst = '1' then
-        r <= READ_IF_REG_RES;
+      if(rstn = '0') then
+        req_reg           <= '0';
+        desc_ongoing      <= RESET_OPERATION_RD_WR;
+        size_transf_rem   <= (others => '0');
+        transfer_on       <= '0';
+        status_reg        <= DEBUG_STATE_IDLE;
       else
-        r <= rin;
+
+        if(transfer_on = '0') then
+
+        ------------------------------------
+        -- Transaction request generation --
+        ------------------------------------
+
+          if(req_granted = '1') then
+            -- At request granted, update size_left and compute next transfer size.
+            if(desc_to_exe.size_left > to_unsigned(MAX_SIZE_BURST, desc_to_exe.size_left'length)) then
+              desc_ongoing.size_left  <= desc_to_exe.size_left - to_unsigned(MAX_SIZE_BURST, desc_to_exe.size_left'length);
+              desc_ongoing.size_burst <= to_unsigned(MAX_SIZE_BURST - 1, desc_to_exe.size_burst'length);
+            else
+              desc_ongoing.size_left  <= (others => '0');
+              desc_ongoing.size_burst <= desc_to_exe.size_left - 1;
+            end if;
+
+            if(desc_to_exe.addr_fix = '0') then 
+              desc_ongoing.addr       <= desc_to_exe.addr + to_unsigned(MAX_SIZE_BURST, desc_to_exe.addr'length);
+            else
+              desc_ongoing.addr       <= desc_to_exe.addr;
+            end if;
+
+            desc_ongoing.addr_fix     <= desc_to_exe.addr_fix;
+
+            -- Set the transfer size of the transaction.
+            size_transf_rem           <= desc_ongoing.size_burst + 1;
+            transfer_on               <= '1';
+
+            -- Set the request register to perform more request depending if there's more data to be transfered.
+            if(desc_to_exe.size_left /= (desc_to_exe.size_left'range => '0')) then
+              req_reg                 <= '1';
+            else
+              req_reg                 <= '0';
+            end  if;
+
+          elsif(start = '1') then -- No request has been granted, but DECODE called for action.
+            desc_ongoing              <= desc_data;
+            req_reg                   <= '1';
+          end if;
+
+
+        -------------------------
+        -- Transfer management --
+        -------------------------
+
+        elsif(ib_valid = '1') then
+        -- The data transfer logic is always enabled in order to not block any ongoing transaction on the network.
+          if(not_last_transf = '1') then
+            if(ib_done = '1') then  -- Incorrect done timing, set transaction has ended anyways.
+              size_transf_rem       <= (others => '0');
+              transfer_on           <= '0';
+            else
+              size_transf_rem       <= size_transf_rem - CORE_DATA_WIDTH/8;
+            end if;
+          else -- Correct done timing.
+            size_transf_rem         <= (others => '0');
+            transfer_on             <= '0';
+          end if;
+        end if;
+
+
+        -- Set the debug state. It shows the present state of the execution, so it must load the state of the next clock cycle.
+        if(error_start = '1') then                                    -- Error due to unexpected start signaling from DECODE.
+          status_reg                <= DEBUG_STATE_UNEXPECTED_START;
+        elsif(error_done = '1') then                                  -- Error due to unexpected ib_done from interface.
+          status_reg                <= DEBUG_STATE_UNEXPECTED_DONE;
+        elsif(error_valid = '1') then                                 -- Error due to unexpected ib_valid from interface.
+          status_reg                <= DEBUG_STATE_UNEXPECTED_DATA;
+        elsif( (start = '1' or req = '1') and req_granted = '0') then -- Start descriptor execution, so a request is done but not granted.
+          status_reg                <= DEBUG_STATE_REQUEST;
+        elsif(req_granted = '1' or not_last_transf = '1') then        -- Request is being granted, data transfer starts.
+          status_reg                <= DEBUG_STATE_DATA_TRANSFER;
+        elsif(not_last_transf = '0' and ib_done = '0') then           -- All data but last read is completed, waiting for done.
+          status_reg                <= DEBUG_STATE_WAIT_DONE;
+        elsif(ib_done = '1') then                                     -- Return to IDLE.
+          status_reg                <= DEBUG_STATE_IDLE;
+        end if;
+
+        
+        -- Software reset only affects the injector registers related to the descriptor, not the ongoing transfer.
+        if(rst_sw = '1') then
+          req_reg           <= '0';
+          desc_ongoing      <= RESET_OPERATION_RD_WR;
+        end if;
+
+        
       end if;
     end if;
-  end process seq;
------------------------------------------------------------------------------  
--- Component instantiation
------------------------------------------------------------------------------
+  end process seq0;
+
   
 end architecture rtl;

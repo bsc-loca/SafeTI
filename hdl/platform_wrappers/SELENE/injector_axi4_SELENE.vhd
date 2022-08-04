@@ -14,7 +14,7 @@ use grlib.config.all;
 use grlib.stdlib.all;
 use grlib.amba.all;
 use grlib.devices.all;
-use grlib.generic_bm_pkg.all;
+--use grlib.generic_bm_pkg.all;
 library safety;
 use safety.injector_pkg.all;
 use safety.axi4_pkg.all;
@@ -94,13 +94,13 @@ architecture rtl of injector_axi4_SELENE is
   signal apbi_inj   : apb_slave_in;
   signal apbo_inj   : apb_slave_out;
   signal apbo_inj1  : apb_slave_out;
-  -- BM interface signals between SafeTI (Manager) and AXI4 Manager interface (Subordinate)
-  signal bm_out_injector  : safety.injector_pkg.bm_mosi;  -- Output from injector
-  signal bm_in_injector   : safety.injector_pkg.bm_miso;  -- Input to injector
-  signal bm_out_injector1 : safety.injector_pkg.bm_mosi;  -- Output from second injector
-  signal bm_in_injector1  : safety.injector_pkg.bm_miso;  -- Input to second injector
-  signal bm_in_manager    : safety.axi4_pkg.bm_mosi;      -- Input to AXI4 Manager interface
-  signal bm_out_manager   : safety.axi4_pkg.bm_miso;      -- Output from AXI4 Manager interface
+  -- IB interface signals between SafeTI (Manager) and AXI4 Manager interface (Subordinate)
+  signal ib_out_injector  : safety.injector_pkg.ib_mosi;  -- Output from injector
+  signal ib_in_injector   : safety.injector_pkg.ib_miso;  -- Input to injector
+  signal ib_out_injector1 : safety.injector_pkg.ib_mosi;  -- Output from second injector
+  signal ib_in_injector1  : safety.injector_pkg.ib_miso;  -- Input to second injector
+  signal ib_in_manager    : safety.axi4_pkg.ib_mosi;      -- Input to AXI4 Manager interface
+  signal ib_out_manager   : safety.axi4_pkg.ib_miso;      -- Output from AXI4 Manager interface
 
   signal mux        : std_logic; -- Multiplexer register used to redirect signals between injector modules
 
@@ -173,81 +173,81 @@ begin  -- rtl
   apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 
-  -- Multiplexed BM connection between AXI4 Manager interface and injectors
-  comb : process(mux, bm_out_manager, bm_out_injector, bm_out_injector1)
+  -- Multiplexed IB connection between AXI4 Manager interface and injectors
+  comb : process(mux, ib_out_manager, ib_out_injector, ib_out_injector1)
   begin
     if(mux = '0' or two_injectors = FALSE) then
-    -- BM SafeTI input (MISO)
-      bm_in_injector.rd_data        <= (bm_in_injector.rd_data'high downto DATA_WIDTH => '0') & bm_out_manager.rd_data(DATA_WIDTH-1 downto 0);
-      bm_in_injector.rd_req_grant   <= bm_out_manager.rd_req_grant;
-      bm_in_injector.rd_valid       <= bm_out_manager.rd_valid;
-      bm_in_injector.rd_done        <= bm_out_manager.rd_done;
-      bm_in_injector.rd_err         <= bm_out_manager.rd_err;
-      bm_in_injector.wr_req_grant   <= bm_out_manager.wr_req_grant;
-      bm_in_injector.wr_full        <= bm_out_manager.wr_full;
-      bm_in_injector.wr_done        <= bm_out_manager.wr_done;
-      bm_in_injector.wr_err         <= bm_out_manager.wr_err;
+    -- IB SafeTI input (MISO)
+      ib_in_injector.rd_data        <= (ib_in_injector.rd_data'high downto DATA_WIDTH => '0') & ib_out_manager.rd_data(DATA_WIDTH-1 downto 0);
+      ib_in_injector.rd_req_grant   <= ib_out_manager.rd_req_grant;
+      ib_in_injector.rd_valid       <= ib_out_manager.rd_valid;
+      ib_in_injector.rd_done        <= ib_out_manager.rd_done;
+      ib_in_injector.rd_err         <= ib_out_manager.rd_err;
+      ib_in_injector.wr_req_grant   <= ib_out_manager.wr_req_grant;
+      ib_in_injector.wr_full        <= ib_out_manager.wr_full;
+      ib_in_injector.wr_done        <= ib_out_manager.wr_done;
+      ib_in_injector.wr_err         <= ib_out_manager.wr_err;
 
-      bm_in_injector1.rd_data       <= (others => '0');
-      bm_in_injector1.rd_req_grant  <= '0';
-      bm_in_injector1.rd_valid      <= '0';
-      bm_in_injector1.rd_done       <= '0';
-      bm_in_injector1.rd_err        <= '0';
-      bm_in_injector1.wr_req_grant  <= '0';
-      bm_in_injector1.wr_full       <= '0';
-      bm_in_injector1.wr_done       <= '0';
-      bm_in_injector1.wr_err        <= '0';
-    -- BM SafeTI output (MOSI)
-      bm_in_manager.rd_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector.rd_addr'length => '0') & bm_out_injector.rd_addr;
-      bm_in_manager.rd_size         <= bm_out_injector.rd_size;
-      bm_in_manager.rd_req          <= bm_out_injector.rd_req;
-      bm_in_manager.wr_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector.wr_addr'length => '0') & bm_out_injector.wr_addr;
-      bm_in_manager.wr_size         <= bm_out_injector.wr_size;
-      bm_in_manager.wr_req          <= bm_out_injector.wr_req;
-      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto DATA_WIDTH => '0') & bm_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
+      ib_in_injector1.rd_data       <= (others => '0');
+      ib_in_injector1.rd_req_grant  <= '0';
+      ib_in_injector1.rd_valid      <= '0';
+      ib_in_injector1.rd_done       <= '0';
+      ib_in_injector1.rd_err        <= '0';
+      ib_in_injector1.wr_req_grant  <= '0';
+      ib_in_injector1.wr_full       <= '0';
+      ib_in_injector1.wr_done       <= '0';
+      ib_in_injector1.wr_err        <= '0';
+    -- IB SafeTI output (MOSI)
+      ib_in_manager.rd_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector.rd_addr'length => '0') & ib_out_injector.rd_addr;
+      ib_in_manager.rd_size         <= ib_out_injector.rd_size;
+      ib_in_manager.rd_req          <= ib_out_injector.rd_req;
+      ib_in_manager.wr_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector.wr_addr'length => '0') & ib_out_injector.wr_addr;
+      ib_in_manager.wr_size         <= ib_out_injector.wr_size;
+      ib_in_manager.wr_req          <= ib_out_injector.wr_req;
+      ib_in_manager.wr_data         <= (ib_in_manager.wr_data'high downto DATA_WIDTH => '0') & ib_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
     else
-    -- BM SafeTI input (MISO)
-      bm_in_injector1.rd_data       <= (bm_in_injector1.rd_data'high downto DATA_WIDTH => '0') & bm_out_manager.rd_data(DATA_WIDTH-1 downto 0);
-      bm_in_injector1.rd_req_grant  <= bm_out_manager.rd_req_grant;
-      bm_in_injector1.rd_valid      <= bm_out_manager.rd_valid;
-      bm_in_injector1.rd_done       <= bm_out_manager.rd_done;
-      bm_in_injector1.rd_err        <= bm_out_manager.rd_err;
-      bm_in_injector1.wr_req_grant  <= bm_out_manager.wr_req_grant;
-      bm_in_injector1.wr_full       <= bm_out_manager.wr_full;
-      bm_in_injector1.wr_done       <= bm_out_manager.wr_done;
-      bm_in_injector1.wr_err        <= bm_out_manager.wr_err;
+    -- IB SafeTI input (MISO)
+      ib_in_injector1.rd_data       <= (ib_in_injector1.rd_data'high downto DATA_WIDTH => '0') & ib_out_manager.rd_data(DATA_WIDTH-1 downto 0);
+      ib_in_injector1.rd_req_grant  <= ib_out_manager.rd_req_grant;
+      ib_in_injector1.rd_valid      <= ib_out_manager.rd_valid;
+      ib_in_injector1.rd_done       <= ib_out_manager.rd_done;
+      ib_in_injector1.rd_err        <= ib_out_manager.rd_err;
+      ib_in_injector1.wr_req_grant  <= ib_out_manager.wr_req_grant;
+      ib_in_injector1.wr_full       <= ib_out_manager.wr_full;
+      ib_in_injector1.wr_done       <= ib_out_manager.wr_done;
+      ib_in_injector1.wr_err        <= ib_out_manager.wr_err;
 
-      bm_in_injector.rd_data        <= (others => '0');
-      bm_in_injector.rd_req_grant   <= '0';
-      bm_in_injector.rd_valid       <= '0';
-      bm_in_injector.rd_done        <= '0';
-      bm_in_injector.rd_err         <= '0';
-      bm_in_injector.wr_req_grant   <= '0';
-      bm_in_injector.wr_full        <= '0';
-      bm_in_injector.wr_done        <= '0';
-      bm_in_injector.wr_err         <= '0';
-    -- BM SafeTI output (MOSI)
-      bm_in_manager.rd_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector1.rd_addr'length => '0') & bm_out_injector1.rd_addr;
-      bm_in_manager.rd_size         <= bm_out_injector1.rd_size;
-      bm_in_manager.rd_req          <= bm_out_injector1.rd_req;
-      bm_in_manager.wr_addr         <= (bm_in_manager.rd_addr'high downto bm_out_injector1.wr_addr'length => '0') & bm_out_injector1.wr_addr;
-      bm_in_manager.wr_size         <= bm_out_injector1.wr_size;
-      bm_in_manager.wr_req          <= bm_out_injector1.wr_req;
-      bm_in_manager.wr_data         <= (bm_in_manager.wr_data'high downto DATA_WIDTH => '0') & bm_out_injector1.wr_data(DATA_WIDTH - 1 downto 0);
+      ib_in_injector.rd_data        <= (others => '0');
+      ib_in_injector.rd_req_grant   <= '0';
+      ib_in_injector.rd_valid       <= '0';
+      ib_in_injector.rd_done        <= '0';
+      ib_in_injector.rd_err         <= '0';
+      ib_in_injector.wr_req_grant   <= '0';
+      ib_in_injector.wr_full        <= '0';
+      ib_in_injector.wr_done        <= '0';
+      ib_in_injector.wr_err         <= '0';
+    -- IB SafeTI output (MOSI)
+      ib_in_manager.rd_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector1.rd_addr'length => '0') & ib_out_injector1.rd_addr;
+      ib_in_manager.rd_size         <= ib_out_injector1.rd_size;
+      ib_in_manager.rd_req          <= ib_out_injector1.rd_req;
+      ib_in_manager.wr_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector1.wr_addr'length => '0') & ib_out_injector1.wr_addr;
+      ib_in_manager.wr_size         <= ib_out_injector1.wr_size;
+      ib_in_manager.wr_req          <= ib_out_injector1.wr_req;
+      ib_in_manager.wr_data         <= (ib_in_manager.wr_data'high downto DATA_WIDTH => '0') & ib_out_injector1.wr_data(DATA_WIDTH - 1 downto 0);
     end if;
   end process comb;
   
   -- Network profile signaling
-  bm_in_manager.rd_fixed_addr <= '0';
-  bm_in_manager.rd_axi_cache  <= axi_cache;
-  bm_in_manager.rd_axi_prot   <= axi_prot;
-  bm_in_manager.rd_axi_qos    <= axi_qos;
-  bm_in_manager.rd_axi_region <= axi_region;
-  bm_in_manager.wr_fixed_addr <= '0';
-  bm_in_manager.wr_axi_cache  <= axi_cache;
-  bm_in_manager.wr_axi_prot   <= axi_prot;
-  bm_in_manager.wr_axi_qos    <= axi_qos;
-  bm_in_manager.wr_axi_region <= axi_region;
+  ib_in_manager.rd_fixed_addr <= '0';
+  ib_in_manager.rd_axi_cache  <= axi_cache;
+  ib_in_manager.rd_axi_prot   <= axi_prot;
+  ib_in_manager.rd_axi_qos    <= axi_qos;
+  ib_in_manager.rd_axi_region <= axi_region;
+  ib_in_manager.wr_fixed_addr <= '0';
+  ib_in_manager.wr_axi_cache  <= axi_cache;
+  ib_in_manager.wr_axi_prot   <= axi_prot;
+  ib_in_manager.wr_axi_qos    <= axi_qos;
+  ib_in_manager.wr_axi_region <= axi_region;
 
 
   -----------------------------------------------------------------------------
@@ -264,9 +264,9 @@ begin  -- rtl
         mux <= '0';
       elsif(two_injectors) then
         if(mux = '0') then
-          mux <= bm_in_injector.rd_done or bm_in_injector.wr_done;
+          mux <= ib_in_injector.rd_done or ib_in_injector.wr_done;
         else
-          mux <= not(bm_in_injector1.rd_done or bm_in_injector1.wr_done);
+          mux <= not(ib_in_injector1.rd_done or ib_in_injector1.wr_done);
         end if;
       end if;
     end if;
@@ -290,8 +290,8 @@ begin  -- rtl
       clk             => clk,
       apbi            => apbi_inj,
       apbo            => apbo_inj,
-      bm_out          => bm_out_injector,
-      bm_in           => bm_in_injector
+      ib_out          => ib_out_injector,
+      ib_in           => ib_in_injector
     );
 
   -- second injector core
@@ -308,8 +308,8 @@ begin  -- rtl
       clk             => clk,
       apbi            => apbi_inj,
       apbo            => apbo_inj1,
-      bm_out          => bm_out_injector1,
-      bm_in           => bm_in_injector1
+      ib_out          => ib_out_injector1,
+      ib_in           => ib_in_injector1
     );
     end generate second_injector;
 
@@ -331,8 +331,8 @@ begin  -- rtl
       clk             => clk,
       axi4mi          => axi_mi,
       axi4mo          => axi_mo,
-      bm_in           => bm_in_manager,
-      bm_out          => bm_out_manager
+      ib_in           => ib_in_manager,
+      ib_out          => ib_out_manager
     );
     
 

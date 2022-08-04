@@ -16,7 +16,7 @@ package injector_pkg is
 -- Parametric constants 
 -------------------------------------------------------------------------------
 
-  constant MAX_DESC_LEN     : integer := 2; -- Maximum number of words for descriptors.
+  constant MAX_DESC_WORDS   : integer := 2; -- Maximum number of words for descriptors.
   constant MAX_STATUS_LEN   : integer := 5; -- Maximum length of the internal status flag field from any stage.
   constant EXE_N_SUBMODULES : integer := 3; -- Number of task submodules on the EXE stage.
 
@@ -35,17 +35,18 @@ package injector_pkg is
   constant OP_META        : std_logic_vector(4 downto 0) := "11111"; -- TODO: Use META type to add new descriptor words.
 
   -- Debug states
-  constant DEBUG_STATE_IDLE               : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00000";
-  constant DEBUG_STATE_1st_EXE            : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00001";
-  constant DEBUG_STATE_NORMAL             : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00010";
-  constant DEBUG_STATE_INTERFACE_REQUEST  : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00011";
-  constant DEBUG_STATE_INTERFACE_TRANSFER : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00100";
-
-  -- Pipeline stage indexing
-  constant PL_APB           : integer := 0;
-  constant PL_FETCH         : integer := 1;
-  constant PL_DECODE        : integer := 2;
-  constant PL_EXE           : integer := 3;
+  constant DEBUG_STATE_IDLE               : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00000"; -- Common debug states
+  constant DEBUG_STATE_1st_EXE            : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00001"; -- EXE debug states
+  constant DEBUG_STATE_REQUEST            : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00010"; -- READ and WRITE debug states
+  constant DEBUG_STATE_DATA_TRANSFER      : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00011";
+  constant DEBUG_STATE_WAIT_DONE          : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00100";
+  constant DEBUG_STATE_NO_OPERATION       : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "00101"; -- DELAY debug state
+  constant DEBUG_STATE_1st_DECODE         : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "01001"; -- DECODE debug states
+  constant DEBUG_STATE_REPETITION         : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "01010";
+  -- Error debug states
+  constant DEBUG_STATE_UNEXPECTED_DATA    : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "10000"; -- READ and WRITE error debug states
+  constant DEBUG_STATE_UNEXPECTED_DONE    : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "10001";
+  constant DEBUG_STATE_UNEXPECTED_START   : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "11000"; -- Common error states
 
 
 -------------------------------------------------------------------------------
@@ -53,19 +54,29 @@ package injector_pkg is
 -------------------------------------------------------------------------------
 
   -- Descriptor words type
-  type desc_words is array (0 to MAX_DESC_LEN - 1) of std_logic_vector(31 downto 0);
+  type desc_words is array (0 to MAX_DESC_WORDS - 1) of std_logic_vector(31 downto 0);
+
+  -- Type for common signals on pipeline components (enable, reset, irq)
+  type pipeline_common_array is record
+    fetch                   : std_logic;
+    decode                  : std_logic;
+    exe                     : std_logic;
+  end record pipeline_common_array;
 
   -- Common signal arrays of the pipeline stages
-  type pipeline_pc_array    is array (1 to 3) of unsigned(9 downto 0);
-  type pipeline_state_array is array (1 to 3) of std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+  type pipeline_state_array is record
+    fetch             : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+    decode            : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+    exe               : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+  end record pipeline_state_array;
   
 
 -------------------------------------------------------------------------------
 -- External I/O signaling types 
 -------------------------------------------------------------------------------
 
-  -- BM bus types
-  type bm_miso is record  --Input to injector_ctrl from bus master interface output
+  -- IB bus types
+  type ib_miso is record  --Input to injector_ctrl from bus master interface output
     -- Read channel
     rd_data           : std_logic_vector(127 downto 0);
     rd_req_grant      : std_logic;
@@ -77,9 +88,9 @@ package injector_pkg is
     wr_full           : std_logic;
     wr_done           : std_logic;
     wr_err            : std_logic;
-  end record bm_miso;
+  end record ib_miso;
 
-  type bm_mosi is record  --Output from injector_ctrl to bus master interface input
+  type ib_mosi is record  --Output from injector_ctrl to bus master interface input
     -- Read channel
     rd_addr           : std_logic_vector(31 downto 0);
     rd_size           : std_logic_vector(11 downto 0);
@@ -91,7 +102,7 @@ package injector_pkg is
     wr_fix_addr       : std_logic;
     wr_req            : std_logic;
     wr_data           : std_logic_vector(127 downto 0);
-  end record bm_mosi;
+  end record ib_mosi;
 
   -- APB bus types
   type apb_slave_in is record
@@ -130,17 +141,18 @@ package injector_pkg is
 -----------------------------------------------------------------------------
 
   -- Decoded descriptor type into a bit array of the submodules to enable for the operation.
-  type submodule_enable is record
-    delay_en          : std_logic;
-    read_en           : std_logic;
-    write_en          : std_logic;
-  end record submodule_enable;
+  type submodule_bit is record
+    delay_sub         : std_logic;
+    read_sub          : std_logic;
+    write_sub         : std_logic;
+  end record submodule_bit;
 
   -- Decoded descriptor for READ and WRITE descriptor types
   type operation_rd_wr is record
-    size              : unsigned(19 downto 0);  -- On DECODE, the descriptor size is increased by 1 to set the real size.
-    addr              : std_logic_vector(31 downto 0);-- Starting transaction address.
-    addr_fix          : std_logic;                    -- Transaction to be executed on a fixed address flag.
+    size_left         : unsigned(18 downto 0);  -- On DECODE, the descriptor size is increased by 1 obtain the total transfer size left.
+    size_burst        : unsigned(18 downto 0);  -- Encoded burst transfer size of the next transaction.
+    addr              : unsigned(31 downto 0);  -- Starting transaction address.
+    addr_fix          : std_logic;              -- Transaction to be executed on a fixed address flag.
   end record operation_rd_wr;
 
   -- Decoded descriptor for DELAY descriptor type
@@ -158,7 +170,7 @@ package injector_pkg is
 
   -- Type used to encapsulate connections from DECODE to EXE stages
   type bus_decode_exe is record
-    subm_enable       : submodule_enable; -- Decoded descriptor type for specific submodule start
+    subm_enable       : submodule_bit;    -- Decoded descriptor type for specific submodule start
     irq_desc          : std_logic;        -- Interruption flag for descriptor completion
     last_desc         : std_logic;        -- Last descriptor flag in injector program
     last_count        : std_logic;        -- Last iteration of the descriptor
@@ -202,8 +214,8 @@ package injector_pkg is
       apbi              : in  apb_slave_in;         -- APB slave input
       apbo              : out apb_slave_out;        -- APB slave output
       -- Bus master signals
-      bm_out            : out bm_mosi;              -- Input to network interface
-      bm_in             : in  bm_miso               -- Output from network interface
+      ib_out            : out ib_mosi;              -- Input to network interface
+      ib_in             : in  ib_miso               -- Output from network interface
     );
   end component injector_core;
 
@@ -230,7 +242,7 @@ package body injector_pkg is
     total_int := to_integer(unsigned(total_size));
     -- Limit the burst burst size by maximum burst length
     if(fixed_addr = '1') then
-      if(total_int < bm_bytes) then  -- less than BM data bus bytes
+      if(total_int < bm_bytes) then  -- less than IB data bus bytes
         temp := total_int;
       else
         temp := bm_bytes;

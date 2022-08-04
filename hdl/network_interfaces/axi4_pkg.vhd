@@ -5,7 +5,11 @@
 -- Description: Internal package for AXI4 components
 ------------------------------------------------------------------------------
 --  Changelog:
---              - v0.8.5  Mar 29, 2022.
+--              - v0.8.5  Jul 29, 2022.
+--                Connections between Main component, before called BM component, that the 
+--                interface acts as a subordinate for to translate transactions to the AXI 
+--                network, now have been renamed from bm_miso and bm_mosi to ib_miso and 
+--                ib_mosi respectivelly. IB stands for Interface Bus.
 --                
 --              - v0.8.2  Mar 11, 2022.
 --                Configurable parameters of the number of FIFO registers and injector 
@@ -101,7 +105,7 @@ package axi4_pkg is
   end record;
 
   -- BM specific types
-  type bm_miso is record  -- BM component output, input to Manager interface.
+  type ib_miso is record  -- BM component output, input to Manager interface.
     -- Read channel
     rd_data         : std_logic_vector(1023 downto 0);
     rd_req_grant    : std_logic;
@@ -115,7 +119,7 @@ package axi4_pkg is
     wr_err          : std_logic;
   end record;
 
-  type bm_mosi is record  -- BM component input, output from Manager interface.
+  type ib_mosi is record  -- BM component input, output from Manager interface.
     -- Read channel
     rd_addr         : std_logic_vector(  63 downto 0);
     rd_size         : std_logic_vector(  11 downto 0);
@@ -186,8 +190,8 @@ package axi4_pkg is
       clk             : in  std_ulogic;
       axi4mi          : in  axi4_miso;
       axi4mo          : out axi4_mosi;
-      bm_in           : in  bm_mosi;
-      bm_out          : out bm_miso
+      ib_in           : in  ib_mosi;
+      ib_out          : out ib_miso
     );
   end component axi4_manager;
 

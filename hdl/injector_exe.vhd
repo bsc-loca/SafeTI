@@ -17,31 +17,32 @@ use safety.injector_pkg.all;
 
 entity injector_exe is
   generic (
-    PC_LEN            : integer range 2 to   10     :=    4;  -- Set the maximum number of programmable descriptor words to 2^^PC_LEN
-    CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
-    MAX_SIZE_BURST    : integer range 8 to 4096     := 1024;  -- Maximum number of bytes allowed at a burst transaction.
-    ASYNC_RST         : boolean                     := TRUE   -- Allow asynchronous reset flag
+    PC_LEN            : integer range 2 to   10   :=    4;  -- Set the maximum number of programmable descriptor words to 2^^PC_LEN
+    CORE_DATA_WIDTH   : integer range 8 to 1024   :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
+    MAX_SIZE_BURST    : integer range 8 to 4096   := 1024;  -- Maximum number of bytes per transaction
+    ASYNC_RST         : boolean                   := TRUE   -- Allow asynchronous reset flag
   );
   port (
   -- External I/O
-    rstn              : in  std_ulogic;                       -- Reset
-    clk               : in  std_ulogic;                       -- Clock
-    bm_in             : in  bm_miso;                          -- BM connection with network interface
-    bm_out            : out bm_mosi;                          -- BM connection with network interface
+    rstn              : in  std_ulogic;                     -- Reset
+    clk               : in  std_ulogic;                     -- Clock
+    ib_in             : in  ib_miso;                        -- IB connection with network interface
+    ib_out            : out ib_mosi;                        -- IB connection with network interface
   -- Internal I/O
-    enable            : in  std_logic;                        -- Enable DECODE stage
-    rst_sw            : in  std_logic;                        -- Software reset through APB
+    enable            : in  std_logic;                      -- Enable DECODE stage
+    rst_sw            : in  std_logic;                      -- Software reset through APB
       -- Signals from/for DECODE
-    decode_ready      : in  std_logic;                        -- Control data ready to be read flag
-    exe_ready         : out std_logic;                        -- Control data can be read flag
-    decode_pc         : in  unsigned(PC_LEN - 1 downto 0);    -- Descriptor word 0 PC of the operation being executed
-    decode_data       : in  bus_decode_exe;                   -- Control signals for operation execution
+    decode_ready      : in  std_logic;                      -- Control data ready to be read flag
+    exe_ready         : out std_logic;                      -- Control data can be read flag
+    decode_pc         : in  unsigned(PC_LEN - 1 downto 0);  -- Descriptor word 0 PC of the operation being executed
+    decode_data       : in  bus_decode_exe;                 -- Control signals for operation execution
       -- Control signals
-    irq_desc_comp     : out std_logic;                        -- Submodule interruption
-    desc_comp         : out std_logic;                        -- Descriptor completion
-    program_comp      : out std_logic;                        -- Program completed flag
+    irq_desc_comp     : out std_logic;                      -- Submodule interruption
+    desc_comp         : out std_logic;                      -- Descriptor completion
+    program_comp      : out std_logic;                      -- Program completed flag
       -- Debug signals
-    pc_ongoing        : out unsigned(PC_LEN - 1 downto 0);    -- PC of descriptor being executed
+    pc_ongoing        : out unsigned(PC_LEN - 1 downto 0);  -- PC of descriptor being executed
+    error             : out std_logic;                      -- Error flag
     state             : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0)
   );
 end entity injector_exe;
@@ -78,19 +79,25 @@ architecture rtl of injector_exe is
       ASYNC_RST       : boolean                   := TRUE
     );
     port (
-      rstn            : in  std_ulogic;
-      clk             : in  std_ulogic;
-      rst_sw          : in  std_logic;
-      start           : in  std_logic;
-      busy            : out std_logic;
-      desc_data       : in  operation_rd_wr;
-      status          : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
-      bm_req_grant    : in  std_logic;
-      bm_req          : out std_logic;
-      bm_valid        : in  std_logic;
-      bm_done         : in  std_logic;
-      bm_addr         : out std_logic_vector(31 downto 0);
-      bm_size         : out std_logic_vector(11 downto 0)
+    -- External I/O
+      rstn              : in  std_ulogic;                       -- Reset
+      clk               : in  std_ulogic;                       -- Clock
+      -- Interface Bus signals
+      ib_req_grant      : in  std_logic;                        -- Request granted by network interface
+      ib_req            : out std_logic;                        -- Transaction request for the network interface
+      ib_valid          : in  std_logic;                        -- Valid data beat from ongoing transaction
+      ib_done           : in  std_logic;                        -- Last valid data beat of the last requested transaction
+      ib_addr           : out std_logic_vector(31 downto 0);    -- Address where to execute the transaction
+      ib_size           : out std_logic_vector(11 downto 0);    -- Encoded number of bytes to transfer (-1 from real transfer size)
+      ib_addr_fix       : out std_logic;                        -- Transaction to execute on fixed address.
+    -- Internal I/O
+      enable            : in  std_logic;                        -- Enable descriptor execution
+      rst_sw            : in  std_logic;                        -- Software reset through APB
+      start             : in  std_logic;                        -- Start descriptor execution flag
+      busy              : out std_logic;                        -- Ongoing descriptor execution flag
+      desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
+      error             : out std_logic;                        -- Error flag
+      status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
     );
   end component injector_read;
 
@@ -102,31 +109,27 @@ architecture rtl of injector_exe is
       ASYNC_RST       : boolean                   := TRUE
     );
     port (
-      rstn            : in  std_ulogic;
-      clk             : in  std_ulogic;
-      rst_sw          : in  std_logic;
-      start           : in  std_logic;
-      busy            : out std_logic;
-      desc_data       : in  operation_rd_wr;
-      status          : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
-      bm_req_grant    : in  std_logic;
-      bm_req          : out std_logic;
-      bm_full         : in  std_logic;
-      bm_done         : in  std_logic;
-      bm_addr         : out std_logic_vector(31 downto 0);
-      bm_size         : out std_logic_vector(11 downto 0)
+    -- External I/O
+      rstn              : in  std_ulogic;                       -- Reset
+      clk               : in  std_ulogic;                       -- Clock
+      -- Interface Bus signals
+      ib_req_grant      : in  std_logic;                        -- Request granted by network interface
+      ib_req            : out std_logic;                        -- Transaction request for the network interface
+      ib_full           : in  std_logic;                        -- Valid data beat from ongoing transaction
+      ib_done           : in  std_logic;                        -- Done response of the data transfer of the requested transaction
+      ib_addr           : out std_logic_vector(31 downto 0);    -- Address where to execute the transaction
+      ib_size           : out std_logic_vector(11 downto 0);    -- Encoded number of bytes to transfer (-1 from real transfer size)
+      ib_addr_fix       : out std_logic;                        -- Transaction to execute on fixed address.
+    -- Internal I/O
+      enable            : in  std_logic;                        -- Enable descriptor execution
+      rst_sw            : in  std_logic;                        -- Software reset through APB
+      start             : in  std_logic;                        -- Start descriptor execution flag
+      busy              : out std_logic;                        -- Ongoing descriptor execution flag
+      desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
+      error             : out std_logic;                        -- Error flag
+      status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
     );
    end component injector_write;
-
-
--------------------------------------------------------------------------------
--- Labels 
--------------------------------------------------------------------------------
-
-  -- Submodule indexing
-  constant SUBM_DELAY : integer :=  0;
-  constant SUBM_READ  : integer :=  1;
-  constant SUBM_WRITE : integer :=  2;
 
 
   -----------------------------------------------------------------------------
@@ -134,13 +137,17 @@ architecture rtl of injector_exe is
   -----------------------------------------------------------------------------
 
   -- State array
-  type state_submodule_vector is array (0 to EXE_N_SUBMODULES - 1) of std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+  type state_submodule_array is record 
+    delay_sub         : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+    read_sub          : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+    write_sub         : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
+  end record state_submodule_array;
 
   -- Reset values for submodule_enable type
-  constant RESET_SUBMODULE_ENABLE : submodule_enable := (
-    delay_en      => '0',
-    read_en       => '0',
-    write_en      => '0'
+  constant RESET_SUBMODULE_BIT : submodule_bit := (
+    delay_sub         => '0',
+    read_sub          => '0',
+    write_sub         => '0'
   );
 
 
@@ -150,16 +157,18 @@ architecture rtl of injector_exe is
 
   -- Registers
   signal pc           : unsigned(PC_LEN - 1 downto 0);
-  signal active_subm  : submodule_enable;
+  signal active_subm  : submodule_bit;
   signal last_count   : std_logic;
   signal last_descr   : std_logic;
   signal irq_desc_en  : std_logic;
 
   -- Signals
-  signal start        : std_logic;  -- Global start flag
-  signal busy         : std_logic;  -- Global busy flag
-  signal busy_subm    : std_logic_vector(0 to EXE_N_SUBMODULES - 1);
-  signal state_subm   : state_submodule_vector;
+  signal start        : std_logic;      -- Global start flag
+  signal busy         : std_logic;      -- Global busy flag
+  signal start_subm   : submodule_bit;  -- Submodules start signal
+  signal busy_subm    : submodule_bit;  -- Submodules busy signal
+  signal error_subm   : submodule_bit;  -- Submodules error signal
+  signal state_subm   : state_submodule_array;
 
 
 begin -- rtl
@@ -169,30 +178,38 @@ begin -- rtl
   -----------------------------------------------------------------------------
 
   -- I/O signal assignments
-  exe_ready     <= enable      and not(busy);
-  irq_desc_comp <= irq_desc_en;
-  desc_comp     <= last_count  and not(busy);
-  program_comp  <= last_count  and not(busy) and last_descr;
-  pc_ongoing    <= decode_pc when (start = '1') else pc;
+  exe_ready       <= enable      and not(busy);
+  irq_desc_comp   <= irq_desc_en;
+  desc_comp       <= last_count  and not(busy);
+  program_comp    <= last_count  and not(busy) and last_descr;
+  pc_ongoing      <= decode_pc when (start = '1') else pc;
+  ib_out.wr_data  <= (ib_out.wr_data'range => '0');
+  error           <= '1' when (error_subm /= RESET_SUBMODULE_BIT) else '0';
 
 
   -- Start flag of any execution
-  start     <= '1' when (decode_data.subm_enable /= RESET_SUBMODULE_ENABLE and busy = '0') else '0';
+  start           <=  enable and not(busy) and decode_ready;
 
   -- Busy flag of any execution
-  busy      <= '1' when (busy_subm /= (busy_subm'range => '0')) else '0';
+  busy            <= '1' when (busy_subm /= RESET_SUBMODULE_BIT) else '0';
+
+  -- Set the start array for the submodules.
+  start_subm      <= decode_data.subm_enable when (start = '1') else RESET_SUBMODULE_BIT;
+
+  -- The DELAY submodule cannot infeer an error.
+  error_subm.delay_sub  <= '0';
 
   -- Multiplex of the state bus
   comb0 : process(start, active_subm, state_subm)
   begin
     if(start = '1') then
       state <= DEBUG_STATE_1st_EXE;
-    elsif(active_subm.write_en = '1') then
-      state <= state_subm(SUBM_WRITE);
-    elsif(active_subm.read_en  = '1') then
-      state <= state_subm(SUBM_READ);
-    elsif(active_subm.delay_en = '1') then
-      state <= state_subm(SUBM_DELAY);
+    elsif(active_subm.write_sub = '1') then
+      state <= state_subm.write_sub;
+    elsif(active_subm.read_sub  = '1') then
+      state <= state_subm.read_sub;
+    elsif(active_subm.delay_sub = '1') then
+      state <= state_subm.delay_sub;
     else
       state <= DEBUG_STATE_IDLE;
     end if;
@@ -207,14 +224,14 @@ begin -- rtl
   begin
     if(rstn = '0' and ASYNC_RST) then
       pc                  <= (others => '0');
-      active_subm         <= RESET_SUBMODULE_ENABLE;
+      active_subm         <= RESET_SUBMODULE_BIT;
       last_count          <= '0';
       last_descr          <= '0';
       irq_desc_en         <= '0';
     elsif rising_edge(clk) then
       if(rstn = '0' or rst_sw = '1') then
         pc                <= (others => '0');
-        active_subm       <= RESET_SUBMODULE_ENABLE;
+        active_subm       <= RESET_SUBMODULE_BIT;
         last_count        <= '0';
         last_descr        <= '0';
         irq_desc_en       <= '0';
@@ -228,7 +245,7 @@ begin -- rtl
           irq_desc_en     <= decode_data.irq_desc;
         elsif(busy = '0') then
         -- In case where the execution has ended and no DECODE data is being input, reset the array.
-          active_subm     <= RESET_SUBMODULE_ENABLE;
+          active_subm     <= RESET_SUBMODULE_BIT;
           last_count      <= '0';
         end if;
 
@@ -244,62 +261,69 @@ begin -- rtl
   -- SUBMODULE: DELAY
   sub_delay : injector_delay 
     generic map (
-      ASYNC_RST       => ASYNC_RST
+      ASYNC_RST         => ASYNC_RST
     )
     port map (
-      rstn            => rstn,
-      clk             => clk,
-      rst_sw          => rst_sw,
-      start           => decode_data.subm_enable.delay_en,
-      busy            => busy_subm(SUBM_DELAY),
-      desc_data       => decode_data.delay,
-      status          => state_subm(SUBM_DELAY)
+      rstn              => rstn,
+      clk               => clk,
+      rst_sw            => rst_sw,
+      start             => start_subm.delay_sub,
+      busy              => busy_subm.delay_sub,
+      desc_data         => decode_data.delay,
+      status            => state_subm.delay_sub
   );
 
   -- SUBMODULE: READ
   sub_rd : injector_read 
     generic map (
-      CORE_DATA_WIDTH => CORE_DATA_WIDTH,
-      MAX_SIZE_BURST  => MAX_SIZE_BURST,
-      ASYNC_RST       => ASYNC_RST
+      CORE_DATA_WIDTH   => CORE_DATA_WIDTH,
+      MAX_SIZE_BURST    => MAX_SIZE_BURST,
+      ASYNC_RST         => ASYNC_RST
     )
     port map (
-      rstn            => rstn,
-      clk             => clk,
-      rst_sw          => rst_sw,
-      start           => decode_data.subm_enable.read_en,
-      busy            => busy_subm(SUBM_READ),
-      desc_data       => decode_data.rd_wr,
-      status          => state_subm(SUBM_READ),
-      bm_req_grant    => bm_in.rd_req_grant,
-      bm_req          => bm_out.rd_req,
-      bm_valid        => bm_in.rd_valid,
-      bm_done         => bm_in.rd_done,
-      bm_addr         => bm_out.rd_addr,
-      bm_size         => bm_out.rd_size
+      rstn              => rstn,
+      clk               => clk,
+      ib_req_grant      => ib_in.rd_req_grant,
+      ib_req            => ib_out.rd_req,
+      ib_valid          => ib_in.rd_valid,
+      ib_done           => ib_in.rd_done,
+      ib_addr           => ib_out.rd_addr,
+      ib_size           => ib_out.rd_size,
+      ib_addr_fix       => ib_out.rd_fix_addr,
+      enable            => enable,
+      rst_sw            => rst_sw,
+      start             => start_subm.read_sub,
+      busy              => busy_subm.read_sub,
+      desc_data         => decode_data.rd_wr,
+      error             => error_subm.read_sub,
+      status            => state_subm.read_sub
+
   );
 
   -- SUBMODULE: WRITE
   sub_wr : injector_write 
     generic map (
-      CORE_DATA_WIDTH => CORE_DATA_WIDTH,
-      MAX_SIZE_BURST  => MAX_SIZE_BURST,
-      ASYNC_RST       => ASYNC_RST
+      CORE_DATA_WIDTH   => CORE_DATA_WIDTH,
+      MAX_SIZE_BURST    => MAX_SIZE_BURST,
+      ASYNC_RST         => ASYNC_RST
     )
     port map (
-      rstn            => rstn,
-      clk             => clk,
-      rst_sw          => rst_sw,
-      start           => decode_data.subm_enable.write_en,
-      busy            => busy_subm(SUBM_WRITE),
-      desc_data       => decode_data.rd_wr,
-      status          => state_subm(SUBM_WRITE),
-      bm_req_grant    => bm_in.wr_req_grant,
-      bm_req          => bm_out.wr_req,
-      bm_full         => bm_in.wr_full,
-      bm_done         => bm_in.wr_done,
-      bm_addr         => bm_out.wr_addr,
-      bm_size         => bm_out.wr_size
+      rstn              => rstn,
+      clk               => clk,
+      ib_req_grant      => ib_in.wr_req_grant,
+      ib_req            => ib_out.wr_req,
+      ib_full           => ib_in.wr_full,
+      ib_done           => ib_in.wr_done,
+      ib_addr           => ib_out.wr_addr,
+      ib_size           => ib_out.wr_size,
+      ib_addr_fix       => ib_out.wr_fix_addr,
+      enable            => enable,
+      rst_sw            => rst_sw,
+      start             => start_subm.write_sub,
+      busy              => busy_subm.write_sub,
+      desc_data         => decode_data.rd_wr,
+      error             => error_subm.write_sub,
+      status            => state_subm.write_sub
   );
 
 

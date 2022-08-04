@@ -1,5 +1,5 @@
 -----------------------------------------------------------------------------   
--- Entity:      Injector Delay Submodule
+-- Entity:      injector_delay
 -- File:        injector_delay.vhd
 -- Author:      Francisco Fuentes, Oriol Sala
 -- Description: Module that implements the execution of DELAY descriptors.
@@ -10,7 +10,7 @@ use ieee.numeric_std.all;
 library safety;
 use safety.injector_pkg.all;
 
-entity injector_delay_if is
+entity injector_delay is
   generic (
     ASYNC_RST       : boolean := TRUE           -- Allow asynchronous reset flag
   );
@@ -25,9 +25,9 @@ entity injector_delay_if is
     desc_data       : in  operation_delay;
     status          : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0)
   );
-end entity injector_delay_if;
+end entity injector_delay;
 
-architecture rtl of injector_delay_if is
+architecture rtl of injector_delay is
 
   -----------------------------------------------------------------------------
   -- Signal declaration
@@ -35,7 +35,7 @@ architecture rtl of injector_delay_if is
 
   -- Registers
   signal wait_time  : unsigned(desc_data.num_cycles'range);
-  signal status_int : std_logic_vector(status'range);
+  signal status_reg : std_logic_vector(status'range);
 
   -- Signals
   signal ongoing    : std_logic;
@@ -48,10 +48,11 @@ begin
   -----------------------------------------------------------------------------
 
   -- I/O signal assignments.
-  busy <= ongoing;
+  busy    <= ongoing;
+  status  <= status_reg;
 
   -- Decrease wait counter.
-  ongoing <= '1' when (wait_time /= to_unsigned(0, wait_time'length)) else '0';
+  ongoing <= '1' when (wait_time /= (wait_time'range => '0')) else '0';
 
 
   -----------------------------------------------------------------------------
@@ -62,20 +63,20 @@ begin
   begin
     if(rstn = '0' and ASYNC_RST) then
       wait_time           <= (others => '0');
-      status_int          <= DEBUG_STATE_IDLE;
+      status_reg          <= DEBUG_STATE_IDLE;
     elsif rising_edge(clk) then
       if(rstn = '0' or rst_sw = '1') then
         wait_time         <= (others => '0');
-        status_int        <= DEBUG_STATE_IDLE;
+        status_reg        <= DEBUG_STATE_IDLE;
       else
 
         if(start = '1') then
           wait_time       <= desc_data.num_cycles;
-          status_int      <= DEBUG_STATE_NORMAL;
+          status_reg      <= DEBUG_STATE_NO_OPERATION;
         elsif(ongoing = '1') then
           wait_time       <= wait_time - 1;
         else
-          status_int      <= DEBUG_STATE_IDLE;
+          status_reg      <= DEBUG_STATE_IDLE;
         end if;
 
       end if;
