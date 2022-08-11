@@ -74,7 +74,10 @@ architecture rtl of injector_fetch is
 
   -- Signals
   signal desc_ready       : std_logic;      -- Descriptor ready to be read flag
-  signal desc_index       : unsigned(MAX_DESC_WORD_INDEX - 1 downto 0); -- Actual index for desc_buffer words.
+  signal desc_sent        : std_logic;      -- Descriptor has been read by DECODE stage
+  signal desc_last_sent   : std_logic;      -- Last descriptor of program has been read by DECODE stage
+  signal index_rd         : unsigned(PC_LEN - 1 downto 0);              -- Actual index for reading descriptor words from memory.
+  signal index_buffer     : unsigned(MAX_DESC_WORD_INDEX - 1 downto 0); -- Actual index for desc_buffer words.
   signal desc_w_stop      : unsigned(MAX_DESC_WORD_INDEX - 1 downto 0); -- desc_buffer index to stop depending on type.
   signal desc_word_rd     : std_logic_vector(31 downto 0);              -- Descriptor word fetched from program memory.
   signal err_pc_wr_oom    : std_logic;      -- PC write overflow = out of memory for writing error flag.
@@ -94,6 +97,7 @@ begin -- rtl
   state         <= err_pc_wr_oom & err_pc_oom & err_type & (MAX_STATUS_LEN - 4 downto 0 => '0');
   desc          <= desc_buffer;
   fetch_ready   <= desc_ready;
+
 
   -- Error signal assignments
   err_pc_wr_oom <= pc_wr(PC_LEN);
@@ -122,14 +126,23 @@ begin -- rtl
     end case;
   end process comb0;
 
+  -- Signal high when a descriptor has been transfer to the DECODE stage of the pipeline
+  desc_sent       <= desc_ready and decode_read;
+
+  -- Signal high when the descriptor sent is the last in the program.
+  desc_last_sent  <= desc_buffer(0)(0) and desc_sent;
+
   -- Flag descriptor ready for reading when all the words for that type have been read.
-  desc_ready    <= '1' when (desc_w_counter > ('0' & desc_w_stop)) else '0';
+  desc_ready      <= '1' when (desc_w_counter > ('0' & desc_w_stop)) else '0';
+
+  -- Set the index to read the descriptor word from memory to 0 when a last descriptor in the program has been read.
+  index_rd        <= pc_rd(index_rd'range) when (desc_last_sent = '0' or err_pc_oom = '1') else (others => '0');
 
   -- Set the index to load the descriptor word into buffer 0 if on this clock cycle the descriptor in the buffer is being read.
-  desc_index    <= (others => '0') when (desc_ready = '1' and decode_read = '1') else desc_w_counter(desc_index'range);
+  index_buffer    <= (others => '0') when (desc_sent = '1') else desc_w_counter(index_buffer'range);
 
   -- Let the descriptor word fetch be combinational controlled by PC.
-  desc_word_rd  <= mem(to_integer( pc_rd(PC_LEN - 1 downto 0) ));
+  desc_word_rd    <= mem(to_integer(index_rd));
 
   
   -----------------------------------------------------------------------------
@@ -172,21 +185,21 @@ begin -- rtl
         -- Fetch new descriptor when enabled, no out of memory error and when no descriptor is prepared to be 
         -- read yet or will be read in this clock cycle.
         if(enable = '1' and err_pc_oom = '0') then
-          if( desc_ready = '0' or (desc_ready and decode_read) = '1' ) then
-            desc_buffer(to_integer(desc_index)) <= desc_word_rd;
+          if( desc_ready = '0' or desc_sent = '1' ) then
+            desc_buffer(to_integer(index_buffer)) <= desc_word_rd;
           end if;
 
           -- Return to 0 if the last word of the last descriptor of the injector program.
-          if(desc_buffer(0)(0) = '1' and desc_ready = '1') then
-            pc_rd                             <= (others => '0');
-          elsif(desc_ready = '0') then
+          if(desc_last_sent = '1') then
+            pc_rd                             <= (pc_rd'high downto 1 => '0') & '1';
+          elsif(desc_ready = '0' or desc_sent = '1') then
             pc_rd                             <= pc_rd + 1;
           end if;
 
-          if((desc_ready and decode_read) = '1') then
+          if(desc_sent = '1') then
           -- Set the index counter to 1 for the word read after having read the descriptor.
             desc_w_counter                    <= to_unsigned(1, desc_w_counter'length);
-            pc_desc                           <= pc_rd(PC_LEN - 1 downto 0);
+            pc_desc                           <= index_rd;
           elsif(desc_ready = '0') then
           -- Or increment it if there's still more words to read from the program memory.
             desc_w_counter                    <= desc_w_counter + 1;

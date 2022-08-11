@@ -41,7 +41,7 @@ entity injector_axi4_SELENE is
     axi_id        : integer range  0 to 32**2-1         :=   0;     -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
     axi_cache     : std_logic_vector(3 downto 0)        := "0000";  -- AXI CACHE signaling profile.
     axi_prot      : std_logic_vector(2 downto 0)        := "000";   -- AXI PROT signaling profile.
-    axi_qos       : std_logic_vector(2 downto 0)        := "000";   -- AXI QOS signaling profile.
+    axi_qos       : std_logic_vector(3 downto 0)        := "0000";  -- AXI QOS signaling profile.
     axi_region    : std_logic_vector(3 downto 0)        := "0000";  -- AXI REGION signaling profile.
     rd_n_fifo_regs: integer range  2 to  256            :=   4;     -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
     wr_n_fifo_regs: integer range  2 to  256            :=   4      -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]

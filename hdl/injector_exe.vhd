@@ -14,6 +14,16 @@ use safety.injector_pkg.all;
 ----------------------------------------------------
 -- Entity for EXE stage in Injector core pipeline --
 ----------------------------------------------------
+--
+-- In order to increase performance, the logic of the submodules may allow to initiate the execution 
+-- on the same clock cycle that reading the decoded descriptor from the DECODE stage. Thus, it is 
+-- important that the submodules assert the busy flag after this time frame.
+--
+-- Furthermore, using the done flag call the execution of the next descriptor inline. Use this feature 
+-- if the submdoule logic supports executing the last execution while executing the next descriptor at 
+-- the same time.
+--
+----------------------------------------------------
 
 entity injector_exe is
   generic (
@@ -56,27 +66,28 @@ architecture rtl of injector_exe is
   -- DELAY submodule number 0
   component injector_delay is
     generic (
-      ASYNC_RST       : boolean                   := TRUE
+      ASYNC_RST         : boolean                   := TRUE
     );
     port (
       -- External I/O
-      rstn            : in  std_ulogic;
-      clk             : in  std_ulogic;
+      rstn              : in  std_ulogic;
+      clk               : in  std_ulogic;
       -- Internal I/O
-      rst_sw          : in  std_logic;
-      start           : in  std_logic;
-      busy            : out std_logic;
-      desc_data       : in  operation_delay;
-      status          : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0)
+      rst_sw            : in  std_logic;
+      start             : in  std_logic;
+      busy              : out std_logic;
+      done              : out std_logic;
+      desc_data         : in  operation_delay;
+      status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0)
     );
   end component injector_delay;
 
   -- READ submodule number 1
   component injector_read is
     generic (
-      CORE_DATA_WIDTH : integer range  8 to 1024  :=   32;
-      MAX_SIZE_BURST  : integer range  8 to 4096  := 1024;
-      ASYNC_RST       : boolean                   := TRUE
+      CORE_DATA_WIDTH   : integer range  8 to 1024  :=   32;
+      MAX_SIZE_BURST    : integer range  8 to 4096  := 1024;
+      ASYNC_RST         : boolean                   := TRUE
     );
     port (
     -- External I/O
@@ -95,6 +106,7 @@ architecture rtl of injector_exe is
       rst_sw            : in  std_logic;                        -- Software reset through APB
       start             : in  std_logic;                        -- Start descriptor execution flag
       busy              : out std_logic;                        -- Ongoing descriptor execution flag
+      done              : out std_logic;                        -- Completion of the descriptor iteration flag
       desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
       error             : out std_logic;                        -- Error flag
       status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
@@ -104,9 +116,9 @@ architecture rtl of injector_exe is
   -- WRITE submodule number 2
   component injector_write is
     generic (
-      CORE_DATA_WIDTH : integer range  8 to 1024  :=   32;
-      MAX_SIZE_BURST  : integer range  8 to 4096  := 1024;
-      ASYNC_RST       : boolean                   := TRUE
+      CORE_DATA_WIDTH   : integer range  8 to 1024  :=   32;
+      MAX_SIZE_BURST    : integer range  8 to 4096  := 1024;
+      ASYNC_RST         : boolean                   := TRUE
     );
     port (
     -- External I/O
@@ -125,6 +137,7 @@ architecture rtl of injector_exe is
       rst_sw            : in  std_logic;                        -- Software reset through APB
       start             : in  std_logic;                        -- Start descriptor execution flag
       busy              : out std_logic;                        -- Ongoing descriptor execution flag
+      done              : out std_logic;                        -- Completion of the descriptor iteration flag
       desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
       error             : out std_logic;                        -- Error flag
       status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
@@ -163,11 +176,14 @@ architecture rtl of injector_exe is
   signal irq_desc_en  : std_logic;
 
   -- Signals
-  signal start        : std_logic;      -- Global start flag
-  signal busy         : std_logic;      -- Global busy flag
-  signal start_subm   : submodule_bit;  -- Submodules start signal
-  signal busy_subm    : submodule_bit;  -- Submodules busy signal
-  signal error_subm   : submodule_bit;  -- Submodules error signal
+  signal rd_decode    : std_logic;      -- Ready to read decoded descriptor signal
+  signal start        : std_logic;      -- Global start signal
+  signal busy         : std_logic;      -- Global busy signal
+  signal done         : std_logic;      -- Global done signal
+  signal start_subm   : submodule_bit;  -- Submodules start array signals
+  signal busy_subm    : submodule_bit;  -- Submodules busy array signals
+  signal done_subm    : submodule_bit;  -- Submodules done array signals
+  signal error_subm   : submodule_bit;  -- Submodules error array signals
   signal state_subm   : state_submodule_array;
 
 
@@ -178,7 +194,7 @@ begin -- rtl
   -----------------------------------------------------------------------------
 
   -- I/O signal assignments
-  exe_ready       <= enable      and not(busy);
+  exe_ready       <= rd_decode;
   irq_desc_comp   <= irq_desc_en;
   desc_comp       <= last_count  and not(busy);
   program_comp    <= last_count  and not(busy) and last_descr;
@@ -186,12 +202,17 @@ begin -- rtl
   ib_out.wr_data  <= (ib_out.wr_data'range => '0');
   error           <= '1' when (error_subm /= RESET_SUBMODULE_BIT) else '0';
 
+  -- Read decoded descriptor signal
+  rd_decode       <= enable and (not(busy) or done);
 
-  -- Start flag of any execution
-  start           <=  enable and not(busy) and decode_ready;
+  -- Start signal of any execution
+  start           <= rd_decode and decode_ready;
 
-  -- Busy flag of any execution
+  -- Busy signal of any execution
   busy            <= '1' when (busy_subm /= RESET_SUBMODULE_BIT) else '0';
+
+  -- Done signal of any execution
+  done            <= '1' when (done_subm /= RESET_SUBMODULE_BIT) else '0';
 
   -- Set the start array for the submodules.
   start_subm      <= decode_data.subm_enable when (start = '1') else RESET_SUBMODULE_BIT;
@@ -269,6 +290,7 @@ begin -- rtl
       rst_sw            => rst_sw,
       start             => start_subm.delay_sub,
       busy              => busy_subm.delay_sub,
+      done              => done_subm.delay_sub,
       desc_data         => decode_data.delay,
       status            => state_subm.delay_sub
   );
@@ -294,6 +316,7 @@ begin -- rtl
       rst_sw            => rst_sw,
       start             => start_subm.read_sub,
       busy              => busy_subm.read_sub,
+      done              => done_subm.read_sub,
       desc_data         => decode_data.rd_wr,
       error             => error_subm.read_sub,
       status            => state_subm.read_sub
@@ -321,6 +344,7 @@ begin -- rtl
       rst_sw            => rst_sw,
       start             => start_subm.write_sub,
       busy              => busy_subm.write_sub,
+      done              => done_subm.write_sub,
       desc_data         => decode_data.rd_wr,
       error             => error_subm.write_sub,
       status            => state_subm.write_sub

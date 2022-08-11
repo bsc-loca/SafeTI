@@ -163,6 +163,7 @@ architecture rtl of injector_core is
       -- Internal I/O
       enable            : in  std_logic;                      -- Enable DECODE stage
       rst_sw            : in  std_logic;                      -- Software reset through APB
+      queue_mode_en     : in  std_logic;                        -- Queue mode enable signal
         -- Signals from/for FETCH
       fetch_ready       : in  std_logic;                      -- Descriptor ready to be read flag
       decode_read       : out std_logic;                      -- Descriptor can be read flag
@@ -308,6 +309,7 @@ begin  -- rtl
     -- Internal I/O
       enable            => enable_pipeline.decode,
       rst_sw            => reset_pipeline.decode,
+      queue_mode_en     => inj_config.queue_mode_en,
         -- Signals from/for FETCH
       fetch_ready       => req_grant_pipeline.fetch,
       decode_read       => req_pipeline.decode,

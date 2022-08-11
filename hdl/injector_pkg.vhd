@@ -128,7 +128,7 @@ package injector_pkg is
   type injector_config is record
     enable            : std_logic;  -- Injector core enable
     reset_sw          : std_logic;  -- Injector core software reset
-    qmode             : std_logic;  -- Queue mode
+    queue_mode_en     : std_logic;  -- Queue mode enable
     irq_prog_compl_en : std_logic;  -- Program completion interrupt enable
     irq_err_core_en   : std_logic;  -- Error interrupt enable for core errors
     irq_err_net_en    : std_logic;  -- Error interrupt enable for network errors
@@ -183,13 +183,6 @@ package injector_pkg is
   -- Subprograms declaration
   -------------------------------------------------------------------------------
 
-  function find_burst_size(
-    fixed_addr        : std_logic;
-    max_bsize         : integer;
-    bm_bytes          : integer;
-    total_size        : unsigned(19 downto 0)
-  ) return unsigned;
-
   -- Computes the ceil log base two from an integer.
   -- This function is NOT for describing hardware, just to compute bus lengths and pre-synthesis stuff.
   function log_2(max_size : integer) return integer;
@@ -227,35 +220,6 @@ package body injector_pkg is
   -------------------------------------------------------------------------------
   -- Functions body
   -------------------------------------------------------------------------------
-
-  -- Function to determine the burst size based on maximum burst limit
-  function find_burst_size(
-    fixed_addr          : std_logic;
-    max_bsize           : integer;
-    bm_bytes            : integer;
-    total_size          : unsigned(19 downto 0)
-  ) return unsigned is
-    variable temp       : integer;
-    variable burst_size : unsigned(log_2(max_bsize) downto 0);
-    variable total_int  : integer;
-  begin
-    total_int := to_integer(unsigned(total_size));
-    -- Limit the burst burst size by maximum burst length
-    if(fixed_addr = '1') then
-      if(total_int < bm_bytes) then  -- less than IB data bus bytes
-        temp := total_int;
-      else
-        temp := bm_bytes;
-      end if;
-    elsif (total_int > max_bsize) then
-      temp := max_bsize;
-    else
-      temp := total_int;
-    end if;
-    burst_size := to_unsigned(temp, burst_size'length); 
-
-    return burst_size;
-  end find_burst_size;
 
   -- Function used to compute bus lengths. DO NOT attempt to use it as 
   -- combinational logic, just to compute values pre-synthesis.

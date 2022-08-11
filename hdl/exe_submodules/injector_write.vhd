@@ -38,6 +38,7 @@ entity injector_write is
     rst_sw            : in  std_logic;                        -- Software reset through APB
     start             : in  std_logic;                        -- Start descriptor execution flag
     busy              : out std_logic;                        -- Ongoing descriptor execution flag
+    done              : out std_logic;                        -- Completion of the descriptor iteration flag
     desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
     error             : out std_logic;                        -- Error flag
     status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
@@ -92,13 +93,14 @@ begin
   ib_addr         <= std_logic_vector(desc_to_exe.addr);
   ib_size         <= std_logic_vector(desc_to_exe.size_burst(ib_size'range));
   ib_addr_fix     <= desc_to_exe.addr_fix;
-  busy            <= req_reg or transfer_on or done_wait;
+  busy            <= req_reg or transfer_on or (done_wait and not(ib_done));  -- Busy whenever there's a transfer to do or ongoing, but not at the last beat.
+  done            <= ib_done and done_wait and not(req_reg);                  -- Descriptor is done when all data has been transfered
   error           <= error_start or error_full or error_done;
   status          <= status_reg;
 
 
   -- Request combinational conditions. Do not request any transaction if EXE is disabled or if it's transfering/waiting for done response.
-  req             <= enable and (start or req_reg) and not(transfer_on) and not(done_wait);
+  req             <= enable and (start or req_reg) and not(transfer_on) and ( not(done_wait) or ib_done );
 
   -- Request grant conditions.
   req_granted     <= ib_req_grant and req;
@@ -111,7 +113,7 @@ begin
 
   -- Error signaling assignment.
     -- The start signal must not be high when a descriptor is being executed.
-  error_start     <= start and (transfer_on or req_reg or done_wait);
+  error_start     <= start and ( transfer_on or req_reg or (done_wait and not(ib_done)) );
     -- The full signal must not be low when no transfer is expected.
   error_full      <= not(ib_full) and not(transfer_on);
     -- The done signal must not be high when full is low, the data transfer has not ended or if is not waiting for done.
@@ -167,7 +169,7 @@ begin
             desc_ongoing.addr_fix     <= desc_to_exe.addr_fix;
 
             -- Set the transfer size of the transaction.
-            size_transf_rem           <= desc_ongoing.size_burst + 1;
+            size_transf_rem           <= desc_to_exe.size_burst + 1;
             transfer_on               <= '1';
 
             -- Set the request register to perform more request depending if there's more data to be transfered.
@@ -175,7 +177,7 @@ begin
               req_reg                 <= '1';
             else
               req_reg                 <= '0';
-            end  if;
+            end if;
 
           elsif(start = '1') then -- No request has been granted, but DECODE called for action.
             desc_ongoing              <= desc_data;

@@ -38,6 +38,7 @@ entity injector_read is
     rst_sw            : in  std_logic;                        -- Software reset through APB
     start             : in  std_logic;                        -- Start descriptor execution flag
     busy              : out std_logic;                        -- Ongoing descriptor execution flag
+    done              : out std_logic;                        -- Completion of the descriptor iteration flag
     desc_data         : in  operation_rd_wr;                  -- Control data to execute descriptor
     error             : out std_logic;                        -- Error flag
     status            : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0) -- Status of the READ transaction
@@ -91,30 +92,31 @@ begin
   ib_addr         <= std_logic_vector(desc_to_exe.addr);
   ib_size         <= std_logic_vector(desc_to_exe.size_burst(ib_size'range));
   ib_addr_fix     <= desc_to_exe.addr_fix;
-  busy            <= req_reg or transfer_on;
+  busy            <= req_reg or (transfer_on and not(ib_done));
+  done            <= ib_done and transfer_on and not(req_reg);
   error           <= error_start or error_valid or error_done;
   status          <= status_reg;
 
 
   -- Request combinational conditions. Do not request any transaction if EXE is disabled or if it's transfering.
-  req             <= enable and (start or req_reg) and not(transfer_on);
+  req             <= enable and (start or req_reg) and ( not(transfer_on) or ib_done );
 
   -- Request grant conditions.
   req_granted     <= ib_req_grant and req;
 
   -- Multiplex control data to execute descriptor between input and stored on register.
-  desc_to_exe     <= desc_ongoing when (req_reg = '1' or transfer_on = '1') else desc_data;
+  desc_to_exe     <= desc_ongoing when ( req_reg = '1' or (transfer_on = '1' and not_last_transf = '1') ) else desc_data;
 
   -- Set the not_last_transf flag to check for when the ib_done flag must be high.
   not_last_transf <= '1' when (size_transf_rem > to_unsigned(CORE_DATA_WIDTH/8, size_transf_rem'length)) else '0';
 
   -- Error signaling assignment.
     -- The start signal must not be high when a descriptor is being executed.
-  error_start     <= start and (transfer_on or req_reg);
+  error_start     <= start and ( (transfer_on and not(ib_done)) or req_reg );
     -- The valid signal must not be high when no transfer is expected.
   error_valid     <= ib_valid and not(transfer_on);
     -- The done signal must not be high when valid is not high and it is not the last transfer.
-  error_done      <= ib_done and (not(ib_valid) or not(not_last_transf) or not(transfer_on));
+  error_done      <= ib_done and not(ib_valid or not(not_last_transf) or transfer_on);
 
 
   -----------------------------------------------------------------------------
@@ -138,12 +140,12 @@ begin
         status_reg        <= DEBUG_STATE_IDLE;
       else
 
-        if(transfer_on = '0') then
-
         ------------------------------------
         -- Transaction request generation --
         ------------------------------------
 
+        if(not_last_transf = '0') then
+          
           if(req_granted = '1') then
             -- At request granted, update size_left and compute next transfer size.
             if(desc_to_exe.size_left > to_unsigned(MAX_SIZE_BURST, desc_to_exe.size_left'length)) then
@@ -163,7 +165,7 @@ begin
             desc_ongoing.addr_fix     <= desc_to_exe.addr_fix;
 
             -- Set the transfer size of the transaction.
-            size_transf_rem           <= desc_ongoing.size_burst + 1;
+            size_transf_rem           <= desc_to_exe.size_burst + 1;
             transfer_on               <= '1';
 
             -- Set the request register to perform more request depending if there's more data to be transfered.
@@ -178,17 +180,18 @@ begin
             req_reg                   <= '1';
           end if;
 
+        end if;
+
 
         -------------------------
         -- Transfer management --
         -------------------------
 
-        elsif(ib_valid = '1') then
+        if(transfer_on = '1' and ib_valid = '1') then
         -- The data transfer logic is always enabled in order to not block any ongoing transaction on the network.
           if(not_last_transf = '1') then
             if(ib_done = '1') then  -- Incorrect done timing, set transaction has ended anyways.
               size_transf_rem       <= (others => '0');
-              transfer_on           <= '0';
             else
               size_transf_rem       <= size_transf_rem - CORE_DATA_WIDTH/8;
             end if;

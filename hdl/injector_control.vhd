@@ -77,8 +77,8 @@ begin
     ((irq_err_pipeline.fetch or irq_err_pipeline.decode or irq_err_pipeline.exe ) and apb_config.irq_err_core_en    ) or
     ((irq_err_network(0) or irq_err_network(1)                                  ) and apb_config.irq_err_net_en     );
 
-  -- Disable signal management
-  disable <= irq_gen_apb and apb_config.freeze_irq_en;
+  -- Disable injector signal management
+  disable <= (exe_program_comp and not(apb_config.queue_mode_en)) or (irq_gen_apb and apb_config.freeze_irq_en);
 
 
 end architecture rtl;

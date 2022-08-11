@@ -68,7 +68,7 @@ architecture rtl of injector_apb is
   constant RESET_INJECTOR_CONFIG  : injector_config  := (
     enable            => '0',
     reset_sw          => '0',
-    qmode             => '0',
+    queue_mode_en     => '0',
     irq_prog_compl_en => '0',
     irq_err_core_en   => '0',
     irq_err_net_en    => '0',
@@ -132,12 +132,12 @@ begin -- rtl
     -- Default signaling APB output
     apbo.rdata        <= (others => '0');
 
-    if(apbi.sel and apbi.en and not apbi.wr_en) = '1' then
+    if(apbi.sel = '1' and apbi.en = '1' and apbi.wr_en = '0') then
       case apbi.addr(7 downto 2) is
         when "000000" =>                --0x00 Injector control register
           apbo.rdata(0) <= apb_regs.gen_config.enable;
           apbo.rdata(1) <= apb_regs.gen_config.reset_sw;
-          apbo.rdata(2) <= apb_regs.gen_config.qmode;
+          apbo.rdata(2) <= apb_regs.gen_config.queue_mode_en;
           apbo.rdata(3) <= apb_regs.gen_config.irq_prog_compl_en;
           apbo.rdata(4) <= apb_regs.gen_config.irq_err_core_en;
           apbo.rdata(5) <= apb_regs.gen_config.irq_err_net_en;
@@ -185,12 +185,12 @@ begin -- rtl
         -- Default signaling for registers
         apb_regs.desc_wen <= '0';
 
-        if(apbi.sel and apbi.en and apbi.wr_en) = '1' then
+        if(apbi.sel = '1' and apbi.en = '1' and apbi.wr_en = '1') then
           case apbi.addr(7 downto 2) is
             when "000000" =>                --0x00 Injector control register
               apb_regs.gen_config.enable              <= apbi.wdata(0);
               apb_regs.gen_config.reset_sw            <= apbi.wdata(1);
-              apb_regs.gen_config.qmode               <= apbi.wdata(2);
+              apb_regs.gen_config.queue_mode_en       <= apbi.wdata(2);
               apb_regs.gen_config.irq_prog_compl_en   <= apbi.wdata(3);
               apb_regs.gen_config.irq_err_core_en     <= apbi.wdata(4);
               apb_regs.gen_config.irq_err_net_en      <= apbi.wdata(5);
