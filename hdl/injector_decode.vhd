@@ -68,7 +68,6 @@ architecture rtl of injector_decode is
 
   -- Descriptor control field (common on all descriptor types on word 0 + PC)
   type descriptor_control is record
-    active          : std_logic;                    -- Decoded descriptor prepared to be executed
     pc              : unsigned(PC_LEN - 1 downto 0);-- PC of the decoded descriptor
     act_subm        : submodule_bit;                -- Active submodule on EXE during iterations
     count           : unsigned(5 downto 0);         -- Iteration count
@@ -77,7 +76,6 @@ architecture rtl of injector_decode is
   end record descriptor_control;
 
   constant RESET_DESCRIPTOR_CONTROL : descriptor_control := (
-    active          => '0',
     pc              => (others => '0'),
     act_subm        => (others => '0'),
     count           => (others => '0'),
@@ -90,6 +88,13 @@ architecture rtl of injector_decode is
     size_burst      => (others => '0'),
     addr            => (others => '0'),
     addr_fix        => '0'
+  );
+
+  -- Reset values for submodule_enable type
+  constant RESET_SUBMODULE_BIT : submodule_bit := (
+    delay_sub         => '0',
+    read_sub          => '0',
+    write_sub         => '0'
   );
 
 
@@ -110,7 +115,8 @@ architecture rtl of injector_decode is
   signal desc_ready : std_logic;      -- Decoded descriptor ready to be sent to EXE signal
   signal desc_sent  : std_logic;      -- Sent decoded descriptor to EXE signal
   
-  signal act_subm   : submodule_bit;  -- Select submodule signals
+  signal act_subm   : submodule_bit;  -- Combinational select submodule bus
+  signal desc_act   : std_logic;      -- Active descriptor to be executed flag
   signal no_rep     : std_logic;      -- High when all iterations but last are complete
   signal err_type   : std_logic;      -- Error flag
 
@@ -162,14 +168,17 @@ begin -- rtl
   desc_addr       <= desc(1);
 
 
+  -- Descriptor is yet to be executed if any of the active submodule bits are high.
+  desc_act        <= '1' when (common.act_subm /= RESET_SUBMODULE_BIT) else '0';
+
   -- Prepared to read descriptor from FETCH when DECODE is enabled and there's no more iterations.
-  desc_rd_en      <= enable and no_rep and not(common.active xor desc_sent);
+  desc_rd_en      <= enable and no_rep and not(desc_act xor desc_sent);
 
   -- Signal high when descriptor is being read from FETCH stage.
   desc_read       <= desc_rd_en and fetch_ready;
 
   -- Signal high when decoded descriptor is ready to be sent to EXE stage.
-  desc_ready      <= common.active and not(disable);
+  desc_ready      <= desc_act and not(disable);
 
   -- Signal high when the decoded descriptor is being sent to EXE stage.
   desc_sent       <= desc_ready and exe_read;
@@ -247,7 +256,7 @@ begin -- rtl
               state_reg         <= DEBUG_STATE_REPETITION;
             else
               -- Disable active decoded descriptor if last iteration is being executed.
-              common.active     <= '0';
+              common.act_subm   <= (others => '0');
               if(desc_read = '0') then
                 state_reg <= DEBUG_STATE_IDLE;
               end if;
@@ -260,7 +269,6 @@ begin -- rtl
           if(desc_read = '1') then
 
             -- Common descriptor signals.
-            common.active       <= '1';
             common.pc           <= fetch_pc;
             common.act_subm     <= act_subm;
             common.count        <= unsigned(desc_count);
@@ -273,10 +281,12 @@ begin -- rtl
 
 
             -- Operation specific signals.
+              -- DELAY
             if(act_subm.delay_sub = '1') then
               delay.num_cycles  <= unsigned(desc_size);
             end if;
 
+              -- READ and WRITE
             if(act_subm.read_sub = '1' or act_subm.write_sub = '1') then -- RD and WR share same DECODE registers.
               rd_wr.size_left   <= unsigned(desc_size) - size_burst;
               rd_wr.size_burst  <= size_burst;

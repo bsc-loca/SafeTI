@@ -90,9 +90,9 @@ entity axi4_manager is
     ADDR_WIDTH      : integer range 12 to   64    := 32;    -- AXI address bus width. (Tested only for 32 bits)
     DATA_WIDTH      : integer range  8 to 1024    := 128;   -- AXI data bus width. [Only power of 2s are allowed]
     axi_id          : integer range  0 to 32**2-1 := 0;     -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
-    injector_mode   : boolean                     := TRUE;  -- Simulate read IB transfers to save on footprint
+    --injector_mode   : boolean                     := TRUE;  -- Simulate read IB transfers to save on footprint --TO BE IMPLEMENTED
 
-    -- Bus Manager (BM) configuration
+    -- Interface Bus (IB) configuration
     dbits           : integer range  8 to 1024    := 32;    -- IB data bus width [Only power of 2s are allowed and <= AXI_DATA_WIDTH]
 
     -- Interface configuration
@@ -369,6 +369,10 @@ architecture rtl of axi4_manager is
     ib_counter        => (others => '0'),
     ib_data_buffer    => (others => '0')
   );
+
+  -- Uncomment generic and delete this constant when injector_mode = FALSE is implemented.
+  constant injector_mode : boolean := TRUE;
+
 
   -----------------------------------------------------------------------------
   -- Signal declaration

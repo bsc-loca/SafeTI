@@ -199,7 +199,7 @@ architecture rtl of injector_core is
       rst_sw            : in  std_logic;                      -- Software reset through APB
         -- Signals from/for DECODE
       decode_ready      : in  std_logic;                      -- Control data ready to be read flag
-      exe_ready         : out std_logic;                      -- Control data can be read flag
+      exe_read          : out std_logic;                      -- Control data can be read flag
       decode_pc         : in  unsigned(PC_LEN - 1 downto 0);  -- Descriptor word 0 PC of the operation being executed
       decode_data       : in  bus_decode_exe;                 -- Control signals for operation execution
         -- Control signals
@@ -344,7 +344,7 @@ begin  -- rtl
       rst_sw            => reset_pipeline.exe,
         -- Signals from/for DECODE
       decode_ready      => req_grant_pipeline.decode,
-      exe_ready         => req_pipeline.exe,
+      exe_read          => req_pipeline.exe,
       decode_pc         => pc_pipeline.decode,
       decode_data       => decoded_descriptor,
         -- Control signals

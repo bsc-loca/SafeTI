@@ -58,6 +58,7 @@ package tb_injector_pkg is
   type descriptor_words is array (0 to 1) of std_logic_vector(31 downto 0); -- 2 word per descriptor
   type descriptor_bank_tb  is array (natural range <>) of descriptor_words;    -- X number of descriptors
   type addr_bank        is array (natural range <>) of std_logic_vector(31 downto 0); -- X number of addresses
+  type array_integer is array (natural range <>) of integer;
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration

@@ -2,17 +2,19 @@
 #Traces of the simulation are stored in vsim.wlf when Questa is launched with the gui (vsim-launch)
 
 hdl=../../../hdl
+hdl_sub=$(hdl)/exe_submodules
+hdl_int=$(hdl)/network_interfaces
 
 #Compiles the files and creates the library safety
 compile: clean
 	vlib safety
 	mkdir -p safety
 	vmap safety safety
-	vcom -work safety $(hdl)/injector_pkg.vhd $(hdl)/axi4_pkg.vhd
+	vcom -work safety $(hdl)/injector_pkg.vhd $(hdl_int)/axi4_pkg.vhd
 	vcom -2008 -work safety $(hdl)/../tb/questasim/tb_injector_pkg.vhd
 	vcom -2008 $(hdl)/../tb/questasim/tb_injector_axi/tb_injector_axi.vhd 
 	vlog $(hdl)/../tb/questasim/tb_injector_axi/noInclude/subordinate_v1_0.v $(hdl)/../tb/questasim/tb_injector_axi/noInclude/subordinate_v1_0_S00_AXI.v 
-	vcom $(hdl)/injector_axi.vhd $(hdl)/axi4_manager.vhd $(hdl)/injector.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_ctrl.vhd $(hdl)/injector_delay_if.vhd $(hdl)/injector_read_if.vhd $(hdl)/injector_write_if.vhd 
+	vcom $(hdl_int)/injector_axi.vhd $(hdl_int)/axi4_manager.vhd $(hdl)/injector_core.vhd $(hdl)/injector_apb.vhd $(hdl)/injector_fetch.vhd $(hdl)/injector_decode.vhd $(hdl)/injector_exe.vhd $(hdl)/injector_control.vhd $(hdl_sub)/injector_delay.vhd $(hdl_sub)/injector_read.vhd $(hdl_sub)/injector_write.vhd
 
 #Launches the simulation with the graphical interface
 vsim-launch: compile

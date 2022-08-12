@@ -41,7 +41,6 @@ architecture rtl of injector_delay is
 
   -- Signals
   signal ongoing      : std_logic;
-  signal exe_time     : unsigned(desc_data.num_cycles'range);
 
   
 begin
@@ -52,14 +51,11 @@ begin
 
   -- I/O signal assignments.
   busy      <= ongoing;
-  done      <= (start or done_reg) and not(ongoing); 
+  done      <= done_reg and not(ongoing); 
   status    <= status_reg;
 
   -- Decrease wait counter.
-  ongoing   <= '1' when (exe_time /= (wait_time'range => '0')) else '0';
-
-  -- Set the execution wait time.
-  exe_time  <= desc_data.num_cycles when (start = '1') else wait_time;
+  ongoing   <= '1' when (wait_time /= (wait_time'range => '0')) else '0';
 
 
   -----------------------------------------------------------------------------
@@ -77,10 +73,12 @@ begin
         status_reg    <= DEBUG_STATE_IDLE;
       else
 
-        if(ongoing = '1') then
+        if(start = '1') then
           done_reg    <= '1';
-          wait_time   <= exe_time - 1;
+          wait_time   <= desc_data.num_cycles;
           status_reg  <= DEBUG_STATE_NO_OPERATION;
+        elsif(ongoing = '1') then
+          wait_time   <= wait_time - 1;
         else
           done_reg    <= '0';
           status_reg  <= DEBUG_STATE_IDLE;

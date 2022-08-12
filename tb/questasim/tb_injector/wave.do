@@ -45,7 +45,7 @@ add wave -noupdate /tb_injector/clk
 add wave -noupdate /tb_injector/core/apb/apb_regs.gen_config.enable
 add wave -noupdate -group EXE /tb_injector/core/exe/enable
 add wave -noupdate -group EXE /tb_injector/core/exe/decode_ready
-add wave -noupdate -group EXE /tb_injector/core/exe/exe_ready
+add wave -noupdate -group EXE /tb_injector/core/exe/exe_read
 add wave -noupdate -group EXE /tb_injector/core/exe/active_subm
 add wave -noupdate -group EXE /tb_injector/core/exe/last_count
 add wave -noupdate -group EXE /tb_injector/core/exe/last_descr

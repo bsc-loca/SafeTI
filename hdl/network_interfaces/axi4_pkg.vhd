@@ -175,15 +175,16 @@ package axi4_pkg is
 
   component axi4_manager is
     generic (
-      ID_R_WIDTH      : integer range  0 to   32  := 4;
-      ID_W_WIDTH      : integer range  0 to   32  := 4;
-      ADDR_WIDTH      : integer range 12 to   64  := 32;
-      DATA_WIDTH      : integer range  8 to 1024  := 128;
+      ID_R_WIDTH      : integer range  0 to   32    := 4;
+      ID_W_WIDTH      : integer range  0 to   32    := 4;
+      ADDR_WIDTH      : integer range 12 to   64    := 32;
+      DATA_WIDTH      : integer range  8 to 1024    := 128;
       axi_id          : integer range  0 to 32**2-1 := 0;
-      dbits           : integer range  8 to 1024  := 32;
-      rd_n_fifo_regs  : integer range  2 to  256  := 4;
-      wr_n_fifo_regs  : integer range  2 to  256  := 4;
-      ASYNC_RST       : boolean                   := FALSE
+      --injector_mode   : boolean                     := TRUE;  -- Simulate read IB transfers to save on footprint --TO BE IMPLEMENTED
+      dbits           : integer range  8 to 1024    := 32;
+      rd_n_fifo_regs  : integer range  2 to  256    := 4;
+      wr_n_fifo_regs  : integer range  2 to  256    := 4;
+      ASYNC_RST       : boolean                     := FALSE
     );
     port (
       rstn            : in  std_ulogic;

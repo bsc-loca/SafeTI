@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      injector_axi4_SELENE
 -- File:        injector_axi4_SELENE.vhd
 -- Author:      Francis Fuentes
 -- Description: injector top level entity for SELENE platform.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -28,7 +28,7 @@ entity injector_axi4_SELENE is
     MAX_SIZE_BURST: integer range  8 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
     tech          : integer range  0 to NTECH           := inferred;-- Target technology
     two_injectors : boolean                             := FALSE;   -- Implement two SafeTI modules for continuous transaction requests
-    -- APB configuration  
+    -- APB configuration
     pindex        : integer                             := 0;       -- APB configuartion slave index
     paddr         : integer                             := 0;       -- APB configuartion slave address
     pmask         : integer                             := 16#FFF#; -- APB configuartion slave mask
@@ -74,8 +74,8 @@ architecture rtl of injector_axi4_SELENE is
   constant REVISION   : integer := 0;
   constant interrupt  : std_logic_vector( 6 downto 0 ) := conv_std_logic_vector(pirq, 7);
   constant pconfig    : apb_config_type := (
-    0 => (conv_std_logic_vector(VENDOR_CONTRIB, 8) & conv_std_logic_vector(16#000#, 12) & interrupt(6 downto 5) 
-          & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)), 
+    0 => (conv_std_logic_vector(VENDOR_CONTRIB, 8) & conv_std_logic_vector(16#000#, 12) & interrupt(6 downto 5)
+          & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)),
     1 => (conv_std_logic_vector(paddr, 12) & "0000" & conv_std_logic_vector(pmask, 12) & "0001"));
 
 
@@ -104,12 +104,12 @@ architecture rtl of injector_axi4_SELENE is
 
   signal mux        : std_logic; -- Multiplexer register used to redirect signals between injector modules
 
-  
+
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
 
-  
+
 begin  -- rtl
 
   -----------------
@@ -133,11 +133,11 @@ begin  -- rtl
   axi4mo.aw.len     <= axi_mo.aw_len;
   axi4mo.aw.size    <= axi_mo.aw_size;
   axi4mo.aw.burst   <= axi_mo.aw_burst;
-  axi4mo.aw.lock    <= axi_mo.aw_lock; 
+  axi4mo.aw.lock    <= axi_mo.aw_lock;
   axi4mo.aw.cache   <= axi_mo.aw_cache;
-  axi4mo.aw.prot    <= axi_mo.aw_prot; 
+  axi4mo.aw.prot    <= axi_mo.aw_prot;
   axi4mo.aw.valid   <= axi_mo.aw_valid;
-  axi4mo.aw.qos     <= axi_mo.aw_qos;  
+  axi4mo.aw.qos     <= axi_mo.aw_qos;
   axi4mo.w.data     <= axi_mo.w_data( axi4mo.w.data'range );
   axi4mo.w.strb     <= axi_mo.w_strb( axi4mo.w.strb'range );
   axi4mo.w.last     <= axi_mo.w_last;
@@ -236,7 +236,7 @@ begin  -- rtl
       ib_in_manager.wr_data         <= (ib_in_manager.wr_data'high downto DATA_WIDTH => '0') & ib_out_injector1.wr_data(DATA_WIDTH - 1 downto 0);
     end if;
   end process comb;
-  
+
   -- Network profile signaling
   ib_in_manager.rd_fixed_addr <= '0';
   ib_in_manager.rd_axi_cache  <= axi_cache;
@@ -252,7 +252,7 @@ begin  -- rtl
 
   -----------------------------------------------------------------------------
   -- Sequential process
-  ----------------------------------------------------------------------------- 
+  -----------------------------------------------------------------------------
 
   -- Multiplexer register to redirect signals to injector or injector1
   seq : process (clk, rstn)
@@ -334,6 +334,6 @@ begin  -- rtl
       ib_in           => ib_in_manager,
       ib_out          => ib_out_manager
     );
-    
+
 
 end architecture rtl;

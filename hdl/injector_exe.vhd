@@ -43,7 +43,7 @@ entity injector_exe is
     rst_sw            : in  std_logic;                      -- Software reset through APB
       -- Signals from/for DECODE
     decode_ready      : in  std_logic;                      -- Control data ready to be read flag
-    exe_ready         : out std_logic;                      -- Control data can be read flag
+    exe_read          : out std_logic;                      -- Control data can be read flag
     decode_pc         : in  unsigned(PC_LEN - 1 downto 0);  -- Descriptor word 0 PC of the operation being executed
     decode_data       : in  bus_decode_exe;                 -- Control signals for operation execution
       -- Control signals
@@ -194,7 +194,7 @@ begin -- rtl
   -----------------------------------------------------------------------------
 
   -- I/O signal assignments
-  exe_ready       <= rd_decode;
+  exe_read        <= rd_decode;
   irq_desc_comp   <= irq_desc_en;
   desc_comp       <= last_count  and not(busy);
   program_comp    <= last_count  and not(busy) and last_descr;
@@ -206,7 +206,7 @@ begin -- rtl
   rd_decode       <= enable and (not(busy) or done);
 
   -- Start signal of any execution
-  start           <= rd_decode and decode_ready;
+  start           <= '1' when (rd_decode = '1' and decode_ready = '1') else '0';
 
   -- Busy signal of any execution
   busy            <= '1' when (busy_subm /= RESET_SUBMODULE_BIT) else '0';

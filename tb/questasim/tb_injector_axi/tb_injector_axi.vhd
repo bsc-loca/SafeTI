@@ -21,35 +21,31 @@ use std.env.all; -- VHDL2008
 -- Top level testbench entity for SafeTI with AXI4 Manager interface.
 --
 -- This testbench setting is not thought to be used as an automated testing tool, since the tb logic 
--- is not prepared yet to fetch for AXI manager's BM control signals. In addition, it requires a 
--- AXI4 Subordinate module that is not included with this testbench.
--- Some generics may not work for different values from the default ones. 
+-- is not prepared to fetch for AXI manager's. In addition, it requires a AXI4 Subordinate module that 
+-- is not included with this testbench, which can be procured by generating a Full AXI4 Manager from Xilinx
+-- Vivado IP core Wizard.
 --
 -- At the moment, only particular tests (test X) are used, where the user may change the size_vector 
--- and addr_vector to test specific cases.
+-- and addr_vector to test specific cases. It also includes a software reset test to check that the 
+-- injector internals are reset without getting stuck any ongoing AXI burst.
 -- 
 -----------------------------------------------------------------------------
 
 entity tb_injector_axi is
   generic (
     -- SafeTI configuration
-    dbits         : integer range 8 to 4096                 :=   32;      -- Data width of BM and FIFO at injector. [Only power of 2s allowed]
-    MAX_SIZE_BURST: integer range 8 to 4096                 := 4096;      -- Maximum size of a beat at a burst transaction.
-    -- APB configuration  
-    pindex            : integer                             := 6;         -- APB configuartion slave index (default=6)
-    paddr             : integer                             := 16#850#;   -- APB configuartion slave address (default=16#850#)
-    pmask             : integer                             := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
-    pirq              : integer range  0 to APB_IRQ_NMAX-1  := 6;         -- APB configuartion slave irq (default=6)
+    PC_LEN            : integer range  2 to   10    :=    4;      -- Set the maximum number of programmable descriptor words to 2^PC_LEN
+    MAX_SIZE_BURST    : integer range  8 to 4096    := 4096;      -- Maximum size of a beat at a burst transaction.
     -- AXI4 Configuration
-    ID_R_WIDTH        : integer range  0 to   32            := 4;         -- AXI ID's bus width.
-    ID_W_WIDTH        : integer range  0 to   32            := 4;         -- AXI ID's bus width.
-    ADDR_WIDTH        : integer range 12 to   64            := 32;        -- AXI address bus width. (Tested only for 32 bits)
-    DATA_WIDTH        : integer range  8 to 1024            := 128;       -- AXI data bus width. [Only power of 2s are allowed]
-    axi_id            : integer range  0 to 32**2-1         := 0;         -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
-    rd_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
-    wr_n_fifo_regs    : integer range  2 to  256            := 4;         -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
+    ID_R_WIDTH        : integer range  0 to   32    := 4;         -- AXI ID's bus width.
+    ID_W_WIDTH        : integer range  0 to   32    := 4;         -- AXI ID's bus width.
+    ADDR_WIDTH        : integer range 12 to   64    := 32;        -- AXI address bus width. (Tested only for 32 bits)
+    DATA_WIDTH        : integer range  8 to 1024    := 128;       -- AXI data bus width. [Only power of 2s are allowed]
+    axi_id            : integer range  0 to 32**2-1 := 0;         -- AXI manager burst index [Must be < ID_X_WIDTH**2-1]
+    rd_n_fifo_regs    : integer range  2 to  256    := 4;         -- Number of FIFO registers to use at AXI read transactions.  [Only power of 2s are allowed]
+    wr_n_fifo_regs    : integer range  2 to  256    := 4;         -- Number of FIFO registers to use at AXI write transactions. [Only power of 2s are allowed]
     -- Asynchronous reset configuration
-    ASYNC_RST         : boolean                             := TRUE       -- Allow asynchronous reset flag (default=TRUE)
+    ASYNC_RST         : boolean                     := TRUE       -- Allow asynchronous reset flag (default=TRUE)
     );
 
 end entity tb_injector_axi;
@@ -64,92 +60,63 @@ architecture rtl of tb_injector_axi is
   constant descr_compl_thereshold : integer               := 4096*2;  -- Waiting threshold for descriptor completition flag (injector asserted)
 
   -- Pointers
-  constant apb_inj_addr   : std_logic_vector(31 downto 0) := X"000" & std_logic_vector(to_unsigned(paddr, 12)) & X"00"; -- Location of the injector at APB memory
-  constant action_addr    : std_logic_vector(31 downto 0) := X"0000_0000";  -- Write/read address
+  constant inj_base_addr  : std_logic_vector(31 downto 0) := X"0000_0000";  -- Location of the injector at APB memory is not important, since sel and en are used
+
 
   -- Injector configurations
-  -- Injector reset
-  constant inj_rst        : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "000010";
+  constant irq_desc_compl_en : std_logic                  := '0';           -- Enable interruption at descriptor completion
+  constant irq_prog_compl_en : std_logic                  := '1';           -- Enable interruption at program completion
 
-  -- Test 1 configuration: Queue mode disabled, enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
-  constant inj_config1    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
-  
-  -- Test 2 configuration: (Queue mode disabled), enable interrupt on error, interrupt enabled, (kick disabled), reset, start injector.
-  constant inj_config2    : std_logic_vector(31 downto 0) := X"0000_00" & "00" & "011001";
+  -- Freeze at interruption, Interruption enabled due to error at the network, at the injector or 
+  -- due to program completion, Queue mode, SW reset, enable injector.
+
+  -- Injector core configuration with Queue mode disabled:
+  constant inj_conf       : std_logic_vector(31 downto 0) := X"0000_00" & "0" & "0" & "11" & irq_prog_compl_en & "0" & "0" & "1";
+
+  -- Injector reset:
+  constant inj_rst        : std_logic_vector(31 downto 0) := X"0000_00" & "0" & "0" & "000" & "0" & "1" & "0";
+
 
   -- AXI TEST X (Unaligned address and different size tests)
   --constant size_vector    : array_integer(0 to 1) := (4096, 0);
   --constant addr_vector    : addr_bank(0 to 16)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005", X"0000_0006", 
   --X"0000_0007", X"0000_0008", X"0000_0009", X"0000_000A", X"0000_000B", X"0000_000C", X"0000_000D", X"0000_000E", X"0000_000F", X"0000_0000");
-  constant size_vector    : array_integer(0 to 40) := (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,
+  constant size_vector    : array_integer(0 to 40)  := (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,
                                                        64,128,256,512,1024,2048,4095,4096,4097);
-  constant addr_vector    : addr_bank(0 to 3)     := (X"0000_0000", X"0000_0001", X"0000_000F", X"0000_0010");
+  constant addr_vector    : addr_bank(0 to 3)       := (X"0000_0000", X"0000_0001", X"0000_000F", X"0000_0010");
 
-  -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, addrfix, last)
-  constant descriptors1   : descriptor_bank_tb(0 to 6) := (
-    write_descriptor(               4, 63,  RD, action_addr, '0', '0' ), -- 64 write transactions of   4 bytes
-    write_descriptor(               8, 31,  RD, action_addr, '0', '0' ), -- 32 write transactions of   8 bytes
-    write_descriptor(              16, 15,  RD, action_addr, '0', '0' ), -- 16  read transactions of  16 bytes
-    write_descriptor(              32,  7,  RD, action_addr, '0', '0' ), --  8  read transactions of  32 bytes
-    write_descriptor(              64,  3,  RD, action_addr, '0', '0' ), --  4 write transactions of  64 bytes
-    write_descriptor(             128,  1,  RD, action_addr, '0', '0' ), --  2 write transactions of 128 bytes
-    write_descriptor(             256,  0,  RD, action_addr, '0', '1' )  --  1  read transaction  of 256 bytes
-  );
-
-  -- Descriptors to load into injector's fifo for test 2 write (size, count, action, addr, addrfix, nextraddr, last)
-  constant descriptors2w  : descriptor_bank_tb(0 to 5) := (
-    write_descriptor(MAX_SIZE_BURST-3,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount below size beat
-    write_descriptor(  MAX_SIZE_BURST,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount equal size beat
-    write_descriptor(MAX_SIZE_BURST+3,  0, WRT, action_addr, '0', '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0, WRT, action_addr, '1', '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0, WRT, action_addr, '1', '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0, WRT, action_addr, '1', '1' )  -- With fix addr, check if it really fixes the addr
-  );
-
-  -- Descriptors to load into injector's fifo for test 2 read (size, count, action, addr, addrfix, nextraddr, last)
-  constant descriptors2r  : descriptor_bank_tb(0 to 5) := (
-    write_descriptor(MAX_SIZE_BURST-3,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount below size beat
-    write_descriptor(  MAX_SIZE_BURST,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount equal size beat
-    write_descriptor(MAX_SIZE_BURST+3,  0,  RD, action_addr, '0', '0' ), -- Check if writes the correct ammount above size beat
-    write_descriptor(               3,  0,  RD, action_addr, '1', '0' ), -- With fix addr, check if reads lower of a word
-    write_descriptor(               4,  0,  RD, action_addr, '1', '0' ), -- With fix addr, check if reads a word
-    write_descriptor(              15,  0,  RD, action_addr, '1', '1' )  -- With fix addr, check if it really fixes the addr
-  );
 
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------
 
   -- Injector I/O + Initial input values
-  signal clk    : std_ulogic  := '0';
-  signal rstn   : std_ulogic  := '0';
+  signal clk    : std_ulogic    := '0';
+  signal rstn   : std_ulogic    := '0';
 
-  signal apbi   : apb_slave_in_type := DEF_INJ_APB;
-  signal apbo   : apb_slave_out_type;
+  signal apbi   : apb_slave_in  := DEF_INJ_APB;
+  signal apbo   : apb_slave_out;
 
   signal axi4mi : axi4_miso;
   signal axi4mo : axi4_mosi;
 
-  signal bm_axi_req_rd : std_logic;
-  signal bm_axi_req_wr : std_logic;
+  signal ib_axi_req_rd : std_logic;
+  signal ib_axi_req_wr : std_logic;
 
   -- I/O Injector and AXI interface
-  signal bm_out_injector  : safety.injector_pkg.bm_mosi;
-  signal bm_in_injector   : safety.injector_pkg.bm_miso;
-  signal bm_in_manager    : safety.axi4_pkg.bm_mosi;
-  signal bm_out_manager   : safety.axi4_pkg.bm_miso;
-  signal bm_out_test      : safety.injector_pkg.bm_miso;
+  signal ib_out_injector  : safety.injector_pkg.ib_mosi;
+  signal ib_in_injector   : safety.injector_pkg.ib_miso;
+  signal ib_in_manager    : safety.axi4_pkg.ib_mosi;
+  signal ib_out_manager   : safety.axi4_pkg.ib_miso;
+  signal ib_out_test      : safety.injector_pkg.ib_miso;
 
   -- Testbench BM I/O
-  signal bm_in  : safety.injector_pkg.bm_mosi;
-  signal bm_out : safety.injector_pkg.bm_miso := DEF_INJ_BM;
+  signal ib_in  : safety.injector_pkg.ib_mosi;
+  signal ib_out : safety.injector_pkg.ib_miso := DEF_INJ_IB;
 
   -- Selector between Injector BM to AXI manager (TRUE) or testbench (FALSE)
   signal AXI_com  : boolean := FALSE;
   signal test_vect: descriptor_bank_tb(0 to 0);
-
-  -- APB configuration
-  signal apb_sel: std_logic_vector(apbi.sel'range) := std_logic_vector(shift_left(to_unsigned(1, apbi.sel'length), apbi.sel'length-pindex-1));
 
   -- Control test signals, used to error if the execution doesn't continue after a threshold
   signal limit_rd_req_grant : integer   := 0;
@@ -161,7 +128,7 @@ architecture rtl of tb_injector_axi is
 
 
   -----------------------------------------------------------------------------
-  -- Component instantiation
+  -- Component declaration
   -----------------------------------------------------------------------------
 
   -- AXI4 subordinate memory wrapper
@@ -236,42 +203,42 @@ begin  -- rtl
   clk <= not clk after T/2;
 
   -- BM interconnect switch used to load descriptors from testbench.
-  bm_in_manager.rd_addr       <= (63 downto 32 => '0') & bm_out_injector.rd_addr when AXI_com else (others => '0');
-  bm_in_manager.rd_size       <= bm_out_injector.rd_size when AXI_com else (others => '0');
-  bm_in_manager.rd_req        <= bm_out_injector.rd_req  when AXI_com else '0';
-  bm_in_manager.wr_addr       <= (63 downto 32 => '0') & bm_out_injector.wr_addr when AXI_com else (others => '0');
-  bm_in_manager.wr_size       <= bm_out_injector.wr_size when AXI_com else (others => '0');
-  bm_in_manager.wr_req        <= bm_out_injector.wr_req  when AXI_com else '0';
-  bm_in_manager.wr_data       <= ((1023 downto 128 => '0') & bm_out_injector.wr_data) when AXI_com else (others => '0');
+  ib_in_manager.rd_addr       <= ((63 downto 32 => '0') & ib_out_injector.rd_addr) when AXI_com else (others => '0');
+  ib_in_manager.rd_size       <= ib_out_injector.rd_size when AXI_com else (others => '0');
+  ib_in_manager.rd_req        <= ib_out_injector.rd_req  when AXI_com else '0';
+  ib_in_manager.wr_addr       <= ((63 downto 32 => '0') & ib_out_injector.wr_addr) when AXI_com else (others => '0');
+  ib_in_manager.wr_size       <= ib_out_injector.wr_size when AXI_com else (others => '0');
+  ib_in_manager.wr_req        <= ib_out_injector.wr_req  when AXI_com else '0';
+  ib_in_manager.wr_data       <= ((1023 downto 128 => '0') & ib_out_injector.wr_data) when AXI_com else (others => '0');
 
-  bm_in_manager.rd_fixed_addr <= '0';
-  bm_in_manager.rd_axi_cache  <= "0011";
-  bm_in_manager.rd_axi_prot   <= "001";
-  bm_in_manager.wr_fixed_addr <= '0';
-  bm_in_manager.wr_axi_cache  <= "0011";
-  bm_in_manager.wr_axi_prot   <= "001";
+  ib_in_manager.rd_fixed_addr <= ib_out_injector.rd_fix_addr;
+  ib_in_manager.rd_axi_cache  <= "0011";
+  ib_in_manager.rd_axi_prot   <= "001";
+  ib_in_manager.wr_fixed_addr <= ib_out_injector.wr_fix_addr;
+  ib_in_manager.wr_axi_cache  <= "0011";
+  ib_in_manager.wr_axi_prot   <= "001";
 
-  bm_in.rd_addr               <= bm_out_injector.rd_addr when not(AXI_com) else (others => '0');
-  bm_in.rd_size               <= bm_out_injector.rd_size when not(AXI_com) else (others => '0');
-  bm_in.rd_req                <= bm_out_injector.rd_req  when not(AXI_com) else '0';
-  bm_in.wr_addr               <= bm_out_injector.wr_addr when not(AXI_com) else (others => '0');
-  bm_in.wr_size               <= bm_out_injector.wr_size when not(AXI_com) else (others => '0');
-  bm_in.wr_req                <= bm_out_injector.wr_req  when not(AXI_com) else '0';
-  bm_in.wr_data               <= bm_out_injector.wr_data when not(AXI_com) else (others => '0');
+  ib_in.rd_addr               <= ib_out_injector.rd_addr when not(AXI_com) else (others => '0');
+  ib_in.rd_size               <= ib_out_injector.rd_size when not(AXI_com) else (others => '0');
+  ib_in.rd_req                <= ib_out_injector.rd_req  when not(AXI_com) else '0';
+  ib_in.wr_addr               <= ib_out_injector.wr_addr when not(AXI_com) else (others => '0');
+  ib_in.wr_size               <= ib_out_injector.wr_size when not(AXI_com) else (others => '0');
+  ib_in.wr_req                <= ib_out_injector.wr_req  when not(AXI_com) else '0';
+  ib_in.wr_data               <= ib_out_injector.wr_data when not(AXI_com) else (others => '0');
 
 
-  bm_in_injector.rd_data      <= bm_out_manager.rd_data(dbits-1 downto 0) & (127 downto dbits => '0') when AXI_com else bm_out.rd_data;
-  bm_in_injector.rd_req_grant <= bm_out_manager.rd_req_grant when AXI_com else bm_out.rd_req_grant;
-  bm_in_injector.rd_valid     <= bm_out_manager.rd_valid     when AXI_com else bm_out.rd_valid    ;
-  bm_in_injector.rd_done      <= bm_out_manager.rd_done      when AXI_com else bm_out.rd_done     ;
-  bm_in_injector.rd_err       <= bm_out_manager.rd_err       when AXI_com else bm_out.rd_err      ;
-  bm_in_injector.wr_req_grant <= bm_out_manager.wr_req_grant when AXI_com else bm_out.wr_req_grant;
-  bm_in_injector.wr_full      <= bm_out_manager.wr_full      when AXI_com else bm_out.wr_full     ;
-  bm_in_injector.wr_done      <= bm_out_manager.wr_done      when AXI_com else bm_out.wr_done     ;
-  bm_in_injector.wr_err       <= bm_out_manager.wr_err       when AXI_com else bm_out.wr_err      ;
+  ib_in_injector.rd_data      <= ib_out_manager.rd_data(DATA_WIDTH-1 downto 0) & (127 downto DATA_WIDTH => '0') when AXI_com else ib_out.rd_data;
+  ib_in_injector.rd_req_grant <= ib_out_manager.rd_req_grant when AXI_com else ib_out.rd_req_grant;
+  ib_in_injector.rd_valid     <= ib_out_manager.rd_valid     when AXI_com else ib_out.rd_valid    ;
+  ib_in_injector.rd_done      <= ib_out_manager.rd_done      when AXI_com else ib_out.rd_done     ;
+  ib_in_injector.rd_err       <= ib_out_manager.rd_err       when AXI_com else ib_out.rd_err      ;
+  ib_in_injector.wr_req_grant <= ib_out_manager.wr_req_grant when AXI_com else ib_out.wr_req_grant;
+  ib_in_injector.wr_full      <= ib_out_manager.wr_full      when AXI_com else ib_out.wr_full     ;
+  ib_in_injector.wr_done      <= ib_out_manager.wr_done      when AXI_com else ib_out.wr_done     ;
+  ib_in_injector.wr_err       <= ib_out_manager.wr_err       when AXI_com else ib_out.wr_err      ;
 
-  bm_out_test.rd_valid        <= bm_out_manager.rd_valid;
-  bm_out_test.rd_done         <= bm_out_manager.rd_done;
+  ib_out_test.rd_valid        <= ib_out_manager.rd_valid;
+  ib_out_test.rd_done         <= ib_out_manager.rd_done;
 
   
   -----------------------------------------------------------------------------
@@ -288,17 +255,17 @@ begin  -- rtl
     for m in addr_vector'range loop -- addr_vector'range
     for j in size_vector'range loop -- size_vector'range
 
-      apbi.sel  <= apb_sel; -- Set injector at the APB bus to write configuration
+      apbi.sel  <= '1';     -- Set injector at the APB bus to write configuration
       AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
-      test_vect(0) <= write_descriptor( size_vector(j), 0, std_logic_vector(to_unsigned(sel(0, 1, k=0), 3)), addr_vector(m), '0', '1');
+      test_vect(0) <= descriptor_rd_wr( size_vector(j), 0, std_logic_vector(to_unsigned(sel(1, 2, k=0), 5)), addr_vector(m), '0', '1');
       wait until rising_edge(clk);
       rstn      <= '1';
 
       -- Load descriptors for test X
-      load_descriptors(clk, apb_inj_addr, test_vect, apbi);
+      load_descriptors(clk, inj_base_addr, test_vect, apbi);
 
-      -- Configure injector for test X
-      configure_injector(clk, apb_inj_addr, inj_config1, apbo, apbi);
+      -- Configure and start injector
+      write_address(clk, apbo, apbi, inj_base_addr, inj_conf);
 
       -- Test all descriptors from TEST 1 once
         -- Change BM connections to AXI manager, to establish AXI communication and transaction.
@@ -307,7 +274,7 @@ begin  -- rtl
 
       -- Wait for descriptor completion or crash if takes too long.
       wait_descr_compl <= '1';
-      wait until rising_edge(apbo.irq(pindex));
+      wait until rising_edge(apbo.irq);
       wait_descr_compl <= '0';
       
       wait for 20 ns;
@@ -317,138 +284,55 @@ begin  -- rtl
     end loop;
     end loop;
 
+    wait for 1000 ns;
+    report "The Test X has finished on time: " & time'image(now) & "\nGonna execute software reset test.";
+
+    ----------------------------------------
+    --            TEST RESET              --
+    ----------------------------------------
     rstn        <= '1';
 
+    apbi.sel    <= '1';     -- Set injector at the APB bus to write configuration
+    AXI_com     <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
+    test_vect(0) <= descriptor_rd_wr( 4096, 0, OP_READ, X"0000_0000", '0', '1');
+    wait until rising_edge(clk);
+
+    -- Load descriptors for test
+    load_descriptors(clk, inj_base_addr, test_vect, apbi);
+
+    -- Configure and start injector
+    write_address(clk, apbo, apbi, inj_base_addr, inj_conf);
+
+    -- Change BM connections to AXI manager, to establish AXI communication and transaction.
+    wait until rising_edge(clk);
+    AXI_com   <= TRUE;
+
+    -- Let the AXI burst start
+    wait until rising_edge(axi4mo.ar_valid);
+    wait until rising_edge(clk); wait until rising_edge(clk); wait until rising_edge(clk);
+
+    -- Stop injector in middle of a burst
+    write_address(clk, apbo, apbi, inj_base_addr, x"0000_0000");
+
+    -- Wait for ongoing AXI transaction to finish
+    wait until rising_edge(axi4mi.r_last);
+    wait for 100 ns;
+
+
+    -- Resume injector execution
+    write_address(clk, apbo, apbi, inj_base_addr, inj_conf);
+
+    wait until rising_edge(axi4mo.ar_valid);
+    wait until rising_edge(clk); wait until rising_edge(clk); wait until rising_edge(clk);
+
+    -- Reset injector
+    write_address(clk, apbo, apbi, inj_base_addr, inj_rst);
+
+    -- Wait for ongoing AXI transaction to finish
+    wait until rising_edge(axi4mi.r_last);
+    wait for 100 ns;
+
     stop;
-      
-    -- Reset injector
-    AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
-    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
-
-    -- Check if reset has worked
-    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
-    apbi.en     <= '1';
-    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
-    apbi.wr_en  <= '0';
-    wait until rising_edge(clk); wait until rising_edge(clk);
-    if(or_vector(apbo.rdata) = '1') then
-      assert FALSE report "Test X: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
-    else           report "Test X: Injector has been reset successfully!";
-    end if;
-    apbi.en     <= '0';
-    wait for 1 us;
-
-
-    ----------------------------------------
-    --               TEST 1               --
-    ----------------------------------------
-
-    AXI_com   <= FALSE;   -- Change BM connections to testbench, so no AXI communication is established
-    -- Load descriptors for test 1
-    report "Test 1: Loading descriptor batch!";
-    load_descriptors(clk, apb_inj_addr, descriptors1, apbi);
-
-    -- Configure injector for test 1
-    report "Test 1: Load configuration and start injector!";
-    configure_injector(clk, apb_inj_addr, inj_config1, apbo, apbi);
-    AXI_com   <= TRUE;   -- Change BM connections to AXI subordinate
-
-    for i in descriptors1'range loop
-      wait until falling_edge(apbo.irq(pirq));
-    end loop;
-
-    report "Test 1 descriptor batch has been completed!";  
-
-    -- Reset injector
-    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
-
-    -- Check if reset has worked
-    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
-    apbi.en     <= '1';
-    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
-    apbi.wr_en  <= '0';
-    wait until rising_edge(clk); wait until rising_edge(clk);
-    if(or_vector(apbo.rdata) = '1') then
-      assert FALSE report "Test 1: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
-    else           report "Test 1: Injector has been reset successfully!";
-    end if;
-    apbi.en     <= '0';
-    wait for 1 us;
-
-    --stop;
-
-
-    ----------------------------------------
-    --               TEST 2 WR            --
-    ----------------------------------------
-
-    -- Load descriptors for test 2 write
-    report "Test 2 WR: Loading write descriptor batch!";
-    load_descriptors(clk, apb_inj_addr, descriptors2w, apbi);
-
-    -- Configure injector for test 2 write
-    report "Test 2 WR: Load write configuration and start injector!";
-    configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
-    
-    for i in descriptors1'range loop
-      wait until falling_edge(apbo.irq(pirq));
-    end loop;
-
-    report "Test 2 WR descriptor batch has been completed!"; 
-
-    -- Reset injector
-    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
-
-    -- Check if reset has worked
-    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
-    apbi.en     <= '1';
-    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
-    apbi.wr_en  <= '0';
-    wait until rising_edge(clk); wait until rising_edge(clk);
-    if(or_vector(apbo.rdata) = '1') then
-      assert FALSE report "Test 2 WR: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
-    else           report "Test 2 WR: Injector has been reset successfully!";
-    end if;
-    apbi.en     <= '0';
-    wait for 1 us;
-
-
-    ----------------------------------------
-    --               TEST 2 RD            --
-    ----------------------------------------
-
-    -- Configure injector for test 2 read
-    report "Test 2 RD: Load read configuration and start injector!";
-    configure_injector(clk, apb_inj_addr, inj_config2, apbo, apbi);
-
-    -- Load descriptors for test 2 read
-    report "Test 2 RD: Loading read descriptor batch!";
-    load_descriptors(clk, apb_inj_addr, descriptors2r, apbi);
-
-    for i in descriptors1'range loop
-      wait until falling_edge(apbo.irq(pirq));
-    end loop;
-
-    report "Test 2 RD descriptor batch has been completed!"; 
-
-    -- Reset injector
-    configure_injector(clk, apb_inj_addr, inj_rst, apbo, apbi);
-
-    -- Check if reset has worked
-    apbi.sel    <= apb_sel; -- Set injector at the APB bus to write configuration
-    apbi.en     <= '1';
-    apbi.addr   <= apb_inj_addr; -- Read 0x00 ctrl debug register
-    apbi.wr_en  <= '0';
-    wait until rising_edge(clk); wait until rising_edge(clk);
-    if(or_vector(apbo.rdata) = '1') then
-      assert FALSE report "Test 2 RD: Injector reset FAILED!" & LF & "         Injector has control data after reset." severity failure;
-    else           report "Test 2 RD: Injector has been reset successfully!";
-    end if;
-    apbi.en     <= '0';
-    wait for 1 us;
-
-    report "TEST SUCCESSFULLY FINISHED!"; stop; -- VHDL2008
-    assert FALSE report "TEST SUCCESSFULLY FINISHED!" severity failure; -- !VHDL2008
 
   end process test;
 
@@ -458,13 +342,13 @@ begin  -- rtl
   begin 
     if(clk = '1' and clk'event) then
       -- Increment counters if the signal stays asserted
-  --     if(bm_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
+  --     if(ib_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
   --       else limit_rd_req_grant <= 0; end if;
-  --     if(bm_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
+  --     if(ib_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
   --       else limit_wr_req_grant <= 0; end if;
-  --     if(bm_in.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
+  --     if(ib_in.rd_req = '1') then limit_rd_req <= limit_rd_req + 1;
   --       else limit_rd_req <= 0; end if;
-  --     if(bm_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
+  --     if(ib_in.wr_req = '1') then limit_wr_req <= limit_wr_req + 1;
   --       else limit_wr_req <= 0; end if;
       if(wait_descr_compl = '1') then limit_descr_compl <= limit_descr_compl + 1;
         else limit_descr_compl <= 0; end if;
@@ -499,45 +383,42 @@ begin  -- rtl
   -----------------------------------------------------------------------------
 
   -- injector core
-  core : injector
+  core : injector_core
     generic map (
-      dbits         => dbits,
-      MAX_SIZE_BURST=> MAX_SIZE_BURST,
-      pindex        => pindex,
-      paddr         => paddr,
-      pmask         => pmask,
-      pirq          => pirq,
-      ASYNC_RST     => ASYNC_RST
-    )
+      PC_LEN          => PC_LEN,
+      CORE_DATA_WIDTH => DATA_WIDTH,
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
+      ASYNC_RST       => ASYNC_RST
+      )
     port map (
-      rstn          => rstn,
-      clk           => clk,
-      apbi          => apbi,
-      apbo          => apbo,
-      bm0_mosi      => bm_out_injector,
-      bm0_miso      => bm_in_injector
-    );
+      rstn            => rstn,
+      clk             => clk,
+      apbi            => apbi,
+      apbo            => apbo,
+      ib_out          => ib_out_injector,
+      ib_in           => ib_in_injector
+      );
 
   -- AXI4 Manager interface
   AXI4_M0 : axi4_manager
   generic map (
-    ID_R_WIDTH    => ID_R_WIDTH,
-    ID_W_WIDTH    => ID_W_WIDTH,
-    ADDR_WIDTH    => ADDR_WIDTH,
-    DATA_WIDTH    => DATA_WIDTH,
-    axi_id        => axi_id,
-    dbits         => dbits,
-    rd_n_fifo_regs=> 4,
-    wr_n_fifo_regs=> 4,
-    ASYNC_RST     => ASYNC_RST
+    ID_R_WIDTH        => ID_R_WIDTH,
+    ID_W_WIDTH        => ID_W_WIDTH,
+    ADDR_WIDTH        => ADDR_WIDTH,
+    DATA_WIDTH        => DATA_WIDTH,
+    axi_id            => axi_id,
+    dbits             => DATA_WIDTH,
+    rd_n_fifo_regs    => rd_n_fifo_regs,
+    wr_n_fifo_regs    => wr_n_fifo_regs,
+    ASYNC_RST         => ASYNC_RST
   )
   port map (
-    rstn            => rstn,
-    clk             => clk,
-    axi4mi          => axi4mi,
-    axi4mo          => axi4mo,
-    bm_in           => bm_in_manager,
-    bm_out          => bm_out_manager
+    rstn              => rstn,
+    clk               => clk,
+    axi4mi            => axi4mi,
+    axi4mo            => axi4mo,
+    ib_in             => ib_in_manager,
+    ib_out            => ib_out_manager
   );
 
   -- AXI4 subordinate memory 1024 bytes

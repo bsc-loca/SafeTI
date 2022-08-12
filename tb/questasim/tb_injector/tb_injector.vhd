@@ -48,14 +48,9 @@ use std.env.all; -- VHDL2008
 entity tb_injector is
   generic (
     -- SafeTI configuration
-    PC_LEN            : integer range 2 to   10     :=    4;  -- Set the maximum number of programmable descriptor words to 2^PC_LEN
-    CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
+    PC_LEN            : integer range 2 to   10     :=    4;      -- Set the maximum number of programmable descriptor words to 2^PC_LEN
+    CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;      -- Data width of the injector core. [Only power of 2s allowed]
     MAX_SIZE_BURST    : integer range 8 to 4096     := 4096;      -- Maximum size of a beat at a burst transaction.
-    -- APB configuration  
-    pindex            : integer                     := 6;         -- APB configuartion slave index (default=6)
-    paddr             : integer                     := 16#850#;   -- APB configuartion slave address (default=16#850#)
-    pmask             : integer                     := 16#FFF#;   -- APB configuartion slave mask (default=16#FFF#)
-    pirq              : integer range 0 to 15       := 6;         -- APB configuartion slave irq (default=6)
     -- Injector configuration
     ASYNC_RST         : boolean                     := TRUE;      -- Allow asynchronous reset flag (default=TRUE)
 
@@ -76,7 +71,7 @@ architecture rtl of tb_injector is
   constant descr_compl_thereshold : integer               := 0;  -- Waiting threshold for descriptor completition flag (injector asserted) (default=0)
 
   -- Pointers
-  constant inj_base_addr  : std_logic_vector(31 downto 0) := X"000" & std_logic_vector(to_unsigned(paddr, 12)) & X"00"; -- Location of the injector at APB memory
+  constant inj_base_addr  : std_logic_vector(31 downto 0) := X"0000_0000";  -- Location of the injector at APB memory is not important, since sel and en are used
   constant action_addr1   : std_logic_vector(31 downto 0) := X"0200_0000";  -- Write/read address
   constant action_addr2   : std_logic_vector(31 downto 0) := X"0200_0004";  -- Write/read address
 
@@ -95,7 +90,7 @@ architecture rtl of tb_injector is
   constant inj_rst        : std_logic_vector(31 downto 0) := X"0000_00" & "0" & "0" & "000" & "0" & "1" & "0";
 
 
-  -- Descriptors to load into injector's fifo for test 1 (size, count, action, addr, irq_compl, last)
+  -- Descriptors to load into injector's memory program for test 1 (size, count, action, addr, irq_compl, last)
   constant descriptors1   : descriptor_bank_tb(0 to 6) := (         -- Number of iterations / Transaction type  / Transaction size
     descriptor_rd_wr(               4, 63,     OP_WRITE, action_addr1, irq_desc_compl_en, '0' ), -- 64 write transactions of   4 bytes
     descriptor_rd_wr(               8, 31,     OP_WRITE, action_addr2, irq_desc_compl_en, '0' ), -- 32 write transactions of   8 bytes
@@ -106,7 +101,7 @@ architecture rtl of tb_injector is
     descriptor_rd_wr(             256,  0,      OP_READ, action_addr1, irq_desc_compl_en, '1' )  --  1  read transaction  of 256 bytes
   );
 
-  -- Descriptors to load into injector's fifo for test 2 write (size, count, action, addr, irq_compl, last)
+  -- Descriptors to load into injector's memory program for test 2 write (size, count, action, addr, irq_compl, last)
   constant descriptors2w  : descriptor_bank_tb(0 to 5) := (
     descriptor_rd_wr(MAX_SIZE_BURST-4,  0,     OP_WRITE, action_addr1, irq_desc_compl_en, '0' ), -- Check if writes the correct ammount below maximum size
     descriptor_rd_wr(  MAX_SIZE_BURST,  0,     OP_WRITE, action_addr2, irq_desc_compl_en, '0' ), -- Check if writes the correct ammount equal maximum size
@@ -116,7 +111,7 @@ architecture rtl of tb_injector is
     descriptor_rd_wr(MAX_SIZE_BURST+4,  0, OP_WRITE_FIX, action_addr2, irq_desc_compl_en, '1' )  -- With fix addr, check if writes the correct ammount above max size
   );
 
-  -- Descriptors to load into injector's fifo for test 2 read (size, count, action, addr, irq_compl, last)
+  -- Descriptors to load into injector's memory program for test 2 read (size, count, action, addr, irq_compl, last)
   constant descriptors2r  : descriptor_bank_tb(0 to 5) := (
     descriptor_rd_wr(MAX_SIZE_BURST-4,  0,     OP_READ, action_addr1, irq_desc_compl_en, '0' ), -- Check if reads the correct ammount below maximum size
     descriptor_rd_wr(  MAX_SIZE_BURST,  0,     OP_READ, action_addr2, irq_desc_compl_en, '0' ), -- Check if reads the correct ammount equal maximum size
