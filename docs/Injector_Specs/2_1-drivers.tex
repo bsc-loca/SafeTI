@@ -1,0 +1,96 @@
+\subsection{Designing software for traffic generation and control}
+\label{software-drivers}
+
+The available function calls are organized into three categories; \fullref{software-drivers-program}, \fullref{software-drivers-setup} and \fullref{software-drivers-memfunc}.
+
+\subsubsection{Injection program example}
+\label{software-drivers-program}
+
+The default driver files include a injection program example as the \textbf{inj\_program()} function, which can be reviewed on the Appendix 
+\fullref{appendix-programexample}. 
+Using this function, it can be understood the main points to know about when designing an injection program. 
+This program is used for the program setup that generates transactions of a particular type, while inserting \textbf{DELAY} between transaction batches if desired. 
+First, let's understand the variables the \textbf{inj\_program()} function admits as input.
+
+\begin{itemize}
+  \item \textbf{DESC\_N\_BATCH}: The number of descriptors the injection program will contain. This variable must be at least 2 if inserting DELAY descriptors is desired.
+  \item \textbf{DESC\_TYPE}: The type of traffic to be generated.
+  \item \textbf{INJ\_QUEUE}: Asserts the \textbf{QUEUE\_MODE\_EN} parameter during the configuration of the injector.
+  \item \textbf{SIZE\_RD\_WR}: Number of bytes that are accessed during the execution of a descriptor iteration of \textbf{READ}, \textbf{WRITE}, \textbf{READ\_FIX} or \textbf{WRITE\_FIX} type.
+  \item \textbf{DESC\_ATTACK\_ADDR}: Pointer of the starting address where the traffic being generated accesses.
+  \item \textbf{SIZE\_DELAY}: Number of clock cycles to be on standby inserted between \textbf{DESC\_TYPE} descriptor types.
+\end{itemize}
+\vspace{15px}
+
+At the start of the function body, there's a number of initialization variables that use specific structs of the driver. 
+These are used to set up the appropriated configuration of the injector and manage the different descriptors to upload on the injector as an injection program. 
+The \autoref{table:structs} compiles the different parameters to be set on each of these structs variables.
+
+\begin{table}[h]
+  \begin{tabular}{@{}p{0.15\linewidth}p{0.15\linewidth}x{0.2\linewidth}p{0.5\linewidth}@{}}
+    \toprule
+    \multicolumn{1}{c}{Struct name} & \multicolumn{1}{c}{Parameter name} & \multicolumn{1}{c}{Admissible value range} & \multicolumn{1}{c}{Description of the parameter}                                                              \\
+    \cmidrule{1-4}
+    \multirow{6}{*}{desc\_ctrl}       & last           & {[}0-1{]}            & Last descriptor flag on injection program.                                                                                                            \\
+                                      & type           & {[}0-6{]}            & Descriptor type encoding. Use the descriptor name type listed on \autoref{table:descriptors} while adding \textbf{INJ\_OP\_} as a prefix.             \\
+                                      & irq\_compl\_en & {[}0-1{]}            & Send an APB interruption on descriptor execution completion.                                                                                          \\
+                                      & count          & {[}0-63{]}           & Set a number of descriptor iterations equal to \textbf{COUNT}+1.                                                                                      \\
+                                      & size           & {[}1-524288{]}       & Set the number of bytes to access or the number of clock cycles to wait on standby depending on the descriptor type on a single execution iteration.  \\
+    &&& \\
+    \multirow{2}{*}{desc\_delay}      & ctrl           & Struct               & Nested struct parameter of type \textbf{desc\_ctrl}.                                                                                                  \\
+    &&& \\
+    \multirow{2}{*}{desc\_rd\_wr}     & ctrl           & Struct               & Nested struct parameter of type \textbf{desc\_ctrl}.                                                                                                  \\
+                                      & act\_addr      & {[}0x0-0xFFFFFFFF{]} & Variable that sets the ATTACK\_ADDR on \textbf{READ}, \textbf{WRITE}, \textbf{READ\_FIX} and \textbf{WRITE\_FIX} descriptor types.                    \\
+    \bottomrule
+  \end{tabular}
+\caption{Struct types used on the injector configuration and programming.}
+\label{table:structs}
+\end{table}
+
+The \textbf{inj\_config} struct has been omitted from the \autoref{table:structs} due to containing the same parameters previously explained on 
+\autoref{table:configuration}.
+
+After setting the desired structs, namely an \textbf{inj\_config} for the injector configuration, \textbf{desc\_rd\_wr} for the traffic generation and 
+\textbf{desc\_delay} in case the insertion of \textbf{DELAY} descriptors is desired between transaction descriptors, the function proceeds by loading the 
+descriptors in execution order to the injector and by last the injector configuration using setup calls.
+These are explained on \fullref{software-drivers-setup}.
+
+
+\subsubsection{Injection setup functions}
+\label{software-drivers-setup}
+
+The setup functions are used to parse the struct variables to actual 32-bit words following the machine format the injector understands, to then be written 
+on the injector using the memory access functions presented on \autoref{software-drivers-memfunc}, or also to perform control functions like a status check.
+The following list compiles all available setup functions.
+
+\begin{itemize}
+  \item \textbf{inj\_setup()}: It accepts a \textbf{inj\_config} struct variable pointer as input, which reorganizes and writes on the injector.
+  \item \textbf{inj\_reset()}: Doesn't have any input, setting the configuration to zeros, except the \textbf{RESET\_SW} parameter that is set to 1, resetting the injector.
+  \item \textbf{inj\_check\_run()}: Doesn't have any input. This function returns 1 if the actual injector configuration has \textbf{ENABLE} parameter asserted, meaning it is running.
+  \item \textbf{setup\_descriptor\_control()}: It accepts a \textbf{desc\_ctrl} struct variable pointer as input, which reorganizes and writes on the injector as word of a descriptor. This call should never be used on an injector program directly, since it is more organized to use it on a specific descriptor type setup calls.
+  \item \textbf{setup\_descriptor\_delay()}: It accepts a \textbf{desc\_delay} struct variable pointer as input, which reorganizes and writes on the injector as word of a descriptor of \textbf{DELAY} type.
+  \item \textbf{setup\_descriptor\_rd\_wr()}: It accepts a \textbf{desc\_rd\_wr} struct variable pointer as input, which reorganizes and writes on the injector as words of a descriptor of \textbf{READ}, \textbf{WRITE}, \textbf{READ\_FIX} or \textbf{WRITE\_FIX} types.
+\end{itemize}
+\vspace{15px}
+
+
+\subsubsection{Injection memory access functions}
+\label{software-drivers-memfunc}
+
+The memory access functions are functions used to execute read and writes on the APB memory space allocated for the injector.
+A difference between the memory access and the setup functions is that these only work with 32-bit data words without knowledge on the actual application of the 
+access.
+It is recommended, for best organization, to use these following memory access functions through setup functions and not directly on an injection program.
+
+\begin{itemize}
+  \item \textbf{inj\_read\_reg()}:
+  \item \textbf{inj\_write\_reg()}:
+\end{itemize}
+\vspace{15px}
+
+The memory access functions have a limitation imposed where the access is limited to the APB memory space used to allocate the injector, providing low-level 
+protection against erroneous address access while using the injector drivers. 
+This is achieved by using the variables \textbf{APB\_MEM\_SPACE} and \textbf{INJ\_BASE\_ADDR} as a limiter and pointer to the base address of the injector 
+allocation on the APB memory space.
+Both variables are located on the driver file \textbf{injector.h} and must be updated accordingly to the implementation.
+

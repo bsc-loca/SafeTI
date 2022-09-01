@@ -1,10 +1,78 @@
-\subsection{Module description}
-\label{module_desc}
-This unit acts as an AHB/AXI Master IP connected to the main bus on the SELENE Platform. It acts as a core with limited capabilities, only generating transactions to the bus by reading and writing to the AHB Slave RAM memory and controlled via APB registers.\\
-The injector works along with the multi-core setup instantiated on the platform and other peripherals and monitoring units.\\
-The module's specifications described in this section include non-implemented features, and it might be revisited for future improvements.\\
-In order to generate traffic to the bus, the module performs a set of data transactions based on descriptors set at startup into a predefined memory address range.\\
-The Traffic Injector is based on generic Direct Memory Access functionality fundamentals and extends its features to meet the injector objectives.\\
-The internal components and respective configuration and functionalities are described in next sections.
+\newpage
+\section{Module description}
+\label{module desc}
+
+The SafeTI IP act as a programmable traffic injector on the network which the component is implemented on.
+The injector's programming and configuration is carried out through writes and reads on the APB Slave registers of the component.
+The APB interface it's implemented as an internal core component of the injector, contrary to the interface of the network where traffic is generated, 
+which is interchangeable during implementation for easy adaptation.
+This is better presented looking at \fullref{fig:injector_big}, where exemplifies the compulsory APB bus connectivity and an interchangeable interface 
+where the traffic is injected.
+
+At the moment, the supported platforms only include SELENE, and the supported injection networks are both AHB and AXI4. However, the former AHB requires an 
+interface component from the platform in order to operate correctly.
+
+This specification manual is meant to aid on the use, implementation and expansion of the SafeTI.
+Thus, since different tasks requires different knowledge, this manual is written in three sections; \fullref{software}, 
+\fullref{} and \fullref{}. 2. Importing the SafeTI IP onto a new platform, 3. Modifying core components of the injector.
+
+However, it is important first to acknowledge the traffic injector's main features categorized as \fullref{module desc-commands} and \fullref{module desc-config}.
 
 
+\subsection{Injector commands}
+\label{module desc-commands}
+
+An injection program is a list of descriptors, also called injection vectors, that are executed in sequential succession by the traffic injector. 
+The traffic injector features the following descriptor types specified on \autoref{table:descriptors}.
+
+\begin{table}[h]
+  \begin{tabular}{@{}p{0.15\linewidth}x{0.2\linewidth}p{0.65\linewidth}@{}}
+    \toprule
+    \multicolumn{1}{x{0.15\linewidth}}{Descriptor type} & \multicolumn{1}{x{0.2\linewidth}}{Specific type parameters} & \multicolumn{1}{x{0.65\linewidth}}{Description of the execution}                                                                    \\
+    \cmidrule{1-3}
+    DELAY       & COUNT, SIZE               & Equivalent to a no operation instruction. For \textbf{SIZE} times \textbf{COUNT}+1 clock cycles, the injector remains on standby.                                                                             \\
+    READ        & COUNT, SIZE, ATTACK\_ADDR & Traffic generation of sequential read transactions for accessing a minimum of \textbf{SIZE} bytes, starting from the address \textbf{ATTACK\_ADDR}. This operation is executed \textbf{COUNT}+1 iterations.   \\
+    WRITE       & COUNT, SIZE, ATTACK\_ADDR & Traffic generation of sequential write transactions for accessing a minimum of \textbf{SIZE} bytes, starting from the address \textbf{ATTACK\_ADDR}. This operation is executed \textbf{COUNT}+1 iterations.  \\
+    READ\_FIX   & COUNT, SIZE, ATTACK\_ADDR & Traffic generation of read transactions for accessing a minimum of \textbf{SIZE} bytes, continuously on the address \textbf{ATTACK\_ADDR}. This operation is executed \textbf{COUNT}+1 iterations.            \\
+    WRITE\_FIX  & COUNT, SIZE, ATTACK\_ADDR & Traffic generation of write transactions for accessing a minimum of \textbf{SIZE} bytes, continuously on the address \textbf{ATTACK\_ADDR}. This operation is executed \textbf{COUNT}+1 iterations.           \\
+    \bottomrule
+  \end{tabular}
+\caption{Available descriptor types, its specific parameters and execution description.}
+\label{table:descriptors}
+\end{table}
+
+
+In addition, there's a number of common parameters available which functionality is the same for every descriptor. 
+These are \textbf{LAST} and \textbf{IRQ\_COMPL\_EN} that when asserted (set to 1), the former acts as last descriptor on the injection program, while the latter 
+sets an interruption pulse through the APB bus when the descriptor has been fully executed. 
+By default, the injector will halt on program completion set by executing a descriptor with the variable \textbf{LAST} asserted.
+
+The injector program must be compiled and set up through the APB bus to the injector previous to enabling it. 
+Though it is possible to add descriptors to the injector program during its execution, it's not recommended due to possible early termination of the program 
+or incorrect execution.
+
+
+\subsection{Injector configuration}
+\label{module desc-config}
+
+The traffic injector also features a general configuration that is applied during the execution of the injector program conformed by the aforementioned 
+descriptors. These are compiled on \autoref{table:configuration}. 
+Any injector configuration can be overwritten at any moment, even during the execution of an injection program.
+
+\begin{table}[h]
+  \begin{tabular}{@{}p{0.2\linewidth}p{0.8\linewidth}@{}}
+    \toprule
+    \multicolumn{1}{c}{Configuration parameter} & \multicolumn{1}{c}{Description of the parameter when asserted}                                                                                                       \\
+    \cmidrule{1-2}
+      ENABLE                & Start or resume execution of the loaded injector program. Setting it to 0 allows to halt the execution of the injection program, though active transactions will be allowed to be finished. \\
+      RESET\_SW             & Reset all configuration and injector program execution. Ongoing transactions will continue to end properly.                                                                                 \\
+      QUEUE\_MODE\_EN       & Loop execution to first descriptor on program completion meaning, the injector will not stop executing the program after completing a descriptor with the LAST variable asserted.           \\
+      IRQ\_PROG\_COMPL\_EN  & Send an APB interruption on program completion.                                                                                                                                             \\
+      IRQ\_ERR\_CORE\_EN    & Send an APB interruption on error from the internal components of the injector.                                                                                                             \\
+      IRQ\_ERR\_NET\_EN     & Send an APB interruption on error from the network where the traffic is being generated.                                                                                                    \\
+      FREEZE\_IRQ\_EN       & Halt program execution at any interruption. This includes interruption due to description parameter \textbf{IRQ\_COMPL\_EN}.                                                                 \\
+    \bottomrule
+  \end{tabular}
+\caption{Injector configuration and its functionality.}
+\label{table:configuration}
+\end{table}

@@ -169,6 +169,9 @@ package axi4_pkg is
   -- IF function for when VHDL can not use if (like at constants).
   function sel              (A, B : integer; sel : boolean) return integer;
 
+  -- Connects different buses lengths (A <- B), be it trunking or padding with zeros.
+  function connect_bus(A, B : std_logic_vector) return std_logic_vector;
+
   -----------------------------------------------------------------------------
   -- Component instantiation
   -----------------------------------------------------------------------------
@@ -312,6 +315,19 @@ package body axi4_pkg is
     else return B;
     end if;
   end sel;
+
+  -- Connects different buses lengths (A <- B), be it trunking or padding with zeros.
+  function connect_bus(A, B : std_logic_vector) return std_logic_vector is
+    variable output : std_logic_vector(A'range);
+  begin
+    if(A'length <= B'length) then
+      output  := B(A'range);
+    elsif(A'length > B'length) then
+      output  := (A'high downto B'length => '0') & B;
+    end if;
+
+    return output;
+  end connect_bus;
 
 
 end package body axi4_pkg;

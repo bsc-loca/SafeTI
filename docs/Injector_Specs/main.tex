@@ -1,36 +1,47 @@
-\documentclass[paper=a4, fontsize=12pt]{scrreprt} % A4 paper and 11pt font size
-\usepackage[T1]{fontenc} % Use 8-bit encoding that has 256 glyphs
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[paper=a4, fontsize=11pt]{scrartcl} % A4 paper and 11pt font size
+
+\usepackage[T1]{fontenc} % Use 8-bit encoding that has 256 glyphs
+\usepackage{fourier} % Use the Adobe Utopia font for the document - comment this line to return to the LaTeX default
 \usepackage[english]{babel} % English language/hyphenation
 \usepackage{amsmath,amsfonts,amsthm} % Math packages
-\usepackage{tex_packages/register} %Register library
 
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{graphicx}
-\usepackage{float}
-%\usepackage[]{hyperref}  %link color
 
-%table layout to the right
+\usepackage{float}
+
+\usepackage{blindtext} %for enumarations
+
+\usepackage{hyperref}
+\newcommand*{\fullref}[1]{\hyperref[{#1}]{\ref*{#1} \nameref*{#1}}} % Command for referencing section number and name.
+
+%talbe layout to the right
 %\usepackage[labelfont=bf]{caption}
 %\captionsetup[table]{labelsep=space,justification=raggedright,singlelinecheck=off}
 %\captionsetup[figure]{labelsep=quad}
 
-\usepackage{titlesec}
-%\usepackage{sectsty} % Allows customizing section commands
-%\renewcommand*\sectfont{\rmfamily\mdseries\itshape}
-%\allsectionsfont{\normalfont} % Make all sections centered, the default font and small caps
-%\allsectionsfont{ } % Make all sections centered, the default font and small caps
+\usepackage{sectsty} % Allows customizing section commands
+\allsectionsfont{\centering \normalfont\scshape} % Make all sections centered, the default font and small caps
 
-%\usepackage{fancyhdr} % Custom headers and footers
-%\pagestyle{fancyplain} % Makes all pages in the document conform to the custom headers and footers
-%\fancyhead{} % No page header - if you want one, create it in the same way as the footers below
-%\fancyfoot[L]{} % Empty left footer
-%\fancyfoot[C]{} % Empty center footer
-%\fancyfoot[R]{\thepage} % Page numbering for right footer
-%\renewcommand{\headrulewidth}{0pt} % Remove header underlines
-%\renewcommand{\footrulewidth}{0pt} % Remove footer underlines
-%\setlength{\headheight}{13.6pt} % Customize the height of the header
+\usepackage{fancyhdr} % Custom headers and footers
+\pagestyle{fancyplain} % Makes all pages in the document conform to the custom headers and footers
+\fancyhead{} % No page header - if you want one, create it in the same way as the footers below
+\fancyfoot[L]{} % Empty left footer
+\fancyfoot[C]{} % Empty center footer
+\fancyfoot[R]{\thepage} % Page numbering for right footer
+\renewcommand{\headrulewidth}{0pt} % Remove header underlines
+\renewcommand{\footrulewidth}{0pt} % Remove footer underlines
+\setlength{\headheight}{13.6pt} % Customize the height of the header
 
 \numberwithin{equation}{section} % Number equations within sections (i.e. 1.1, 1.2, 2.1, 2.2 instead of 1, 2, 3, 4)
 \numberwithin{figure}{section} % Number figures within sections (i.e. 1.1, 1.2, 2.1, 2.2 instead of 1, 2, 3, 4)
@@ -41,6 +52,52 @@
 
 \setlength\parskip{4pt}
 
+
+%----------------------------------------------------------------------------------------
+% TABLE PACKAGES AND COLOR OPTIONS
+%----------------------------------------------------------------------------------------
+
+\usepackage{multirow} % Used in tables
+\usepackage{booktabs}
+\usepackage{array}
+\renewcommand{\arraystretch}{1.2}
+\newcolumntype{x}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}p{#1}}
+
+
+%----------------------------------------------------------------------------------------
+% CODE PACKAGES AND COLOR OPTIONS
+%----------------------------------------------------------------------------------------
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+
 %----------------------------------------------------------------------------------------
 %	TITLE SECTION
 %----------------------------------------------------------------------------------------
@@ -50,32 +107,26 @@
 \title{	
 \normalfont \normalsize 
 \horrule{0.5pt} \\[0.4cm] % Thin top horizontal rule
-\huge  Traffic Injector Specifications\\ % The assignment title
+\Huge  SafeTI Manual \\ % The assignment title
+\vspace{10px}
+\LARGE Traffic Injector Specifications \\ % Subtitle
 \horrule{0.5pt} \\[0.4cm] % Thick bottom horizontal rule
 }
 
-\author{ Oriol Sala Sucarrats} % Your name
+\author{Francisco Javier Fuentes Diaz} % Your name
 \date{\today} % Today's date or a custom date
 
 \begin{document}
-%\nocite{*}
+\nocite{*}
 \maketitle % Print the title
 
 \newpage
 \tableofcontents
 
-\include{1-module_description}
+\input{1-module_description.tex}
 
-\include{2-operation}
+\input{2-software.tex}
 
-\include{3-descriptors}
-
-\include{4-features}
-
-\include{5-top_module}
-
-\include{6-sub_modules}
-
-
+\input{7-appendix.tex}
 
 \end{document}

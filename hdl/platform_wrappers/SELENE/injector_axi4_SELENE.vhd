@@ -178,7 +178,7 @@ begin  -- rtl
   begin
     if(mux = '0' or two_injectors = FALSE) then
     -- IB SafeTI input (MISO)
-      ib_in_injector.rd_data        <= (ib_in_injector.rd_data'high downto DATA_WIDTH => '0') & ib_out_manager.rd_data(DATA_WIDTH-1 downto 0);
+      ib_in_injector.rd_data        <= connect_bus(ib_in_injector.rd_data, ib_out_manager.rd_data(DATA_WIDTH - 1 downto 0));
       ib_in_injector.rd_req_grant   <= ib_out_manager.rd_req_grant;
       ib_in_injector.rd_valid       <= ib_out_manager.rd_valid;
       ib_in_injector.rd_done        <= ib_out_manager.rd_done;
@@ -198,16 +198,16 @@ begin  -- rtl
       ib_in_injector1.wr_done       <= '0';
       ib_in_injector1.wr_err        <= '0';
     -- IB SafeTI output (MOSI)
-      ib_in_manager.rd_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector.rd_addr'length => '0') & ib_out_injector.rd_addr;
+      ib_in_manager.rd_addr         <= connect_bus(ib_in_manager.rd_addr, ib_out_injector.rd_addr);
       ib_in_manager.rd_size         <= ib_out_injector.rd_size;
       ib_in_manager.rd_req          <= ib_out_injector.rd_req;
-      ib_in_manager.wr_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector.wr_addr'length => '0') & ib_out_injector.wr_addr;
+      ib_in_manager.wr_addr         <= connect_bus(ib_in_manager.rd_addr, ib_out_injector.wr_addr);
       ib_in_manager.wr_size         <= ib_out_injector.wr_size;
       ib_in_manager.wr_req          <= ib_out_injector.wr_req;
-      ib_in_manager.wr_data         <= (ib_in_manager.wr_data'high downto DATA_WIDTH => '0') & ib_out_injector.wr_data(DATA_WIDTH - 1 downto 0);
+      ib_in_manager.wr_data         <= connect_bus(ib_in_manager.wr_data, ib_out_injector.wr_data(DATA_WIDTH - 1 downto 0));
     else
     -- IB SafeTI input (MISO)
-      ib_in_injector1.rd_data       <= (ib_in_injector1.rd_data'high downto DATA_WIDTH => '0') & ib_out_manager.rd_data(DATA_WIDTH-1 downto 0);
+      ib_in_injector1.rd_data       <= connect_bus(ib_in_injector1.rd_data, ib_out_manager.rd_data(DATA_WIDTH - 1 downto 0));
       ib_in_injector1.rd_req_grant  <= ib_out_manager.rd_req_grant;
       ib_in_injector1.rd_valid      <= ib_out_manager.rd_valid;
       ib_in_injector1.rd_done       <= ib_out_manager.rd_done;
@@ -227,13 +227,13 @@ begin  -- rtl
       ib_in_injector.wr_done        <= '0';
       ib_in_injector.wr_err         <= '0';
     -- IB SafeTI output (MOSI)
-      ib_in_manager.rd_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector1.rd_addr'length => '0') & ib_out_injector1.rd_addr;
+      ib_in_manager.rd_addr         <= connect_bus(ib_in_manager.rd_addr, ib_out_injector1.rd_addr);
       ib_in_manager.rd_size         <= ib_out_injector1.rd_size;
       ib_in_manager.rd_req          <= ib_out_injector1.rd_req;
-      ib_in_manager.wr_addr         <= (ib_in_manager.rd_addr'high downto ib_out_injector1.wr_addr'length => '0') & ib_out_injector1.wr_addr;
+      ib_in_manager.wr_addr         <= connect_bus(ib_in_manager.rd_addr, ib_out_injector1.wr_addr);
       ib_in_manager.wr_size         <= ib_out_injector1.wr_size;
       ib_in_manager.wr_req          <= ib_out_injector1.wr_req;
-      ib_in_manager.wr_data         <= (ib_in_manager.wr_data'high downto DATA_WIDTH => '0') & ib_out_injector1.wr_data(DATA_WIDTH - 1 downto 0);
+      ib_in_manager.wr_data         <= connect_bus(ib_in_manager.wr_data, ib_out_injector1.wr_data(DATA_WIDTH - 1 downto 0));
     end if;
   end process comb;
 

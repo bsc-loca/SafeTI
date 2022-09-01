@@ -638,7 +638,7 @@ begin -- rtl
             if (ib_in.rd_req = '1' and rd_main.ib_grant = '1') then
               rd_main.ib_grant      <= '0'; -- Deassert granting requests for IB component
               rd_main.hs.ib_addr    <= ib_in.rd_addr(rd_main.hs.ib_addr'range); -- Load starting address request
-              rd_main.hs.ib_size    <= (rd_main.hs.ib_size'high downto ib_in.rd_size'length => '0') & ib_in.rd_size; -- Size -1 from real
+              rd_main.hs.ib_size    <= connect_bus(rd_main.hs.ib_size, ib_in.rd_size); -- Size -1 from real
               rd_main.hs.axi_mode   <= '0' & not(ib_in.rd_fixed_addr);
               rd_main.hs.axi_cache  <= ib_in.rd_axi_cache;
               rd_main.hs.axi_prot   <= ib_in.rd_axi_prot;
@@ -1022,7 +1022,7 @@ begin -- rtl
             if (ib_in.wr_req = '1' and wr_main.ib_grant = '1') then
               wr_main.ib_grant      <= '0';           -- Deassert granting requests for IB component
               wr_main.hs.ib_addr    <= ib_in.wr_addr(wr_main.hs.ib_addr'range); -- Load starting address request
-              wr_main.hs.ib_size    <= (wr_main.hs.ib_size'high downto ib_in.wr_size'length => '0') & ib_in.wr_size; -- Size -1 from real
+              wr_main.hs.ib_size    <= connect_bus(wr_main.hs.ib_size, ib_in.wr_size); -- Size -1 from real
               wr_main.hs.axi_mode   <= '0' & not(ib_in.wr_fixed_addr);
               wr_main.hs.axi_cache  <= ib_in.wr_axi_cache;
               wr_main.hs.axi_prot   <= ib_in.wr_axi_prot;

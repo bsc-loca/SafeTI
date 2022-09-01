@@ -1,136 +1,130 @@
-/*	INJECTOR DEFINITIONS	*/
+/*  INJECTOR DEFINITIONS  */
 #include <stdio.h>
 #include <stdint.h>
 
-/*** Definitions ***/
-#define INJ_BASE_ADDR 0xfc085000
+/*** Definitions that may vary ***/
+#define INJ_BASE_ADDR   0xfc085000  // Injector base APB addrees
+#define APB_MEM_SPACE   0x40        // Number of 32-bit spaces assigned to injector
 
-#define INJ_CTRL 	0x00
-#define INJ_STATUS  	0x01
-#define INJ_FDESC_PTR 	0x02 
+//----------------------------------
+//   HARDWARE SPECIFIC CONSTANTS (unused at the moment)
+//----------------------------------
+//#define LINE_SIZE 32
+//#define L1_CACHE_SIZE (16*1024)
+//#define L1_WAYS 4
+//#define L1_WAY_SIZE (L1_CACHE_SIZE/L1_WAYS)
 
-/*
- * Descriptor Type Transaction
- */
-#define DESC_TYPE_R	0
-#define DESC_TYPE_W	1
-#define DESC_TYPE_D	2
-/*
- * User defined Clock Cycles Intervals between Transactions 
- */
-#define DESC_INTRV_0 	0
-#define DESC_INTRV_1 	10
-#define DESC_INTRV_2 	20
-#define DESC_INTRV_3 	50
-#define DESC_INTRV_4 	100
-#define DESC_INTRV_5 	250
-#define DESC_INTRV_6 	500
-#define DESC_INTRV_7 	1000
+//SELENE
+//#define L2_CACHE_SIZE (1024*1024)
+//DERISC
+//#define L2_CACHE_SIZE (256*1024)
 
-/*
- * TODO Hardware define the Repetition Counts (and specification document)
- * Transaction Repetition Cycles (Up to 128)
- */
-#define DESC_COUNT_0	 0
-#define DESC_COUNT_1    1
-#define DESC_COUNT_2    2
-#define DESC_COUNT_3    5
-#define DESC_COUNT_4    10
-#define DESC_COUNT_5    25
-#define DESC_COUNT_6    50
-#define DESC_COUNT_7    100
+//----------------------------------
+//    TEST SPECIFIC CONSTANTS (unused at the moment)
+//----------------------------------
+//#define ITER_COUNT 64
 
-/*
- * Transaction Sizes
- */
-#define DESC_SIZE_4	0x00004
-#define DESC_SIZE_8	0x00008
-#define DESC_SIZE_16	0x00010
-#define DESC_SIZE_32	0x00020
-#define DESC_SIZE_64	0x00040
-#define DESC_SIZE_128	0x00080
-#define DESC_SIZE_256	0x00100
-#define DESC_SIZE_512	0x00200
-#define DESC_SIZE_1K	0x00400
-#define DESC_SIZE_2K	0x00800
-#define DESC_SIZE_4K	0x01000
-#define DESC_SIZE_8K	0x02000
-#define DESC_SIZE_16K	0x04000
-#define DESC_SIZE_32K	0x08000
-#define DESC_SIZE_64K	0x10000
-#define DESC_SIZE_128K	0x20000
-#define DESC_SIZE_256K	0x40000
+// In each loop iteration we perform ITER_COUNT ld/st for each cache line
+//#define ITERATION_INCREMENT (LINE_SIZE*ITER_COUNT)
 
+// Using this defines we can execute nops between load/stores
+//By setting this parameter to 1 a jump (jal) is introduced between each ld/st
+//The jump is to a loop that executes nops
+//#define NOP_ACTIVATED 0
+//This parameter configures the number of nops inside the loop
+//#define NOP_COUNT 10
+//This parameter configures the number of itereations that the loop is executed
+//#define NOP_ITERATIONS 15
+
+  ////////////////////////
+ // SafeTI Definitions //
+////////////////////////
+
+// APB Configuration register index
+#define INJ_CONFIG        0x00
+// APB Debug register indexes
+//#define INJ_STATUS        0x01 TO BE IMPLEMENTED
+//#define INJ_FDESC_PTR     0x02 TO BE IMPLEMENTED
+//#define INJ_DESC_EXEC     0x04 TO BE IMPLEMENTED
+//#define INJ_DESC_STATUS   0x08 TO BE IMPLEMENTED
+//#define INJ_DESC_PTR      0x09 TO BE IMPLEMENTED
+// APB Descriptor input register index
+#define INJ_PROGRAM_DESC  0x3F
+
+// Descriptor type encoding
+#define INJ_OP_DELAY      0
+#define INJ_OP_READ       1
+#define INJ_OP_WRITE      2
+#define INJ_OP_READ_FIX   5
+#define INJ_OP_WRITE_FIX  6
+
+
+// Stringification for the Macros
+#define STR1(x) #x
+#define STR(x) STR1(x)
 
 
 /* Structs */
 
 /*** Injector Structs ***/
-typedef struct inj_ctrl {
-	int int_en;
-	int int_err_en;
-	int q_mode;
-	int rst;
-	int en;
-} inj_ctrl;
+typedef struct inj_config {
+  int enable;
+  int reset;
+  int queue_mode_en;
+  int irq_prog_compl_en;
+  int irq_err_core_en;
+  int irq_err_net_en;
+  int freeze_irq_en;
+} inj_config;
 
-
-typedef struct inj_params {
-	struct inj_ctrl ctrl; 	//Injector Control Register
-	unsigned int fdesc_ptr;	//Injector First Descriptor Pointer
-	//TODO Injector Status Register
-	//TODO Injector Debug Registers
-} inj_params;
 
 /*** Descriptor Structs ***/
+// Common control word
 typedef struct desc_ctrl {
-	int en;
-        int type;
-        int irqe;
-        int addr_fix;
-        int count;
-        int size;
+  int last;
+  int type;
+  int irq_compl_en;
+  int count;
+  int size;
 } desc_ctrl;
 
-typedef struct descriptor {
-	unsigned int desc_addr;
-	struct desc_ctrl ctrl;
-	unsigned int next_desc;
-	int last_desc;
-	unsigned int dest_addr;
-	unsigned int src_addr;
-	//TODO Descriptor Status Register
+// READ and WRITE descriptor struct
+typedef struct desc_rd_wr {
+  struct desc_ctrl ctrl;  // Word 0
+  unsigned int act_addr;  // Word 1
+} desc_rd_wr;
 
-} descriptor;
+// DELAY descriptor struct
+typedef struct desc_delay {
+  struct desc_ctrl ctrl;  // Word 0
+} desc_delay;
 
 
-/*** Functions ***/
+/*** Public Function Declarations ***/
 
-/*
- * Write register
- */
+// Write APB Injector register
 void inj_write_reg (unsigned int entry, unsigned int value);
 
-/*
- * Read register
- */
+// Read APB Injector register
 unsigned int inj_read_reg (unsigned int entry);
 
-/* 
- * Start Injector with given configuration 
- */
-int inj_run ( inj_params *params );
+// Setup Injector configuration
+int inj_setup ( inj_config *config );
 
-/* 
- * Stop injector execution 
- */
-void inj_stop ( void );
+// Reset injector execution and programming
+void inj_reset ( void );
 
-/* 
- * Set up descriptor with given configuration 
- */
-void setup_descriptor ( descriptor *descriptor );
+// Check if the injector is running.
+unsigned int inj_check_run( void );
 
+// Set up descriptor control word (common)
+void setup_descriptor_control(desc_ctrl* descriptor);
 
+// Set up DELAY descriptor
+void setup_descriptor_delay(desc_delay* descriptor);
 
+// Set up READ or WRITE descriptor
+void setup_descriptor_rd_wr(desc_rd_wr* descriptor);
 
+// Template program for the injector (write on SafeTI APB serial)
+void inj_program( unsigned int DESC_N_BATCH, unsigned int DESC_TYPE, unsigned int INJ_QUEUE, unsigned int SIZE_RD_WR, unsigned int DESC_ATTACK_ADDR, unsigned int SIZE_DELAY );
