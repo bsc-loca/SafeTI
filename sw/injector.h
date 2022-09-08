@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-/*** Definitions that may vary ***/
+/*** Definitions that may require update ***/
 #define INJ_BASE_ADDR   0xfc085000  // Injector base APB addrees
 #define APB_MEM_SPACE   0x40        // Number of 32-bit spaces assigned to injector
 
@@ -41,7 +41,7 @@
 ////////////////////////
 
 // APB Configuration register index
-#define INJ_CONFIG        0x00
+#define INJ_POINTER_CONFIG  0x00
 // APB Debug register indexes
 //#define INJ_STATUS        0x01 TO BE IMPLEMENTED
 //#define INJ_FDESC_PTR     0x02 TO BE IMPLEMENTED
@@ -49,7 +49,7 @@
 //#define INJ_DESC_STATUS   0x08 TO BE IMPLEMENTED
 //#define INJ_DESC_PTR      0x09 TO BE IMPLEMENTED
 // APB Descriptor input register index
-#define INJ_PROGRAM_DESC  0x3F
+#define INJ_POINTER_PROGRAM 0x3F
 
 // Descriptor type encoding
 #define INJ_OP_DELAY      0
@@ -103,16 +103,16 @@ typedef struct desc_delay {
 /*** Public Function Declarations ***/
 
 // Write APB Injector register
-void inj_write_reg (unsigned int entry, unsigned int value);
+void inj_write_reg(unsigned int entry, unsigned int value);
 
 // Read APB Injector register
-unsigned int inj_read_reg (unsigned int entry);
+unsigned int inj_read_reg(unsigned int entry);
 
 // Setup Injector configuration
-int inj_setup ( inj_config *config );
+int inj_setup( inj_config *config );
 
 // Reset injector execution and programming
-void inj_reset ( void );
+void inj_reset( void );
 
 // Check if the injector is running.
 unsigned int inj_check_run( void );

@@ -54,14 +54,70 @@
 
 
 %----------------------------------------------------------------------------------------
-% TABLE PACKAGES AND COLOR OPTIONS
+% TABLE PACKAGES
 %----------------------------------------------------------------------------------------
 
+\usepackage{colortbl}
 \usepackage{multirow} % Used in tables
 \usepackage{booktabs}
 \usepackage{array}
 \renewcommand{\arraystretch}{1.2}
 \newcolumntype{x}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}p{#1}}
+
+
+%----------------------------------------------------------------------------------------
+% DIGITAL REGISTER TABLES
+%----------------------------------------------------------------------------------------
+
+% Rights to Matthew Lowell (lovells@gmail.com), "Register diagrams with field descriptions", 2020/03/22 
+% Register tables import package
+\usepackage{register} %Register library
+
+% Homebrew command for creating text label bellow the register figure.
+\newcommand{\regfieldtext}[3]{%
+  % Compute basic width of a single bit
+  \settowidth{\regFieldLen}{\regLabelSize \regResetName}%
+  \setlength{\regFieldLen}{\regWidth - \regFieldLen}%
+  \setlength{\regFieldLen}{\regFieldLen / \regBitWidth}%
+  % Figure out height and depth of reset field in current font
+  % Is there a more ‘‘official’’ method to do this?
+  \settodepth{\regResetDepth}{\regResetSize ()jgpq}%
+  \settoheight{\regResetHeight}{\regResetSize ()ABCjkl}%
+  %\addtolength{\regResetHeight}{\regResetDepth}%
+  % Compute how far to drop the reset fields down. The value at
+  % the end is effectively the separation between the bit position
+  % box and the reset value box.
+  %\setlength{\regResetDrop}{\regResetHeight + 2\fboxsep - 2\fboxrule + 3pt}%
+  % New lengths to support colorbox use, when fboxsep gets set to 0
+  %\setlength{\regRsvdDrop}{\regResetDrop + \fboxsep}%
+  %\setlength{\regRsvdHeight}{\regResetHeight + 2\fboxsep}%
+  \setlength{\regFieldLen}{#2\regFieldLen + \fboxrule}%
+  % Figure out bit positions
+  %\setcounter{lowerbit}{#3}%
+  %\setcounter{upperbit}{#3 + #2 - 1}%
+  % Typeset reset value in a framebox
+  \makebox[0pt][l]{\raisebox{-0.5\regResetDrop}{\makebox[\regFieldLen][c]%
+  % Place an invisible rule to control the box
+  % surrounding the reset field
+  {\regResetSize \rule[-1\regResetDepth]{0pt}{\regResetHeight}\normalsize#1}}}%
+  % Typeset bit positions in a framebox
+  \ifthenelse{#2 > 1}%
+    {\makebox[\regFieldLen][c]%
+    {\regBitSize \rule[-1\regResetDepth]{0pt}{\regResetHeight}%
+    \regBitFamily \hfill}}%
+  {\makebox[\regFieldLen][c]%
+  {\regBitSize \rule[-1\regResetDepth]{0pt}{\regResetHeight}%
+  \regBitFamily}}%
+  \hspace{-1\fboxrule}%
+}
+
+% Homebrew command for creating text label on the left.
+\newcommand{\reglabelc}[1]{%
+  %\hspace{6px}
+  \settowidth{\regFieldLen}{\regLabelSize \regResetName}%
+  $\,$\raisebox{-2.5\fboxsep}{\makebox[\regFieldLen][l]%
+  {\regLabelSize\regBitFamily\textbf{#1}}}%
+}
 
 
 %----------------------------------------------------------------------------------------
@@ -116,6 +172,8 @@
 \author{Francisco Javier Fuentes Diaz} % Your name
 \date{\today} % Today's date or a custom date
 
+\graphicspath {{img}} % Figure folder
+
 \begin{document}
 \nocite{*}
 \maketitle % Print the title
@@ -123,9 +181,9 @@
 \newpage
 \tableofcontents
 
-\input{1-module_description.tex}
+\input{1-section.tex}
 
-\input{2-software.tex}
+\input{2-section.tex}
 
 \input{7-appendix.tex}
 

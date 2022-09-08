@@ -36,7 +36,7 @@ int inj_setup(inj_config *config) {
   inj_reg = inj_reg | ((config -> irq_err_net_en     % 2) << 5);
   inj_reg = inj_reg | ((config -> freeze_irq_en      % 2) << 6);
   // Control register
-  inj_write_reg(INJ_CONFIG, inj_reg);
+  inj_write_reg(INJ_POINTER_CONFIG, inj_reg);
 
   return rsp;
 }
@@ -44,12 +44,12 @@ int inj_setup(inj_config *config) {
 // Reset injector execution and programming
 void inj_reset(void) {
   //Configuration register (0x00) (Reset bit)
-  inj_write_reg(INJ_CONFIG, 0x00000002);
+  inj_write_reg(INJ_POINTER_CONFIG, 0x00000002);
 }
 
 // Check if the injector is running. Returns 1 if is running.
 unsigned int inj_check_run(void) {
-  unsigned int running = (inj_read_reg(INJ_CONFIG) & 0x00000001);
+  unsigned int running = (inj_read_reg(INJ_POINTER_CONFIG) & 0x00000001);
   return running;
 }
 
@@ -66,7 +66,7 @@ void setup_descriptor_control(desc_ctrl* descriptor) {
   desc_word = desc_word | (((descriptor -> size - 1)    % 524288) << 13); // Transfer size
 
   // Write descriptor word to SafeTI APB serial
-  inj_write_reg(INJ_PROGRAM_DESC, desc_word);
+  inj_write_reg(INJ_POINTER_PROGRAM, desc_word);
 }
 
 // Setup for DELAY descriptors (1 word)
@@ -77,7 +77,7 @@ void setup_descriptor_delay(desc_delay* descriptor) {
 // Setup for READ and WRITE descriptors (2 words)
 void setup_descriptor_rd_wr(desc_rd_wr* descriptor) {
   setup_descriptor_control(&(descriptor -> ctrl));          // Setup the control word
-  inj_write_reg(INJ_PROGRAM_DESC, descriptor -> act_addr);  // Setup the action address
+  inj_write_reg(INJ_POINTER_PROGRAM, descriptor -> act_addr);  // Setup the action address
 }
 
 
