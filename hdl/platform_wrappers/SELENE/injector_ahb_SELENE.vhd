@@ -31,7 +31,6 @@ entity injector_ahb_SELENE is
     PC_LEN            : integer range 2 to   10       :=    4;      -- Set the maximum number of programmable descriptor words to 2^PC_LEN
     CORE_DATA_WIDTH   : integer range 8 to 1024       :=   32;      -- Data width of the injector core. [Only power of 2s allowed]
     MAX_SIZE_BURST    : integer range 8 to 1024       := 1024;      -- Maximum number of bytes allowed at a burst transaction.
-    ASYNC_RST         : boolean                       := TRUE       -- Allow asynchronous reset
     tech              : integer range  0 to NTECH     := inferred;  -- Target technology
     -- APB configuration
     pindex            : integer                       := 0;         -- APB configuartion slave index
@@ -80,23 +79,21 @@ architecture rtl of injector_ahb_SELENE is
   --constant burst_chop_mask : integer := (max_burst_length*(log2(AHBDW)-1));
   constant max_burst_length : integer := MAX_SIZE_BURST/(AHBDW/8);
 
-  -----------------------------------------------------------------------------
-  -- Records and types
-  -----------------------------------------------------------------------------
 
   -----------------------------------------------------------------------------
   -- Signal declaration
   -----------------------------------------------------------------------------
+
+  -- BM0 AHB interface signals
   signal ahb_bmsti  : ahb_bmst_in_type;
   signal ahb_bmsto  : ahb_bmst_out_type;
-  signal apbi_inj   : apb_slave_in_type;
-  signal apbo_inj   : apb_slave_out_type;
-  signal bm_mosi    : bm_mosi;
-  signal bm_miso    : bm_miso;
+  -- SafeTI APB signals
+  signal apbi_inj   : apb_slave_in;
+  signal apbo_inj   : apb_slave_out;
+  -- SafeTI IB/BM signals
+  signal ib_mosi    : ib_mosi;
+  signal ib_miso    : ib_miso;
 
-  -----------------------------------------------------------------------------
-  -- Function/procedure declaration
-  -----------------------------------------------------------------------------
 
 begin  -- rtl
 
@@ -121,7 +118,7 @@ begin  -- rtl
 
   apbo.prdata       <= apbo_inj.rdata;
   apbo.pirq         <= apbo_inj.irq;
-  apbo.pindex       <= apbo_inj.index;
+  apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 
   apbi_inj.sel      <= apbi.psel;
@@ -130,43 +127,22 @@ begin  -- rtl
   apbi_inj.wr_en    <= apbi.pwrite;
   apbi_inj.wdata    <= apbi.pwdata;
   apbi_inj.irq      <= apbi.pirq;
-  apbi_inj.ten      <= apbi.testen;
-  apbi_inj.trst     <= apbi.testrst;
-  apbi_inj.scnen    <= apbi.scanen;
-  apbi_inj.touten   <= apbi.testoen;
-  apbi_inj.tinen    <= apbi.testin;
+  --apbi_inj.ten      <= apbi.testen;
+  --apbi_inj.trst     <= apbi.testrst;
+  --apbi_inj.scnen    <= apbi.scanen;
+  --apbi_inj.touten   <= apbi.testoen;
+  --apbi_inj.tinen    <= apbi.testin;
 
 
   -----------------------------------------------------------------------------
   -- Component instantiation
   -----------------------------------------------------------------------------
 
-  -- injector_ahb
-  ahb : injector_ahb
-    generic map(
-      -- SafeTI configuration
-      PC_LEN            => PC_LEN,
-      CORE_DATA_WIDTH   => CORE_DATA_WIDTH,
-      MAX_SIZE_BURST    => MAX_SIZE_BURST,
-      ASYNC_RST         => ASYNC_RST
-      )
-    port map(
-      rstn              => rstn,              -- Reset
-      clk               => clk,               -- Clock
-      -- APB interface signals
-      apbi              => apbi_inj,          -- APB slave input
-      apbo              => apbo_inj,          -- APB slave output
-      -- AHB interface signals
-      bm_mosi           => bm_mosi,           -- For AHB master 0 input
-      bm_miso           => bm_miso            -- For AHB master 0 output
-    );
-
-
-  -- BM0
+  -- BM0 AHB interface
   bm0 : generic_bm_ahb
     generic map(
       async_reset      => ASYNC_RST,
-      bm_dw            => dbits,
+      bm_dw            => CORE_DATA_WIDTH,
       be_dw            => AHBDW,
       be_rd_pipe       => 0,
       max_size         => MAX_SIZE_BURST,
@@ -182,27 +158,45 @@ begin  -- rtl
       ahbmo            => ahb_bmsto,
       hrdata           => ahbmi.hrdata,
       hwdata           => ahbmo.hwdata,
-      bmrd_addr        => bm_mosi.rd_addr,
-      bmrd_size        => bm_mosi.rd_size(9 downto 0),
-      bmrd_req         => bm_mosi.rd_req,
-      bmrd_req_granted => bm_miso.rd_req_grant,
-      bmrd_data        => bm_miso.rd_data(127 downto 128-dbits),
-      bmrd_valid       => bm_miso.rd_valid,
-      bmrd_done        => bm_miso.rd_done,
-      bmrd_error       => bm_miso.rd_err,
-      bmwr_addr        => bm_mosi.wr_addr,
-      bmwr_size        => bm_mosi.wr_size(9 downto 0),
-      bmwr_req         => bm_mosi.wr_req,
-      bmwr_req_granted => bm_miso.wr_req_grant,
-      bmwr_data        => bm_mosi.wr_data(127 downto 128-dbits),
-      bmwr_full        => bm_miso.wr_full,
-      bmwr_done        => bm_miso.wr_done,
-      bmwr_error       => bm_miso.wr_err,
+      bmrd_addr        => ib_mosi.rd_addr,
+      bmrd_size        => ib_mosi.rd_size(9 downto 0),
+      bmrd_req         => ib_mosi.rd_req,
+      bmrd_req_granted => ib_miso.rd_req_grant,
+      bmrd_data        => ib_miso.rd_data(CORE_DATA_WIDTH - 1 downto 0),
+      bmrd_valid       => ib_miso.rd_valid,
+      bmrd_done        => ib_miso.rd_done,
+      bmrd_error       => ib_miso.rd_err,
+      bmwr_addr        => ib_mosi.wr_addr,
+      bmwr_size        => ib_mosi.wr_size(9 downto 0),
+      bmwr_req         => ib_mosi.wr_req,
+      bmwr_req_granted => ib_miso.wr_req_grant,
+      bmwr_data        => ib_mosi.wr_data(CORE_DATA_WIDTH - 1 downto 0),
+      bmwr_full        => ib_miso.wr_full,
+      bmwr_done        => ib_miso.wr_done,
+      bmwr_error       => ib_miso.wr_err,
       excl_en          => '0',
       excl_nowrite     => '0',
       excl_done        => open,
       excl_err         => open
-      );
+    );
+
+  -- Injector core
+  core : injector_core
+    generic map (
+      PC_LEN          => PC_LEN,
+      CORE_DATA_WIDTH => CORE_DATA_WIDTH,
+      MAX_SIZE_BURST  => MAX_SIZE_BURST,
+      ASYNC_RST       => ASYNC_RST
+    )
+    port map (
+      rstn            => rstn,
+      clk             => clk,
+      apbi            => apbi,
+      apbo            => apbo,
+      ib_out          => ib_mosi,
+      ib_in           => ib_miso,
+      network_profile => open
+    );
 
 
 end architecture rtl;

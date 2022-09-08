@@ -18,6 +18,7 @@ use safety.injector_pkg.all;
 entity injector_apb is
   generic (
     PC_LEN          : integer                         := 4;   -- Length of PC register
+    DEFAULT_PROFILE : std_logic_vector(31 downto 0)   := (others => '0'); -- Default Network profile.
     ASYNC_RST       : boolean                         := TRUE -- Allow asynchronous reset flag
   );
   port (
@@ -26,6 +27,7 @@ entity injector_apb is
     clk             : in  std_ulogic;                         -- Clock
     apbi            : in  apb_slave_in;                       -- APB slave input
     apbo            : out apb_slave_out;                      -- APB slave output
+    network_profile : out std_logic_vector(31 downto 0);      -- Network profile to apply during transaction requests
   -- Internal I/O
     -- Signals for CONTROL
     gen_config      : out injector_config;                    -- General injector configuration signals
@@ -58,6 +60,7 @@ architecture rtl of injector_apb is
   
   type apb_reg is record
     gen_config      : injector_config;              -- Injector general configuration
+    network_profile : std_logic_vector(31 downto 0);-- Generic network profile register
     desc_word       : std_logic_vector(31 downto 0);-- Descriptor word APB input register
     desc_wen        : std_logic;                    -- Write enable of descriptor word input
     irq             : std_logic;                    -- Interruption flag register
@@ -65,7 +68,7 @@ architecture rtl of injector_apb is
   end record apb_reg;
 
   -- Reset values for APB registers.
-  constant RESET_INJECTOR_CONFIG  : injector_config  := (
+  constant RESET_INJECTOR_CONFIG  : injector_config := (
     enable            => '0',
     reset_sw          => '0',
     queue_mode_en     => '0',
@@ -79,7 +82,7 @@ architecture rtl of injector_apb is
     others            => ( others => '0' )
   );
 
-  constant RESET_APB_DEBUG        : apb_debug        := (
+  constant RESET_APB_DEBUG        : apb_debug       := (
     fetch_pc          => (others => '0'),
     fetch_status      => (others => '0'),
     fetch_desc        => RESET_DESC_WORDS,
@@ -91,8 +94,9 @@ architecture rtl of injector_apb is
     exe_desc          => RESET_DESC_WORDS
   );
 
-  constant RESET_APB_REGS         : apb_reg          := (
+  constant RESET_APB_REGS         : apb_reg         := (
     gen_config        => RESET_INJECTOR_CONFIG,
+    network_profile   => DEFAULT_PROFILE,
     desc_word         => (others => '0'),
     desc_wen          => '0',
     irq               => '0',
@@ -116,6 +120,7 @@ begin -- rtl
 
   -- I/O assignments
   apbo.irq        <= apb_regs.irq;
+  network_profile <= apb_regs.network_profile;
 
   -- Internal output signals from APB interface module
   gen_config      <= apb_regs.gen_config;
@@ -130,7 +135,7 @@ begin -- rtl
   comb0 : process(apbi, apb_regs)
   begin
     -- Default signaling APB output
-    apbo.rdata        <= (others => '0');
+    apbo.rdata          <= (others => '0');
 
     if(apbi.sel = '1' and apbi.en = '1' and apbi.wr_en = '0') then
       case apbi.addr(7 downto 2) is
@@ -156,6 +161,9 @@ begin -- rtl
           --apbo.rdata(9)  <= r.sts.rd_nxt_ptr_err;
           --apbo.rdata(14 downto 10) <= sts_in.state;
           --apbo.rdata(31 downto 15) <= (others => '0');
+
+        when "111110" =>                --0xF8 Network interface configuration
+          apbo.rdata    <= apb_regs.network_profile;
 
         when others => 
           null;
@@ -204,10 +212,13 @@ begin -- rtl
               --v.sts.read_if_rd_data_err   := r.sts.read_if_rd_data_err and not(apbi.wdata(8));
               --v.sts.write_if_wr_data_err  := r.sts.write_if_wr_data_err and not(apbi.wdata(9));
               --v.sts.rd_nxt_ptr_err        := r.sts.rd_nxt_ptr_err and not(apbi.wdata(10));
+
+            when "111110" =>                --0xF8 Network interface configuration
+              apb_regs.network_profile  <= apbi.wdata;
           
             when "111111" =>                --0xFC Descriptor word input
-              apb_regs.desc_word      <= apbi.wdata;
-              apb_regs.desc_wen       <= '1';
+              apb_regs.desc_word        <= apbi.wdata;
+              apb_regs.desc_wen         <= '1';
 
             when others =>
               null;

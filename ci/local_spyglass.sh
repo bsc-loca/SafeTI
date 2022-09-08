@@ -17,7 +17,6 @@ echo "#!SPYGLASS_PROJECT_FILE" >> /tmp/$N/$N.prj
 echo "#!VERSION 3.0" >> /tmp/$N/$N.prj
 echo "##Data Import Section" >> /tmp/$N/$N.prj
 # Add here your files and submodules
-#echo "read_file -type vhdl $PWD/../hdl/network_interfaces/injector_ahb.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/network_interfaces/injector_axi.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/network_interfaces/axi4_manager.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_core.vhd" >> /tmp/$N/$N.prj

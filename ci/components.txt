@@ -1,5 +1,4 @@
 # Project files to test with SpyGlass
-#../hdl/network_interfaces/injector_ahb.vhd
 ../hdl/network_interfaces/injector_axi.vhd
 ../hdl/network_interfaces/axi4_manager.vhd
 ../hdl/injector_core.vhd

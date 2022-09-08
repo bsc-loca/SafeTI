@@ -18,20 +18,22 @@ use safety.injector_pkg.all;
 entity injector_core is
   generic (
     -- Injector configuration
-    PC_LEN            : integer range 2 to   10     :=    4;  -- Set the maximum number of programmable descriptor words to 2^PC_LEN
-    CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
-    MAX_SIZE_BURST    : integer range 8 to 4096     := 1024;  -- Maximum number of bytes allowed at a burst transaction.
-    ASYNC_RST         : boolean                     := TRUE   -- Allow asynchronous reset
+    PC_LEN            : integer range 2 to   10       :=    4;  -- Set the maximum number of programmable descriptor words to 2^PC_LEN
+    CORE_DATA_WIDTH   : integer range 8 to 1024       :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
+    MAX_SIZE_BURST    : integer range 8 to 4096       := 1024;  -- Maximum number of bytes allowed at a burst transaction.
+    DEFAULT_PROFILE   : std_logic_vector(31 downto 0) := (others => '0'); -- Default Network profile.
+    ASYNC_RST         : boolean                       := TRUE   -- Allow asynchronous reset
   );
   port (
-    rstn              : in  std_ulogic;                       -- Reset
-    clk               : in  std_ulogic;                       -- Clock
+    rstn              : in  std_ulogic;                         -- Reset
+    clk               : in  std_ulogic;                         -- Clock
     -- APB interface signals
-    apbi              : in  apb_slave_in;                     -- APB slave input
-    apbo              : out apb_slave_out;                    -- APB slave output
-    -- Bus master signals
-    ib_out            : out ib_mosi;                          -- Input to network interface
-    ib_in             : in  ib_miso                           -- Output from network interface
+    apbi              : in  apb_slave_in;                       -- APB slave input
+    apbo              : out apb_slave_out;                      -- APB slave output
+    -- Interface Bus master and generic network profile configuration signals
+    ib_out            : out ib_mosi;                            -- Input to network interface
+    ib_in             : in  ib_miso;                            -- Output from network interface
+    network_profile   : out std_logic_vector(31 downto 0)       -- Network profile to apply during transaction requests
   );
 end entity injector_core;
 
@@ -101,32 +103,34 @@ architecture rtl of injector_core is
   -- APB interface
   component injector_apb is
     generic (
-      PC_LEN          : integer                     := 4;     -- Length of PC register
-      ASYNC_RST       : boolean                     := TRUE   -- Allow asynchronous reset flag
+      PC_LEN          : integer                       := 4;     -- Length of PC register
+      DEFAULT_PROFILE : std_logic_vector(31 downto 0) := (others => '0'); -- Default Network profile.
+      ASYNC_RST       : boolean                       := TRUE   -- Allow asynchronous reset flag
     );
     port (
     -- External I/O
-      rstn            : in  std_ulogic;                       -- Reset
-      clk             : in  std_ulogic;                       -- Clock
-      apbi            : in  apb_slave_in;                     -- APB slave input
-      apbo            : out apb_slave_out;                    -- APB slave output
+      rstn            : in  std_ulogic;                         -- Reset
+      clk             : in  std_ulogic;                         -- Clock
+      apbi            : in  apb_slave_in;                       -- APB slave input
+      apbo            : out apb_slave_out;                      -- APB slave output
+      network_profile : out std_logic_vector(31 downto 0);      -- Network profile to apply during transaction requests
     -- Internal I/O
       -- Signals for CONTROL
-      gen_config      : out injector_config;                  -- General injector configuration signals
+      gen_config      : out injector_config;                    -- General injector configuration signals
       -- Signals for FETCH
-      desc_word       : out std_logic_vector(31 downto 0);    -- Descriptor word input register from APB
-      desc_word_wen   : out std_logic;                        -- Write enable for descriptor word input
+      desc_word       : out std_logic_vector(31 downto 0);      -- Descriptor word input register from APB
+      desc_word_wen   : out std_logic;                          -- Write enable for descriptor word input
       -- Signals from CONTROL
-      disable         : in  std_logic;                        -- Turn off injector execution flag
-      irq_flag        : in  std_logic                         -- Interruption flag for APB output
+      disable         : in  std_logic;                          -- Turn off injector execution flag
+      irq_flag        : in  std_logic                           -- Interruption flag for APB output
     );
   end component injector_apb;
 
   -- FETCH pipeline stage
   component injector_fetch is
     generic (
-      PC_LEN          : integer                     := 4;     -- Length of PC register
-      ASYNC_RST       : boolean                     := TRUE   -- Allow asynchronous reset flag
+      PC_LEN          : integer                       := 4;     -- Length of PC register
+      ASYNC_RST       : boolean                       := TRUE   -- Allow asynchronous reset flag
     );
     port (
       -- External I/O
@@ -239,6 +243,7 @@ begin  -- rtl
   -- Assignments
   -----------------------------------------------------------------------------
 
+  
   err_network <= ib_in.rd_err & ib_in.wr_err;
 
 
@@ -250,6 +255,7 @@ begin  -- rtl
   apb : injector_apb
     generic map (
       PC_LEN            => PC_LEN,
+      DEFAULT_PROFILE   => DEFAULT_PROFILE,
       ASYNC_RST         => ASYNC_RST
     )
     port map (
@@ -258,6 +264,7 @@ begin  -- rtl
       clk               => clk,
       apbi              => apbi,
       apbo              => apbo,
+      network_profile   => network_profile,
     -- Internal I/O
       -- Signals for CONTROL
       gen_config        => inj_config,

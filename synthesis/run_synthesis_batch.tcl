@@ -9,7 +9,6 @@ file mkdir $outputDir
 # STEP#1: setup design sources and constraints
 #
 read_vhdl -library safety ../hdl/injector_pkg.vhd
-read_vhdl ../hdl/network_interfaces/injector_ahb.vhd
 read_vhdl ../hdl/injector_core.vhd
 read_vhdl ../hdl/injector_apb.vhd
 read_vhdl ../hdl/injector_fetch.vhd
