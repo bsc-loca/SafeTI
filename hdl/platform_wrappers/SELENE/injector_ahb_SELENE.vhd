@@ -28,17 +28,17 @@ use techmap.gencomp.all;
 entity injector_ahb_SELENE is
   generic (
     -- SafeTI configuration
-    PC_LEN            : integer range 2 to   10       :=    4;      -- Set the maximum number of programmable descriptor words to 2^PC_LEN
-    CORE_DATA_WIDTH   : integer range 8 to 1024       :=   32;      -- Data width of the injector core. [Only power of 2s allowed]
+    INJ_MEM_LENGTH    : integer range 2 to   10       :=    4;      -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
     MAX_SIZE_BURST    : integer range 8 to 1024       := 1024;      -- Maximum number of bytes allowed at a burst transaction.
-    tech              : integer range  0 to NTECH     := inferred;  -- Target technology
+    tech              : integer range 0 to NTECH      := inferred;  -- Target technology
     -- APB configuration
     pindex            : integer                       := 0;         -- APB configuartion slave index
     paddr             : integer                       := 0;         -- APB configuartion slave address
     pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
     pirq              : integer range  0 to NAHBIRQ-1 := 0;         -- APB configuartion slave irq
     -- AHB configuration
-    hindex            : integer                       := 0          -- AHB master index 0
+    AHB_DATAW         : integer range 8  to 1024      := 32;        -- Data bus width of AHB. [Only power of 2s allowed]
+    hindex            : integer                       :=  0         -- AHB master index 0
     );
   port (
     rstn              : in  std_ulogic;                   -- Reset
@@ -79,6 +79,8 @@ architecture rtl of injector_ahb_SELENE is
   --constant burst_chop_mask : integer := (max_burst_length*(log2(AHBDW)-1));
   constant max_burst_length : integer := MAX_SIZE_BURST/(AHBDW/8);
 
+  constant CORE_DATA_WIDTH  : integer := AHB_DATAW;
+
 
   -----------------------------------------------------------------------------
   -- Signal declaration
@@ -117,16 +119,16 @@ begin  -- rtl
   ahbmo.hindex      <= hindex;
 
   apbo.prdata       <= apbo_inj.rdata;
-  apbo.pirq         <= apbo_inj.irq;
+  apbo.pirq(pirq)   <= apbo_inj.irq;
   apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 
-  apbi_inj.sel      <= apbi.psel;
+  apbi_inj.sel      <= apbi.psel(pindex);
   apbi_inj.en       <= apbi.penable;
   apbi_inj.addr     <= apbi.paddr;
   apbi_inj.wr_en    <= apbi.pwrite;
   apbi_inj.wdata    <= apbi.pwdata;
-  apbi_inj.irq      <= apbi.pirq;
+  apbi_inj.irq      <= apbi.pirq(pirq);
   --apbi_inj.ten      <= apbi.testen;
   --apbi_inj.trst     <= apbi.testrst;
   --apbi_inj.scnen    <= apbi.scanen;
@@ -183,7 +185,7 @@ begin  -- rtl
   -- Injector core
   core : injector_core
     generic map (
-      PC_LEN          => PC_LEN,
+      PC_LEN          => INJ_MEM_LENGTH,
       CORE_DATA_WIDTH => CORE_DATA_WIDTH,
       MAX_SIZE_BURST  => MAX_SIZE_BURST,
       ASYNC_RST       => ASYNC_RST
@@ -191,8 +193,8 @@ begin  -- rtl
     port map (
       rstn            => rstn,
       clk             => clk,
-      apbi            => apbi,
-      apbo            => apbo,
+      apbi            => apbi_inj,
+      apbo            => apbo_inj,
       ib_out          => ib_mosi,
       ib_in           => ib_miso,
       network_profile => open

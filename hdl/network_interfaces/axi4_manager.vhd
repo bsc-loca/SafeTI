@@ -444,27 +444,27 @@ begin -- rtl
       axi4mo.aw_id      <= (axi4mo.aw_id'high   downto ID_W_WIDTH => '0') & std_logic_vector( to_unsigned(axi_id, ID_W_WIDTH) );
       axi4mo.aw_addr    <= (axi4mo.aw_addr'high downto ADDR_WIDTH => '0') & wr_burst.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
                           & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
-      axi4mo.aw_region  <= (others => '0');
+      axi4mo.aw_region  <= wr_burst.hs.axi_qos;
       axi4mo.aw_len     <= wr_burst.hs.axi_len;  -- Number of beats
       axi4mo.aw_size    <= wr_burst.hs.axi_size; -- Beat size
       axi4mo.aw_burst   <= wr_burst.hs.axi_mode; -- Burst mode
       axi4mo.aw_lock    <= '0';
       axi4mo.aw_cache   <= wr_burst.hs.axi_cache;
       axi4mo.aw_prot    <= wr_burst.hs.axi_prot;
-      axi4mo.aw_qos     <= (others => '0');
+      axi4mo.aw_qos     <= wr_burst.hs.axi_qos;
       axi4mo.aw_valid   <= wr_burst.hs.axi_valid;
     elsif(wr_main.hs.axi_valid = '1') then
       axi4mo.aw_id      <= (axi4mo.aw_id'high   downto ID_W_WIDTH => '0') & std_logic_vector( to_unsigned(axi_id, ID_W_WIDTH) );
       axi4mo.aw_addr    <= (axi4mo.aw_addr'high downto ADDR_WIDTH => '0') & wr_main.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
                           & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
-      axi4mo.aw_region  <= (others => '0');
+      axi4mo.aw_region  <= wr_main.hs.axi_region;
       axi4mo.aw_len     <= wr_main.hs.axi_len;  -- Number of beats
       axi4mo.aw_size    <= wr_main.hs.axi_size; -- Beat size
       axi4mo.aw_burst   <= wr_main.hs.axi_mode; -- Burst mode
       axi4mo.aw_lock    <= '0';
       axi4mo.aw_cache   <= wr_main.hs.axi_cache;
       axi4mo.aw_prot    <= wr_main.hs.axi_prot;
-      axi4mo.aw_qos     <= (others => '0');
+      axi4mo.aw_qos     <= wr_main.hs.axi_qos;
       axi4mo.aw_valid   <= wr_main.hs.axi_valid;
     else
       axi4mo.aw_id      <= (others => '0');
@@ -491,27 +491,27 @@ begin -- rtl
       axi4mo.ar_id      <= (axi4mo.ar_id'high   downto ID_R_WIDTH => '0') & std_logic_vector(to_unsigned(axi_id, ID_R_WIDTH));
       axi4mo.ar_addr    <= (axi4mo.ar_addr'high downto ADDR_WIDTH => '0') & rd_burst.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
                            & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
-      axi4mo.ar_region  <= (others => '0');
+      axi4mo.ar_region  <= rd_burst.hs.axi_region;
       axi4mo.ar_len     <= rd_burst.hs.axi_len;  -- Number of beats
       axi4mo.ar_size    <= rd_burst.hs.axi_size; -- Beat size
       axi4mo.ar_burst   <= rd_burst.hs.axi_mode; -- Burst mode
       axi4mo.ar_lock    <= '0';
       axi4mo.ar_cache   <= rd_burst.hs.axi_cache;
       axi4mo.ar_prot    <= rd_burst.hs.axi_prot;
-      axi4mo.ar_qos     <= (others => '0');
+      axi4mo.ar_qos     <= rd_burst.hs.axi_qos;
       axi4mo.ar_valid   <= rd_burst.hs.axi_valid;
     elsif(rd_main.hs.axi_valid = '1') then
       axi4mo.ar_id      <= (axi4mo.ar_id'high   downto ID_R_WIDTH => '0') & std_logic_vector(to_unsigned(axi_id, ID_R_WIDTH));
       axi4mo.ar_addr    <= (axi4mo.ar_addr'high downto ADDR_WIDTH => '0') & rd_main.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
                            & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
-      axi4mo.ar_region  <= (others => '0');
+      axi4mo.ar_region  <= rd_main.hs.axi_region;
       axi4mo.ar_len     <= rd_main.hs.axi_len;
       axi4mo.ar_size    <= rd_main.hs.axi_size;
       axi4mo.ar_burst   <= rd_main.hs.axi_mode;
       axi4mo.ar_lock    <= '0';
       axi4mo.ar_cache   <= rd_main.hs.axi_cache;
       axi4mo.ar_prot    <= rd_main.hs.axi_prot;
-      axi4mo.ar_qos     <= (others => '0');
+      axi4mo.ar_qos     <= rd_main.hs.axi_qos;
       axi4mo.ar_valid   <= rd_main.hs.axi_valid;
     else
       axi4mo.ar_id      <= (others => '0');

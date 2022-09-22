@@ -195,9 +195,9 @@ begin
             else
               size_transf_rem       <= size_transf_rem - CORE_DATA_WIDTH/8;
             end if;
-          else -- Correct done timing.
-            size_transf_rem         <= (others => '0');
-            transfer_on             <= '0';
+          elsif(req_granted = '0') then -- Correct done timing. Only set to 0 if not set by "Transaction request generation"
+              size_transf_rem       <= (others => '0');
+              transfer_on           <= '0';
           end if;
         end if;
 

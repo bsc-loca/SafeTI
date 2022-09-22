@@ -19,7 +19,7 @@ vsim-launch: compile
 
 #Launches the simulation in batch mode
 vsim: compile
-	vsim -voptargs=+acc tb_injector -do "run -all" <<!
+	vsim -voptargs=+acc tb_injector -do "do wave.do" -do "run -all" <<!
 
 #Analyzes the results of the simulation
 launch-tb : vsim

@@ -27,7 +27,6 @@ entity injector_axi4_SELENE is
     INJ_MEM_LENGTH: integer range  2 to   10            :=    4;    -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
     MAX_SIZE_BURST: integer range  8 to 4096            := 4096;    -- Maximum size of a beat at a burst transaction.
     tech          : integer range  0 to NTECH           := inferred;-- Target technology
-    two_injectors : boolean                             := FALSE;   -- Implement two SafeTI modules for continuous transaction requests
     -- APB configuration
     pindex        : integer                             := 0;       -- APB configuartion slave index
     paddr         : integer                             := 0;       -- APB configuartion slave address
@@ -152,6 +151,7 @@ begin  -- rtl
   axi4mo.ar.cache   <= axi_mo.ar_cache;
   axi4mo.ar.prot    <= axi_mo.ar_prot;
   axi4mo.ar.valid   <= axi_mo.ar_valid;
+  axi4mo.ar.qos     <= axi_mo.ar_qos;
   axi4mo.r.ready    <= axi_mo.r_ready;
 
   -- APB Slave input to the injectors

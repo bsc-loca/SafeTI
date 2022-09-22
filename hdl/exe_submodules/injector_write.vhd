@@ -203,6 +203,9 @@ begin
         -- After transfer is done, wait for done response.
         if(done_wait = '1') then
           done_wait                 <= not(ib_done);
+        elsif(ib_done = '1') then -- Or, if instead the done signals is errouneously timmed, proceed with next transaction.
+          size_transf_rem         <= (others => '0');
+          transfer_on             <= '0';
         end if;
 
 
