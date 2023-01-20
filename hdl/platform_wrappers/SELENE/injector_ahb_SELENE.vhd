@@ -32,10 +32,10 @@ entity injector_ahb_SELENE is
     MAX_SIZE_BURST    : integer range 8 to 1024       := 1024;      -- Maximum number of bytes allowed at a burst transaction.
     tech              : integer range 0 to NTECH      := inferred;  -- Target technology
     -- APB configuration
-    pindex            : integer                       := 0;         -- APB configuartion slave index
-    paddr             : integer                       := 0;         -- APB configuartion slave address
-    pmask             : integer                       := 16#FFF#;   -- APB configuartion slave mask
-    pirq              : integer range  0 to NAHBIRQ-1 := 0;         -- APB configuartion slave irq
+    pindex            : integer                       := 0;         -- APB configuration slave index
+    paddr             : integer                       := 0;         -- APB configuration slave address
+    pmask             : integer                       := 16#FFF#;   -- APB configuration slave mask
+    pirq              : integer range  0 to NAHBIRQ-1 := 0;         -- APB configuration slave irq
     -- AHB configuration
     AHB_DATAW         : integer range 8  to 1024      := 32;        -- Data bus width of AHB. [Only power of 2s allowed]
     hindex            : integer                       :=  0         -- AHB master index 0

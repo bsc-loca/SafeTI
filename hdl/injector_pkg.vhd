@@ -13,7 +13,7 @@ use ieee.numeric_std.all;
 package injector_pkg is
 
 -------------------------------------------------------------------------------
--- Parametric constants 
+-- Parametric constants
 -------------------------------------------------------------------------------
 
   constant MAX_DESC_WORDS   : integer := 2; -- Maximum number of words for descriptors.
@@ -22,7 +22,7 @@ package injector_pkg is
 
 
 -------------------------------------------------------------------------------
--- Labels 
+-- Labels
 -------------------------------------------------------------------------------
 
   -- Descriptor types (action_type)
@@ -32,6 +32,8 @@ package injector_pkg is
   constant OP_BRANCH      : std_logic_vector(4 downto 0) := "00100"; -- TODO: Implement the BRANCH operation.
   constant OP_READ_FIX    : std_logic_vector(4 downto 0) := "00101";
   constant OP_WRITE_FIX   : std_logic_vector(4 downto 0) := "00110";
+  constant OP_READ_SEQ    : std_logic_vector(4 downto 0) := "01001";
+  constant OP_WRITE_SEQ   : std_logic_vector(4 downto 0) := "01010";
   constant OP_META        : std_logic_vector(4 downto 0) := "11111"; -- TODO: Use META type to add new descriptor words.
 
   -- Debug states
@@ -50,7 +52,7 @@ package injector_pkg is
 
 
 -------------------------------------------------------------------------------
--- Common types 
+-- Common types
 -------------------------------------------------------------------------------
 
   -- Descriptor words type
@@ -69,10 +71,10 @@ package injector_pkg is
     decode            : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
     exe               : std_logic_vector(MAX_STATUS_LEN - 1 downto 0);
   end record pipeline_state_array;
-  
+
 
 -------------------------------------------------------------------------------
--- External I/O signaling types 
+-- External I/O signaling types
 -------------------------------------------------------------------------------
 
   -- IB bus types
@@ -132,7 +134,7 @@ package injector_pkg is
     irq_prog_compl_en : std_logic;  -- Program completion interrupt enable
     irq_err_core_en   : std_logic;  -- Error interrupt enable for core errors
     irq_err_net_en    : std_logic;  -- Error interrupt enable for network errors
-    freeze_irq_en     : std_logic;  -- Freeze injector at interruption       
+    freeze_irq_en     : std_logic;  -- Freeze injector at interruption
   end record injector_config;
 
 
@@ -186,7 +188,10 @@ package injector_pkg is
   -- Computes the ceil log base two from an integer.
   -- This function is NOT for describing hardware, just to compute bus lengths and pre-synthesis stuff.
   function log_2(max_size : integer) return integer;
-  
+
+  -- If_else operation for where VHDL lacks the functionality.
+  function if_else(cond : boolean; a, b : integer) return integer;
+
 
   -------------------------------------------------------------------------------
   -- Component declaration
@@ -223,7 +228,7 @@ package body injector_pkg is
   -- Functions body
   -------------------------------------------------------------------------------
 
-  -- Function used to compute bus lengths. DO NOT attempt to use it as 
+  -- Function used to compute bus lengths. DO NOT attempt to use it as
   -- combinational logic, just to compute values pre-synthesis.
   function log_2(max_size : integer) return integer is
     variable res : integer := 0;
@@ -233,6 +238,16 @@ package body injector_pkg is
     end loop;
     return res;
   end log_2;
-    
+
+  -- If_else operation for where VHDL lacks the functionality.
+  function if_else(cond : boolean; a, b : integer) return integer is
+  begin
+    if cond then
+      return a;
+    else
+      return b;
+    end if;
+  end if_else;
+
 
 end package body injector_pkg;

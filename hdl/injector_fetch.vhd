@@ -114,7 +114,7 @@ begin -- rtl
         desc_w_stop <= to_unsigned(0, desc_w_stop'length);
 
       -- Operations that are encoded by two words
-      when OP_READ | OP_WRITE | OP_READ_FIX | OP_WRITE_FIX =>
+      when OP_READ | OP_WRITE | OP_READ_FIX | OP_WRITE_FIX | OP_READ_SEQ | OP_WRITE_SEQ =>
         desc_w_stop <= to_unsigned(1, desc_w_stop'length);
 
       --when OP_BRANCH    =>  desc_w_stop <= to_unsigned(0, desc_w_stop'length);

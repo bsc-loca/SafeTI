@@ -1,11 +1,11 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:        tb_injector_axi
 -- File:          tb_injector_axi.vhd
 -- Author:        Francis Fuentes
 -- Description:   Testbench AXI4 manager interface + injector top level entity.
 -- Compatibility: This TB requires VHDL2008. However, it is compatible with older
 --                compilers by comenting VHDL2008 and uncommenting !VHDL2008 lines.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -20,15 +20,15 @@ use std.env.all; -- VHDL2008
 -----------------------------------------------------------------------------
 -- Top level testbench entity for SafeTI with AXI4 Manager interface.
 --
--- This testbench setting is not thought to be used as an automated testing tool, since the tb logic 
--- is not prepared to fetch for AXI manager's. In addition, it requires a AXI4 Subordinate module that 
+-- This testbench setting is not thought to be used as an automated testing tool, since the tb logic
+-- is not prepared to fetch for AXI manager's. In addition, it requires a AXI4 Subordinate module that
 -- is not included with this testbench, which can be procured by generating a Full AXI4 Manager from Xilinx
 -- Vivado IP core Wizard.
 --
--- At the moment, only particular tests (test X) are used, where the user may change the size_vector 
--- and addr_vector to test specific cases. It also includes a software reset test to check that the 
+-- At the moment, only particular tests (test X) are used, where the user may change the size_vector
+-- and addr_vector to test specific cases. It also includes a software reset test to check that the
 -- injector internals are reset without getting stuck any ongoing AXI burst.
--- 
+--
 -----------------------------------------------------------------------------
 
 entity tb_injector_axi is
@@ -67,7 +67,7 @@ architecture rtl of tb_injector_axi is
   constant irq_desc_compl_en : std_logic                  := '0';           -- Enable interruption at descriptor completion
   constant irq_prog_compl_en : std_logic                  := '1';           -- Enable interruption at program completion
 
-  -- Freeze at interruption, Interruption enabled due to error at the network, at the injector or 
+  -- Freeze at interruption, Interruption enabled due to error at the network, at the injector or
   -- due to program completion, Queue mode, SW reset, enable injector.
 
   -- Injector core configuration with Queue mode disabled:
@@ -79,7 +79,7 @@ architecture rtl of tb_injector_axi is
 
   -- AXI TEST X (Unaligned address and different size tests)
   --constant size_vector    : array_integer(0 to 1) := (4096, 0);
-  --constant addr_vector    : addr_bank(0 to 16)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005", X"0000_0006", 
+  --constant addr_vector    : addr_bank(0 to 16)    := (X"0000_0000", X"0000_0001", X"0000_0002", X"0000_0003", X"0000_0004", X"0000_0005", X"0000_0006",
   --X"0000_0007", X"0000_0008", X"0000_0009", X"0000_000A", X"0000_000B", X"0000_000C", X"0000_000D", X"0000_000E", X"0000_000F", X"0000_0000");
   constant size_vector    : array_integer(0 to 40)  := (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,
                                                        64,128,256,512,1024,2048,4095,4096,4097);
@@ -240,7 +240,7 @@ begin  -- rtl
   ib_out_test.rd_valid        <= ib_out_manager.rd_valid;
   ib_out_test.rd_done         <= ib_out_manager.rd_done;
 
-  
+
   -----------------------------------------------------------------------------
   -- Sequential process
   -----------------------------------------------------------------------------
@@ -276,7 +276,7 @@ begin  -- rtl
       wait_descr_compl <= '1';
       wait until rising_edge(apbo.irq);
       wait_descr_compl <= '0';
-      
+
       wait for 20 ns;
       rstn      <= '0';
 
@@ -285,7 +285,8 @@ begin  -- rtl
     end loop;
 
     wait for 1000 ns;
-    report "The Test X has finished on time: " & time'image(now) & "\nGonna execute software reset test.";
+    report "The Test X has finished on time: " & time'image(now);
+    report "Gonna execute software reset test.";
 
     ----------------------------------------
     --            TEST RESET              --
@@ -332,17 +333,17 @@ begin  -- rtl
     wait until rising_edge(axi4mi.r_last);
     wait for 100 ns;
 
-    stop;
+    report "TEST SUCCESSFULLY FINISHED!"; stop;
 
   end process test;
 
 
   -- Counters used to count how many clk cycles X signals get stuck
   interrupt_test : process(clk)
-  begin 
+  begin
     if(clk = '1' and clk'event) then
       -- Increment counters if the signal stays asserted
-  --     if(ib_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1; 
+  --     if(ib_out.rd_req_grant = '1') then limit_rd_req_grant <= limit_rd_req_grant + 1;
   --       else limit_rd_req_grant <= 0; end if;
   --     if(ib_out.wr_req_grant = '1') then limit_wr_req_grant <= limit_wr_req_grant + 1;
   --       else limit_wr_req_grant <= 0; end if;
@@ -487,6 +488,3 @@ begin  -- rtl
 
 
 end architecture rtl;
-
-
-
