@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      injector_fetch
 -- File:        injector_fetch.vhd
 -- Author:      Francis Fuentes
 -- Description: FETCH stage in SafeTI Injector core pipeline.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -83,7 +83,7 @@ architecture rtl of injector_fetch is
   signal err_pc_wr_oom    : std_logic;      -- PC write overflow = out of memory for writing error flag.
   signal err_pc_oom       : std_logic;      -- PC overflow = out of memory error flag.
   signal err_type         : std_logic;      -- Unsupported type decode.
-  
+
 
 begin -- rtl
 
@@ -100,14 +100,14 @@ begin -- rtl
 
 
   -- Error signal assignments
-  err_pc_wr_oom <= pc_wr(PC_LEN);
-  err_pc_oom    <= pc_rd(PC_LEN);
+  err_pc_wr_oom <= pc_wr(PC_LEN) and desc_word_wen; -- Error when tried to write on OoM position
+  err_pc_oom    <= pc_rd(PC_LEN) and not(desc_buffer(0)(0)); -- Error when last descriptor of memory is not last
 
   -- Decode the descriptor type to set the respective desc_w_counter for each type in combinational logic.
   comb0 : process(desc_buffer(0)(5 downto 1))
   begin
     err_type    <= '0';
-    
+
     case(desc_buffer(0)(5 downto 1)) is
       -- Operations that are encoded by one word
       when OP_DELAY =>
@@ -144,11 +144,11 @@ begin -- rtl
   -- Let the descriptor word fetch be combinational controlled by PC.
   desc_word_rd    <= mem(to_integer(index_rd));
 
-  
+
   -----------------------------------------------------------------------------
   -- Sequential process
   -----------------------------------------------------------------------------
-  
+
   seq0 : process(clk, rstn)
   begin
     if(rstn = '0' and ASYNC_RST) then
@@ -167,7 +167,7 @@ begin -- rtl
         mem               <= RESET_PROGRAM_MEMORY;
         desc_buffer       <= RESET_DESC_WORDS;
       else
-        
+
       --------------------------------
       -- Program memory write logic --
       --------------------------------
@@ -182,7 +182,7 @@ begin -- rtl
       -- Program memory read logic --
       -------------------------------
 
-        -- Fetch new descriptor when enabled, no out of memory error and when no descriptor is prepared to be 
+        -- Fetch new descriptor when enabled, no out of memory error and when no descriptor is prepared to be
         -- read yet or will be read in this clock cycle.
         if(enable = '1' and err_pc_oom = '0') then
           if( desc_ready = '0' or desc_sent = '1' ) then
