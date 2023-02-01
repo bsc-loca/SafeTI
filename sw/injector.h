@@ -3,42 +3,32 @@
 #include <stdint.h>
 
 /*** Definitions that may vary ***/
-#define INJ_BASE_ADDR   0xfc095000  // Injector base APB addrees
-#define APB_MEM_SPACE   0x40        // Number of 32-bit spaces assigned to injector
+// Base addressess for SafeTI modules. These must match the address where
+// a SafeTI module is allocated in the HW design.
+#define INJ_0_BASE_ADDR 0xfc085000  // Injector  0 base APB addrees
+#define INJ_1_BASE_ADDR 0xfc095000  // Injector  1 base APB addrees
+#define INJ_2_BASE_ADDR 0xfc095000  // Injector  2 base APB addrees
+#define INJ_3_BASE_ADDR 0xfc095000  // Injector  3 base APB addrees
+#define INJ_4_BASE_ADDR 0xfc095000  // Injector  4 base APB addrees
+#define INJ_5_BASE_ADDR 0xfc095000  // Injector  5 base APB addrees
+#define INJ_6_BASE_ADDR 0xfc095000  // Injector  6 base APB addrees
+#define INJ_7_BASE_ADDR 0xfc095000  // Injector  7 base APB addrees
+#define INJ_8_BASE_ADDR 0xfc095000  // Injector  8 base APB addrees
+#define INJ_9_BASE_ADDR 0xfc095000  // Injector  9 base APB addrees
+#define INJ_A_BASE_ADDR 0xfc095000  // Injector 10 base APB addrees
+#define INJ_B_BASE_ADDR 0xfc095000  // Injector 11 base APB addrees
+#define INJ_C_BASE_ADDR 0xfc095000  // Injector 12 base APB addrees
+#define INJ_D_BASE_ADDR 0xfc095000  // Injector 13 base APB addrees
+#define INJ_E_BASE_ADDR 0xfc095000  // Injector 14 base APB addrees
+#define INJ_F_BASE_ADDR 0xfc095000  // Injector 15 base APB addrees
 
-//----------------------------------
-//   HARDWARE SPECIFIC CONSTANTS (unused at the moment)
-//----------------------------------
-//#define LINE_SIZE 32
-//#define L1_CACHE_SIZE (16*1024)
-//#define L1_WAYS 4
-//#define L1_WAY_SIZE (L1_CACHE_SIZE/L1_WAYS)
-
-//SELENE
-//#define L2_CACHE_SIZE (1024*1024)
-//DERISC
-//#define L2_CACHE_SIZE (256*1024)
-
-//----------------------------------
-//    TEST SPECIFIC CONSTANTS (unused at the moment)
-//----------------------------------
-//#define ITER_COUNT 64
-
-// In each loop iteration we perform ITER_COUNT ld/st for each cache line
-//#define ITERATION_INCREMENT (LINE_SIZE*ITER_COUNT)
-
-// Using this defines we can execute nops between load/stores
-//By setting this parameter to 1 a jump (jal) is introduced between each ld/st
-//The jump is to a loop that executes nops
-//#define NOP_ACTIVATED 0
-//This parameter configures the number of nops inside the loop
-//#define NOP_COUNT 10
-//This parameter configures the number of itereations that the loop is executed
-//#define NOP_ITERATIONS 15
 
   ////////////////////////
  // SafeTI Definitions //
 ////////////////////////
+
+// Number of 32-bit addresses allocated for a SafeTI module
+#define APB_MEM_SPACE   0x40
 
 // APB Configuration register index
 #define INJ_CONFIG        0x00
@@ -131,37 +121,49 @@ static const desc_delay desc_delay_rst = {
 
 /*** Public Function Declarations ***/
 
-// Write APB Injector register
-void inj_write_reg (unsigned int entry, unsigned int value);
+// Individual descriptor programmer + parameter limit check
+void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int SIZE, unsigned int ATTACK_ADDR, unsigned int COUNT, unsigned int LAST, unsigned int INT_EN );
 
-// Read APB Injector register
-unsigned int inj_read_reg (unsigned int entry);
-
-// Start Injector given its configuration
-int inj_run ( inj_config *config );
+// Program traffic injector SEL with custom configuration
+void program_configuration( unsigned int SEL, unsigned int ENABLE, unsigned int QUEUE_EN, unsigned int INT_PROG_COMPL, unsigned int INT_ERROR, unsigned int INT_NET_ERROR, unsigned int FREEZE_INT );
 
 // Reset injector execution and programming
-void inj_reset ( void );
+void inj_reset ( unsigned int sel );
 
 // Check if the injector is running.
-unsigned int inj_check_run( void );
+unsigned int inj_check_run( unsigned int sel );
+
+
+/*** Private Function Declarations ***/
+
+// Get SafeTI "sel" base address in the APB memory space
+unsigned int inj_get_base_addr(unsigned int sel);
+
+// Write APB Injector register
+void inj_write_reg (unsigned int entry, unsigned int value, unsigned int sel);
+
+// Read APB Injector register
+unsigned int inj_read_reg (unsigned int entry, unsigned int sel);
+
+// Start Injector given its configuration
+void inj_run ( inj_config *config, unsigned int sel );
 
 // Set up descriptor control word (common)
-void setup_descriptor_control(desc_ctrl* descriptor);
+void setup_descriptor_control(desc_ctrl* descriptor, unsigned int sel);
 
 // Set up descriptor control word for SEQ operations
-void setup_descriptor_control_seq(desc_ctrl* descriptor);
+void setup_descriptor_control_seq(desc_ctrl* descriptor, unsigned int sel);
 
 // Set up DELAY descriptor
-void setup_descriptor_delay(desc_delay* descriptor);
+void setup_descriptor_delay(desc_delay* descriptor, unsigned int sel);
 
 // Set up READ or WRITE descriptor
-void setup_descriptor_rd_wr(desc_rd_wr* descriptor);
+void setup_descriptor_rd_wr(desc_rd_wr* descriptor, unsigned int sel);
 
 // Set up READ_SEQ or WRITE_SEQ descriptor
-void setup_descriptor_rd_wr_seq(desc_rd_wr* descriptor);
+void setup_descriptor_rd_wr_seq(desc_rd_wr* descriptor, unsigned int sel);
 
-// Template programs for the injector (write on SafeTI APB serial)
-void inj_program( unsigned int DESC_TYPE, unsigned int INJ_QUEUE, unsigned int SIZE_RD_WR, unsigned int DESC_ATTACK_ADDR, unsigned int SIZE_DELAY, unsigned int DESC_COUNT );
+// Template programs for the injector SEL (write on SafeTI APB serial)
+void inj_program( unsigned int SEL, unsigned int DESC_TYPE, unsigned int INJ_QUEUE, unsigned int SIZE_RD_WR, unsigned int ATTACK_ADDR, unsigned int SIZE_DELAY, unsigned int DESC_COUNT );
 
-void inj_program_seq( unsigned int DESC_TYPE, unsigned int INJ_QUEUE, unsigned int SIZE_RD_WR, unsigned int DESC_ATTACK_ADDR, unsigned int SIZE_DELAY, unsigned int DESC_COUNT, unsigned int SEQ_REP );
+void inj_program_seq( unsigned int SEL, unsigned int DESC_TYPE, unsigned int INJ_QUEUE, unsigned int SIZE_RD_WR, unsigned int ATTACK_ADDR, unsigned int SIZE_DELAY, unsigned int DESC_COUNT, unsigned int SEQ_REP );
