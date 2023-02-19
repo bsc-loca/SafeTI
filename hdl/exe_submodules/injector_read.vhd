@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      Injector READ submodule
 -- File:        injector_read.vhd
 -- Author:      Francisco Fuentes, Oriol Sala
 -- Description: Read engine to ensure correct read by part of the network interface.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -80,7 +80,7 @@ architecture rtl of injector_read is
   signal error_valid      : std_logic;        -- Incorrect timing of the signal ib_valid from interface.
   signal error_done       : std_logic;        -- Incorrect timing of the signal ib_done from interface.
 
-  
+
 begin
 
   -----------------------------------------------------------------------------
@@ -145,7 +145,7 @@ begin
         ------------------------------------
 
         if(not_last_transf = '0') then
-          
+
           if(req_granted = '1') then
             -- At request granted, update size_left and compute next transfer size.
             if(desc_to_exe.size_left > to_unsigned(MAX_SIZE_BURST, desc_to_exe.size_left'length)) then
@@ -153,10 +153,14 @@ begin
               desc_ongoing.size_burst <= to_unsigned(MAX_SIZE_BURST - 1, desc_to_exe.size_burst'length);
             else
               desc_ongoing.size_left  <= (others => '0');
-              desc_ongoing.size_burst <= desc_to_exe.size_left - 1;
+              if(desc_to_exe.size_left /= (desc_to_exe.size_left'range => '0')) then
+                desc_ongoing.size_burst <= desc_to_exe.size_left - 1;
+              else
+                desc_ongoing.size_burst <= (others => '0');
+              end if;
             end if;
 
-            if(desc_to_exe.addr_fix = '0') then 
+            if(desc_to_exe.addr_fix = '0') then
               desc_ongoing.addr       <= desc_to_exe.addr + to_unsigned(MAX_SIZE_BURST, desc_to_exe.addr'length);
             else
               desc_ongoing.addr       <= desc_to_exe.addr;
@@ -219,17 +223,17 @@ begin
           status_reg                <= DEBUG_STATE_IDLE;
         end if;
 
-        
+
         -- Software reset only affects the injector registers related to the descriptor, not the ongoing transfer.
         if(rst_sw = '1') then
           req_reg           <= '0';
           desc_ongoing      <= RESET_OPERATION_RD_WR;
         end if;
 
-        
+
       end if;
     end if;
   end process seq0;
 
-  
+
 end architecture rtl;

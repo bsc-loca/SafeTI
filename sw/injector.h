@@ -2,46 +2,54 @@
 #include <stdio.h>
 #include <stdint.h>
 
-/*** Definitions that may vary ***/
-// Base addressess for SafeTI modules. These must match the address where
-// a SafeTI module is allocated in the HW design.
-#define INJ_0_BASE_ADDR 0xfc085000  // Injector  0 base APB addrees
-#define INJ_1_BASE_ADDR 0xfc095000  // Injector  1 base APB addrees
-#define INJ_2_BASE_ADDR 0xfc095000  // Injector  2 base APB addrees
-#define INJ_3_BASE_ADDR 0xfc095000  // Injector  3 base APB addrees
-#define INJ_4_BASE_ADDR 0xfc095000  // Injector  4 base APB addrees
-#define INJ_5_BASE_ADDR 0xfc095000  // Injector  5 base APB addrees
-#define INJ_6_BASE_ADDR 0xfc095000  // Injector  6 base APB addrees
-#define INJ_7_BASE_ADDR 0xfc095000  // Injector  7 base APB addrees
-#define INJ_8_BASE_ADDR 0xfc095000  // Injector  8 base APB addrees
-#define INJ_9_BASE_ADDR 0xfc095000  // Injector  9 base APB addrees
-#define INJ_A_BASE_ADDR 0xfc095000  // Injector 10 base APB addrees
-#define INJ_B_BASE_ADDR 0xfc095000  // Injector 11 base APB addrees
-#define INJ_C_BASE_ADDR 0xfc095000  // Injector 12 base APB addrees
-#define INJ_D_BASE_ADDR 0xfc095000  // Injector 13 base APB addrees
-#define INJ_E_BASE_ADDR 0xfc095000  // Injector 14 base APB addrees
-#define INJ_F_BASE_ADDR 0xfc095000  // Injector 15 base APB addrees
-
-
   ////////////////////////
- // SafeTI Definitions //
+ // SafeTI HW Pointers //
 ////////////////////////
 
-// Number of 32-bit addresses allocated for a SafeTI module
-#define APB_MEM_SPACE   0x40
+// Base addressess for SafeTI modules and label. The address must match
+// with where a SafeTI module is allocated in the HW design.
+#define SAFETI_0_BASE_ADDR 0xfc085000 // SafeTI  0 base APB address
+#define SAFETI_AXI_0 0                // SafeTI  0 label
+#define SAFETI_1_BASE_ADDR 0xfc095000 // SafeTI  1 base APB address
+#define SAFETI_AHB_0 1                // SafeTI  1 label
+#define SAFETI_2_BASE_ADDR 0xfc095000 // SafeTI  2 base APB address
+#define SAFETI_AHB_0 2                // SafeTI  2 label
+#define SAFETI_3_BASE_ADDR 0xfc095000 // SafeTI  3 base APB address
+#define SAFETI_AHB_0 3                // SafeTI  3 label
+#define SAFETI_4_BASE_ADDR 0xfc095000 // SafeTI  4 base APB address
+#define SAFETI_AHB_0 4                // SafeTI  4 label
+#define SAFETI_5_BASE_ADDR 0xfc095000 // SafeTI  5 base APB address
+#define SAFETI_AHB_0 5                // SafeTI  5 label
+#define SAFETI_6_BASE_ADDR 0xfc095000 // SafeTI  6 base APB address
+#define SAFETI_AHB_0 6                // SafeTI  6 label
+#define SAFETI_7_BASE_ADDR 0xfc095000 // SafeTI  7 base APB address
+#define SAFETI_AHB_0 7                // SafeTI  7 label
+#define SAFETI_8_BASE_ADDR 0xfc095000 // SafeTI  8 base APB address
+#define SAFETI_AHB_0 8                // SafeTI  8 label
+#define SAFETI_9_BASE_ADDR 0xfc095000 // SafeTI  9 base APB address
+#define SAFETI_AHB_0 9                // SafeTI  9 label
+#define SAFETI_A_BASE_ADDR 0xfc095000 // SafeTI 10 base APB address
+#define SAFETI_AHB_0 10               // SafeTI 10 label
+#define SAFETI_B_BASE_ADDR 0xfc095000 // SafeTI 11 base APB address
+#define SAFETI_AHB_0 11               // SafeTI 11 label
+#define SAFETI_C_BASE_ADDR 0xfc095000 // SafeTI 12 base APB address
+#define SAFETI_AHB_0 12               // SafeTI 12 label
+#define SAFETI_D_BASE_ADDR 0xfc095000 // SafeTI 13 base APB address
+#define SAFETI_AHB_0 13               // SafeTI 13 label
+#define SAFETI_E_BASE_ADDR 0xfc095000 // SafeTI 14 base APB address
+#define SAFETI_AHB_0 14               // SafeTI 14 label
+#define SAFETI_F_BASE_ADDR 0xfc095000 // SafeTI 15 base APB address
+#define SAFETI_AHB_0 15               // SafeTI 15 label
 
-// APB Configuration register index
-#define INJ_CONFIG        0x00
-// APB Debug register indexes
-//#define INJ_STATUS        0x01 TO BE IMPLEMENTED
-//#define INJ_FDESC_PTR     0x02 TO BE IMPLEMENTED
-//#define INJ_DESC_EXEC     0x04 TO BE IMPLEMENTED
-//#define INJ_DESC_STATUS   0x08 TO BE IMPLEMENTED
-//#define INJ_DESC_PTR      0x09 TO BE IMPLEMENTED
-// APB Descriptor input register index
-#define INJ_PROGRAM_DESC  0x3F
+// Number bytes allocated for a SafeTI module
+#define APB_MEM_SPACE     0x100
 
-// Descriptor type encoding
+
+  ///////////////////
+ // SafeTI Labels //
+///////////////////
+
+// Descriptor type encoding labels for DESC_TYPE
 #define INJ_OP_DELAY      0
 #define INJ_OP_READ       1
 #define INJ_OP_WRITE      2
@@ -49,6 +57,23 @@
 #define INJ_OP_WRITE_FIX  6
 #define INJ_OP_READ_SEQ   9
 #define INJ_OP_WRITE_SEQ  10
+
+// Counter encoding for labels SEL_COUNTER
+#define INJ_CNT_INT       0 // Interrutpion counter
+#define INJ_CNT_ACCESS    1 // Requests granted by traffic interface
+
+
+  ////////////////////////
+ // SafeTI Definitions //
+////////////////////////
+
+// APB register offsets
+#define APB_OFFSET_CONFIG        0x00  // R/W
+#define APB_OFFSET_DEBUG_PC      0x60  // R
+#define APB_OFFSET_CNT_INT       0x80  // R/W
+#define APB_OFFSET_CNT_ACCESS    0x84  // R/W
+#define APB_OFFSET_NET_PROFILE   0xF8  //   W
+#define APB_OFFSET_DESC_W_INPUT  0xFC  //   W
 
 // Stringification for the Macros
 #define STR1(x) #x
@@ -122,7 +147,7 @@ static const desc_delay desc_delay_rst = {
 /*** Public Function Declarations ***/
 
 // Individual descriptor programmer + parameter limit check
-void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int SIZE, unsigned int ATTACK_ADDR, unsigned int COUNT, unsigned int LAST, unsigned int INT_EN );
+unsigned int program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int SIZE, unsigned int ATTACK_ADDR, unsigned int COUNT, unsigned int LAST, unsigned int INT_EN );
 
 // Program traffic injector SEL with custom configuration
 void program_configuration( unsigned int SEL, unsigned int ENABLE, unsigned int QUEUE_EN, unsigned int INT_PROG_COMPL, unsigned int INT_ERROR, unsigned int INT_NET_ERROR, unsigned int FREEZE_INT );

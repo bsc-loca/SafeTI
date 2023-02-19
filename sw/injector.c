@@ -12,8 +12,8 @@
  *                In addition, checks for values to be in-range.
  *  Parameters  :
  *    SEL         : Select SafeTI module allocated in the APB memory space.
- *                  The base addresses are defined in injector.h.
- *    DESC_TYPE   : Descriptor type setting. 0 = DELAY, 1 = READ, 2 = WRITE.
+ *                  The base addresses are defined at injector.h.
+ *    DESC_TYPE   : Descriptor type setting. Use label from injector.h.
  *    SIZE        : Descriptor "size" field. For DELAY descriptors, it sets
  *                  the number of clock cycles to stay without operation.
  *                  For READ and WRITE descriptors, it sets the number of
@@ -26,9 +26,10 @@
  *    LAST        : Bit flag to indicate last descriptor in the traffic pattern.
  *    INT_EN      : Bit flag to enable APB interruption when the descriptor is
  *                  fully executed.
- *  Return      : None
+ *  Return      : Number of descriptor words used in the descriptor programming.
  */
-void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int SIZE, unsigned int ATTACK_ADDR, unsigned int COUNT, unsigned int LAST, unsigned int INT_EN ) {
+unsigned int program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int SIZE, unsigned int ATTACK_ADDR, unsigned int COUNT, unsigned int LAST, unsigned int INT_EN ) {
+  unsigned int n_words = 1;              // Number of descriptor words
   desc_ctrl  ctrl_word = desc_ctrl_rst;  // Descriptor control word
   desc_delay delay     = desc_delay_rst; // Descriptor for DELAY type
   desc_rd_wr rd_wr     = desc_rd_wr_rst; // Descriptor for READ and WRTIE types
@@ -52,6 +53,7 @@ void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int 
         ctrl_word.size  = SIZE;
         ctrl_word.count = COUNT;
         ctrl_word.irq_compl_en = INT_EN;
+        ctrl_word.last = LAST;
       break;
     case INJ_OP_READ_SEQ:
     case INJ_OP_WRITE_SEQ:
@@ -66,6 +68,7 @@ void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int 
         ctrl_word.size  = SIZE;
         ctrl_word.count = COUNT;
         ctrl_word.irq_compl_en = INT_EN;
+        ctrl_word.last = LAST;
       break;
     default:;
       printf("\n\nERROR SW SafeTI: Descriptor type not supported.\n");
@@ -78,19 +81,23 @@ void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int 
     case INJ_OP_WRITE_FIX:
       rd_wr.ctrl = ctrl_word;
       setup_descriptor_rd_wr(&rd_wr, SEL);
+      n_words = 2;
       break;
     case INJ_OP_DELAY:
       delay.ctrl = ctrl_word;
       setup_descriptor_delay(&delay, SEL);
+      n_words = 1;
       break;
     case INJ_OP_READ_SEQ:
     case INJ_OP_WRITE_SEQ:
       rd_wr.ctrl = ctrl_word;
       setup_descriptor_rd_wr_seq(&rd_wr, SEL);
+      n_words = 2;
       break;
     default:;
       printf("\n\nERROR SW SafeTI: Descriptor type not supported.\n");
   }
+  return n_words;
 }
 
 /*
@@ -98,7 +105,7 @@ void program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsigned int 
  *  Description : Program configuration on a SafeTI module.
  *  Parameters  :
  *    SEL         : Select SafeTI module allocated in the APB memory space.
- *                  The base addresses are defined in injector.h.
+ *                  The base addresses are defined at injector.h.
  *    ENABLE      : Start SafeTI traffic injection execution.
  *    QUEUE_EN    : Bit flag to enable QUEUE mode, where SafeTI will repeat
  *                  programmed traffic pattern from the start when it ends.
@@ -130,12 +137,50 @@ void program_configuration( unsigned int SEL, unsigned int ENABLE, unsigned int 
  *  Description : Stop and reset internal memory on a SafeTI module.
  *  Parameters  :
  *    SEL         : Select SafeTI module allocated in the APB memory space.
- *                  The base addresses are defined in injector.h.
+ *                  The base addresses are defined at injector.h.
  *  Return      : None
  */
 void inj_reset(unsigned int sel) {
   //Configuration register (0x00) (Reset bit)
-  inj_write_reg(INJ_CONFIG, 0x00000002, sel);
+  inj_write_reg(APB_OFFSET_CONFIG, 0x00000002, sel);
+}
+
+/*
+ *  Function    : inj_reset_counter
+ *  Description : Reset internal counters on a SafeTI module.
+ *  Parameters  :
+ *    SEL         : Select SafeTI module allocated in the APB memory space.
+ *                  The base addresses are defined at injector.h.
+ *  Return      : None
+ */
+void inj_reset_counters(unsigned int sel) {
+  //Configuration register (0x00) (Reset bit)
+  inj_write_reg(APB_OFFSET_CNT_INT,    0x00000000, sel);
+  inj_write_reg(APB_OFFSET_CNT_ACCESS, 0x00000000, sel);
+}
+
+/*
+ *  Function    : inj_read_counter
+ *  Description : Reset internal counters on a SafeTI module.
+ *  Parameters  :
+ *    SEL         : Select SafeTI module allocated in the APB memory space.
+ *                  The base addresses are defined at injector.h.
+ *    SEL_COUNTER : Select counter register to read from.
+ *                  Labels available at injector.h.
+ *  Return      : 32-bit unsigned counter value.
+ */
+unsigned int inj_read_counter(unsigned int sel, unsigned int SEL_COUNTER) {
+  switch(SEL_COUNTER) {
+    INJ_CNT_INT:
+      return inj_read_reg(APB_OFFSET_CNT_INT, sel);
+      break;
+    INJ_CNT_ACCESS:
+      return inj_read_reg(APB_OFFSET_CNT_ACCESS, sel);
+      break;
+    default:;
+      printf("\n\nERROR SW SafeTI: Read from counter not found.\n");
+  }
+  return 0;
 }
 
 /*
@@ -143,14 +188,14 @@ void inj_reset(unsigned int sel) {
  *  Description : Check if the SafeTI module is in execution.
  *  Parameters  :
  *    SEL         : Select SafeTI module allocated in the APB memory space.
- *                  The base addresses are defined in injector.h.
+ *                  The base addresses are defined at injector.h.
  *  Return      :
  *    - 1         : The SafeTI module is executing descriptors.
  *    - 0         : The SafeTI module is disabled.
  */
 // Check if the injector is running. Returns 1 if is running.
 unsigned int inj_check_run(unsigned int sel) {
-  unsigned int running = (inj_read_reg(INJ_CONFIG, sel) & 0x00000001);
+  unsigned int running = (inj_read_reg(APB_OFFSET_CONFIG, sel) & 0x00000001);
   return running;
 }
 
@@ -160,22 +205,22 @@ unsigned int inj_check_run(unsigned int sel) {
 // Get SafeTI "sel" base address in the APB memory space
 unsigned int inj_get_base_addr(unsigned int sel) {
   switch(sel) {
-    case  0: return INJ_0_BASE_ADDR;
-    case  1: return INJ_1_BASE_ADDR;
-    case  2: return INJ_2_BASE_ADDR;
-    case  3: return INJ_3_BASE_ADDR;
-    case  4: return INJ_4_BASE_ADDR;
-    case  5: return INJ_5_BASE_ADDR;
-    case  6: return INJ_6_BASE_ADDR;
-    case  7: return INJ_7_BASE_ADDR;
-    case  8: return INJ_8_BASE_ADDR;
-    case  9: return INJ_9_BASE_ADDR;
-    case 10: return INJ_A_BASE_ADDR;
-    case 11: return INJ_B_BASE_ADDR;
-    case 12: return INJ_C_BASE_ADDR;
-    case 13: return INJ_D_BASE_ADDR;
-    case 14: return INJ_E_BASE_ADDR;
-    case 15: return INJ_F_BASE_ADDR;
+    case  0: return SAFETI_0_BASE_ADDR;
+    case  1: return SAFETI_1_BASE_ADDR;
+    case  2: return SAFETI_2_BASE_ADDR;
+    case  3: return SAFETI_3_BASE_ADDR;
+    case  4: return SAFETI_4_BASE_ADDR;
+    case  5: return SAFETI_5_BASE_ADDR;
+    case  6: return SAFETI_6_BASE_ADDR;
+    case  7: return SAFETI_7_BASE_ADDR;
+    case  8: return SAFETI_8_BASE_ADDR;
+    case  9: return SAFETI_9_BASE_ADDR;
+    case 10: return SAFETI_A_BASE_ADDR;
+    case 11: return SAFETI_B_BASE_ADDR;
+    case 12: return SAFETI_C_BASE_ADDR;
+    case 13: return SAFETI_D_BASE_ADDR;
+    case 14: return SAFETI_E_BASE_ADDR;
+    case 15: return SAFETI_F_BASE_ADDR;
     default: printf("\n\nERROR SW SafeTI: Injector APB address not found.\n");
   }
   return 0;
@@ -228,7 +273,7 @@ void inj_run(inj_config *config, unsigned int sel) {
   inj_reg = inj_reg | ((config -> irq_err_net_en     % 2) << 5);
   inj_reg = inj_reg | ((config -> freeze_irq_en      % 2) << 6);
   // Control register
-  inj_write_reg(INJ_CONFIG, inj_reg, sel);
+  inj_write_reg(APB_OFFSET_CONFIG, inj_reg, sel);
 }
 
 
@@ -244,7 +289,7 @@ void setup_descriptor_control(desc_ctrl* descriptor, unsigned int sel) {
   desc_word = desc_word | (((descriptor -> size - 1)    % 524288) << 13); // Transfer size
 
   // Write descriptor word to SafeTI APB serial
-  inj_write_reg(INJ_PROGRAM_DESC, desc_word, sel);
+  inj_write_reg(APB_OFFSET_DESC_W_INPUT, desc_word, sel);
 }
 
 // Setup for the descriptor control word specific for SEQ operations
@@ -258,7 +303,7 @@ void setup_descriptor_control_seq(desc_ctrl* descriptor, unsigned int sel) {
   desc_word = desc_word | (((descriptor -> count  % 2048) /   64) << 27); // Sequential repetition counter, second field
 
   // Write descriptor word to SafeTI APB serial
-  inj_write_reg(INJ_PROGRAM_DESC, desc_word, sel);
+  inj_write_reg(APB_OFFSET_DESC_W_INPUT, desc_word, sel);
 }
 
 // Setup for DELAY descriptors (1 word)
@@ -269,13 +314,13 @@ void setup_descriptor_delay(desc_delay* descriptor, unsigned int sel) {
 // Setup for READ and WRITE descriptors (2 words)
 void setup_descriptor_rd_wr(desc_rd_wr* descriptor, unsigned int sel) {
   setup_descriptor_control(&(descriptor -> ctrl), sel);         // Setup the control word
-  inj_write_reg(INJ_PROGRAM_DESC, descriptor -> act_addr, sel); // Setup the action address
+  inj_write_reg(APB_OFFSET_DESC_W_INPUT, descriptor -> act_addr, sel); // Setup the action address
 }
 
 // Setup for READ_SEQ and WRITE_SEQ descriptors (2 words)
 void setup_descriptor_rd_wr_seq(desc_rd_wr* descriptor, unsigned int sel) {
   setup_descriptor_control_seq(&(descriptor -> ctrl), sel);     // Setup the control word
-  inj_write_reg(INJ_PROGRAM_DESC, descriptor -> act_addr, sel); // Setup the action address
+  inj_write_reg(APB_OFFSET_DESC_W_INPUT, descriptor -> act_addr, sel); // Setup the action address
 }
 
 

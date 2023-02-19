@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      Injector WRITE submodule
 -- File:        injector_write.vhd
 -- Author:      Francisco Fuentes, Oriol Sala
 -- Description: Write engine to ensure correct write by part of the network interface.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -80,7 +80,7 @@ architecture rtl of injector_write is
   signal error_start      : std_logic;        -- Incorrect timing of the signal start from DECODE.
   signal error_full       : std_logic;        -- Incorrect timing of the signal ib_full from interface.
   signal error_done       : std_logic;        -- Incorrect timing of the signal ib_done from interface.
-  
+
 
 begin
 
@@ -117,7 +117,7 @@ begin
     -- The full signal must not be low when no transfer is expected.
   error_full      <= not(ib_full) and not(transfer_on);
     -- The done signal must not be high when full is low, the data transfer has not ended or if is not waiting for done.
-  error_done      <= ib_done and (not(ib_full) or transfer_on or not(done_wait));
+  error_done      <= ib_done and (transfer_on or not(done_wait));
 
 
   -----------------------------------------------------------------------------
@@ -157,10 +157,14 @@ begin
               desc_ongoing.size_burst <= to_unsigned(MAX_SIZE_BURST - 1, desc_to_exe.size_burst'length);
             else
               desc_ongoing.size_left  <= (others => '0');
-              desc_ongoing.size_burst <= desc_to_exe.size_left - 1;
+              if(desc_to_exe.size_left /= (desc_to_exe.size_left'range => '0')) then
+                desc_ongoing.size_burst <= desc_to_exe.size_left - 1;
+              else
+                desc_ongoing.size_burst <= (others => '0');
+              end if;
             end if;
 
-            if(desc_to_exe.addr_fix = '0') then 
+            if(desc_to_exe.addr_fix = '0') then
               desc_ongoing.addr       <= desc_to_exe.addr + to_unsigned(MAX_SIZE_BURST, desc_to_exe.addr'length);
             else
               desc_ongoing.addr       <= desc_to_exe.addr;
@@ -169,8 +173,14 @@ begin
             desc_ongoing.addr_fix     <= desc_to_exe.addr_fix;
 
             -- Set the transfer size of the transaction.
-            size_transf_rem           <= desc_to_exe.size_burst + 1;
-            transfer_on               <= '1';
+            if(desc_to_exe.size_burst >= to_unsigned(CORE_DATA_WIDTH/8, desc_to_exe.size_burst'length)) then
+              size_transf_rem         <= desc_to_exe.size_burst - to_unsigned(CORE_DATA_WIDTH/8 - 1, size_transf_rem'length); -- IB Request grant is also considered as write data beat
+              transfer_on             <= '1';
+            else
+              size_transf_rem         <= (others => '0');
+              transfer_on             <= '0';
+              done_wait               <= '1';
+            end if;
 
             -- Set the request register to perform more request depending if there's more data to be transfered.
             if(desc_to_exe.size_left /= (desc_to_exe.size_left'range => '0')) then
@@ -193,7 +203,7 @@ begin
           -- The data transfer logic is always enabled in order to not block any ongoing transaction on the network.
           if(not_last_transf = '1') then
             size_transf_rem         <= size_transf_rem - CORE_DATA_WIDTH/8;
-          elsif(transfer_on = '1') then
+          else
             size_transf_rem         <= (others => '0');
             transfer_on             <= '0';
             done_wait               <= '1';
@@ -233,10 +243,10 @@ begin
           desc_ongoing      <= RESET_OPERATION_RD_WR;
         end if;
 
-        
+
       end if;
     end if;
   end process seq0;
 
-  
+
 end architecture rtl;

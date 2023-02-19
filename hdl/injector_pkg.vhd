@@ -50,6 +50,13 @@ package injector_pkg is
   constant DEBUG_STATE_UNEXPECTED_DONE    : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "10001";
   constant DEBUG_STATE_UNEXPECTED_START   : std_logic_vector(MAX_STATUS_LEN - 1 downto 0) := "11000"; -- Common error states
 
+  -- APB register offsets
+  constant APB_OFFSET_CONFIG        : std_logic_vector(7 downto 0) := x"00"; -- R/W
+  constant APB_OFFSET_DEBUG_PC      : std_logic_vector(7 downto 0) := x"60"; -- R
+  constant APB_OFFSET_CNT_INT       : std_logic_vector(7 downto 0) := x"80"; -- R/W
+  constant APB_OFFSET_CNT_ACCESS    : std_logic_vector(7 downto 0) := x"84"; -- R/W
+  constant APB_OFFSET_NET_PROFILE   : std_logic_vector(7 downto 0) := x"F8"; --   W
+  constant APB_OFFSET_DESC_W_INPUT  : std_logic_vector(7 downto 0) := x"FC"; --   W
 
 -------------------------------------------------------------------------------
 -- Common types
@@ -179,7 +186,7 @@ package injector_pkg is
     delay             : operation_delay;  -- Control data to execute DELAY operations
     rd_wr             : operation_rd_wr;  -- Control data to execute READ and WRITE operations
   end record bus_decode_exe;
-
+  
 
   -------------------------------------------------------------------------------
   -- Subprograms declaration

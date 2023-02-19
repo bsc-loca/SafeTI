@@ -1,9 +1,9 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      injector_core
 -- File:        injector_core.vhd
 -- Author:      Francisco Fuentes, Oriol Sala
 -- Description: Injector core entity.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -77,6 +77,7 @@ architecture rtl of injector_core is
   signal prog_mem_wr_data   : std_logic_vector(31 downto 0);
   signal prog_mem_wr_en     : std_logic;
   signal irq_apb            : std_logic;
+  signal request_granted    : std_logic;
 
   -- FETCH signals
   signal descriptor         : desc_words;
@@ -93,8 +94,12 @@ architecture rtl of injector_core is
   signal ctrl_disable       : std_logic; -- Turn off injector signal
 
   -- External signals
+  signal ib_out_inter       : ib_mosi;                  -- Intermediate IB MOSI
   signal err_network        : std_logic_vector(0 to 1); -- Network error (0 = READ, 1 = WRITE)
-  
+
+  -- Debug signals
+  signal debug_pc           : unsigned(31 downto 0);
+
 
   -----------------------------------------------------------------------------
   -- Component declaration
@@ -122,15 +127,20 @@ architecture rtl of injector_core is
       desc_word_wen   : out std_logic;                          -- Write enable for descriptor word input
       -- Signals from CONTROL
       disable         : in  std_logic;                          -- Turn off injector execution flag
-      irq_flag        : in  std_logic                           -- Interruption flag for APB output
+      irq_flag        : in  std_logic;                          -- Interruption flag for APB output
+      -- Signals from EXE
+      request_granted : in  std_logic;                          -- Request grant signal
+      -- Signals for DEBUG
+      debug_pc        : in  std_logic_vector(31 downto 0);      -- PC from each stage combined
+      debug_state     : in  pipeline_state_array                -- State from each stage
     );
   end component injector_apb;
 
   -- FETCH pipeline stage
   component injector_fetch is
     generic (
-      PC_LEN          : integer                       := 4;     -- Length of PC register
-      ASYNC_RST       : boolean                       := TRUE   -- Allow asynchronous reset flag
+      PC_LEN          : integer                     := 4;     -- Length of PC register
+      ASYNC_RST       : boolean                     := TRUE   -- Allow asynchronous reset flag
     );
     port (
       -- External I/O
@@ -236,16 +246,24 @@ architecture rtl of injector_core is
     );
   end component injector_control;
 
-  
+
 begin  -- rtl
-  
+
   -----------------------------------------------------------------------------
   -- Assignments
   -----------------------------------------------------------------------------
 
-  
-  err_network <= ib_in.rd_err & ib_in.wr_err;
+  -- Network error signaling
+  ib_out          <= ib_out_inter;
+  err_network     <= ib_in.rd_err & ib_in.wr_err;
 
+  -- Traffic interface request granted flag
+  request_granted <= ib_out_inter.rd_req AND ib_in.rd_req_grant;
+
+  -- Debug bus coupling TODO: add debug for each stage descriptor
+  debug_pc        <=  (31 downto 20+PC_LEN => '0') & pc_pipeline.exe    &
+                      (19 downto 10+PC_LEN => '0') & pc_pipeline.decode &
+                      ( 9 downto    PC_LEN => '0') & pc_pipeline.fetch;
 
   -----------------------------------------------------------------------------
   -- Component instantiation
@@ -273,7 +291,12 @@ begin  -- rtl
       desc_word_wen     => prog_mem_wr_en,
       -- Signals from CONTROL
       disable           => ctrl_disable,
-      irq_flag          => irq_apb
+      irq_flag          => irq_apb,
+      -- Signals from EXE
+      request_granted   => request_granted,
+      -- Debug signals
+      debug_pc          => std_logic_vector(debug_pc),
+      debug_state       => state_pipeline
   );
 
   -- FETCH pipeline stage
@@ -345,7 +368,7 @@ begin  -- rtl
       rstn              => rstn,
       clk               => clk,
       ib_in             => ib_in,
-      ib_out            => ib_out,
+      ib_out            => ib_out_inter,
     -- Internal I/O
       enable            => enable_pipeline.exe,
       rst_sw            => reset_pipeline.exe,
