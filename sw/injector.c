@@ -154,7 +154,6 @@ void inj_reset(unsigned int sel) {
  *  Return      : None
  */
 void inj_reset_counters(unsigned int sel) {
-  //Configuration register (0x00) (Reset bit)
   inj_write_reg(APB_OFFSET_CNT_INT,    0x00000000, sel);
   inj_write_reg(APB_OFFSET_CNT_ACCESS, 0x00000000, sel);
 }
@@ -171,10 +170,10 @@ void inj_reset_counters(unsigned int sel) {
  */
 unsigned int inj_read_counter(unsigned int sel, unsigned int SEL_COUNTER) {
   switch(SEL_COUNTER) {
-    INJ_CNT_INT:
+    case INJ_CNT_INT:
       return inj_read_reg(APB_OFFSET_CNT_INT, sel);
       break;
-    INJ_CNT_ACCESS:
+    case INJ_CNT_ACCESS:
       return inj_read_reg(APB_OFFSET_CNT_ACCESS, sel);
       break;
     default:;
@@ -235,11 +234,12 @@ void inj_write_reg(unsigned int entry, unsigned int value, unsigned int sel) {
   if(base_address != 0) {
   // Write data to that address
     if(entry < APB_MEM_SPACE) {
-      p = (unsigned int*)(base_address + entry*4);
+      p = (unsigned int*)(base_address + entry);
       *p = value;
     } else
       printf("\n\nERROR SW SafeTI: Software tried to write outside the injector's allocated memory space APB_MEM_SPACE.\n");
-  }
+  } else
+    printf("\n\nERROR SW SafeTI: SafeTI cannot be allocated at base address 0x00000000\n");
 }
 
 // Read Injector APB Register
@@ -252,12 +252,13 @@ unsigned int inj_read_reg (unsigned int entry, unsigned int sel) {
   if(base_address != 0) {
   // Read data to that address
     if(entry < APB_MEM_SPACE) {
-      p = (unsigned int*)(base_address + ((entry % APB_MEM_SPACE)*4));
+      p = (unsigned int*)(base_address + entry);
       value = *p;
     } else {
       printf("\n\nERROR SW SafeTI: Software tried to read outside the injector's allocated memory space APB_MEM_SPACE.\n");
       value = 0;
-  }  }
+  } } else
+    printf("\n\nERROR SW SafeTI: SafeTI cannot be allocated at base address 0x00000000\n");
   return value;
 }
 

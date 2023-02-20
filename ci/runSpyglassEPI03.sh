@@ -56,8 +56,8 @@
 #
 
 #Edit to fit your preferences
-username="ffuentes"		#Clientname to ssh to
-sshserver="@epi03.bsc.es"	#Server to ssh to
+username=$USER                  #Clientname to ssh to
+sshserver="@epi02.bsc.es"       #Server to ssh to
 template="/users/$username/spyglass/spyglass_template.prj" #SpyGlass template location on server
 
 

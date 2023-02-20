@@ -13,33 +13,33 @@
 #define SAFETI_1_BASE_ADDR 0xfc095000 // SafeTI  1 base APB address
 #define SAFETI_AHB_0 1                // SafeTI  1 label
 #define SAFETI_2_BASE_ADDR 0xfc095000 // SafeTI  2 base APB address
-#define SAFETI_AHB_0 2                // SafeTI  2 label
+//#define SAFETI_AHB_0 2                // SafeTI  2 label
 #define SAFETI_3_BASE_ADDR 0xfc095000 // SafeTI  3 base APB address
-#define SAFETI_AHB_0 3                // SafeTI  3 label
+//#define SAFETI_AHB_0 3                // SafeTI  3 label
 #define SAFETI_4_BASE_ADDR 0xfc095000 // SafeTI  4 base APB address
-#define SAFETI_AHB_0 4                // SafeTI  4 label
+//#define SAFETI_AHB_0 4                // SafeTI  4 label
 #define SAFETI_5_BASE_ADDR 0xfc095000 // SafeTI  5 base APB address
-#define SAFETI_AHB_0 5                // SafeTI  5 label
+//#define SAFETI_AHB_0 5                // SafeTI  5 label
 #define SAFETI_6_BASE_ADDR 0xfc095000 // SafeTI  6 base APB address
-#define SAFETI_AHB_0 6                // SafeTI  6 label
+//#define SAFETI_AHB_0 6                // SafeTI  6 label
 #define SAFETI_7_BASE_ADDR 0xfc095000 // SafeTI  7 base APB address
-#define SAFETI_AHB_0 7                // SafeTI  7 label
+//#define SAFETI_AHB_0 7                // SafeTI  7 label
 #define SAFETI_8_BASE_ADDR 0xfc095000 // SafeTI  8 base APB address
-#define SAFETI_AHB_0 8                // SafeTI  8 label
+//#define SAFETI_AHB_0 8                // SafeTI  8 label
 #define SAFETI_9_BASE_ADDR 0xfc095000 // SafeTI  9 base APB address
-#define SAFETI_AHB_0 9                // SafeTI  9 label
+//#define SAFETI_AHB_0 9                // SafeTI  9 label
 #define SAFETI_A_BASE_ADDR 0xfc095000 // SafeTI 10 base APB address
-#define SAFETI_AHB_0 10               // SafeTI 10 label
+//#define SAFETI_AHB_0 10               // SafeTI 10 label
 #define SAFETI_B_BASE_ADDR 0xfc095000 // SafeTI 11 base APB address
-#define SAFETI_AHB_0 11               // SafeTI 11 label
+//#define SAFETI_AHB_0 11               // SafeTI 11 label
 #define SAFETI_C_BASE_ADDR 0xfc095000 // SafeTI 12 base APB address
-#define SAFETI_AHB_0 12               // SafeTI 12 label
+//#define SAFETI_AHB_0 12               // SafeTI 12 label
 #define SAFETI_D_BASE_ADDR 0xfc095000 // SafeTI 13 base APB address
-#define SAFETI_AHB_0 13               // SafeTI 13 label
+//#define SAFETI_AHB_0 13               // SafeTI 13 label
 #define SAFETI_E_BASE_ADDR 0xfc095000 // SafeTI 14 base APB address
-#define SAFETI_AHB_0 14               // SafeTI 14 label
+//#define SAFETI_AHB_0 14               // SafeTI 14 label
 #define SAFETI_F_BASE_ADDR 0xfc095000 // SafeTI 15 base APB address
-#define SAFETI_AHB_0 15               // SafeTI 15 label
+//#define SAFETI_AHB_0 15               // SafeTI 15 label
 
 // Number bytes allocated for a SafeTI module
 #define APB_MEM_SPACE     0x100
@@ -154,6 +154,12 @@ void program_configuration( unsigned int SEL, unsigned int ENABLE, unsigned int 
 
 // Reset injector execution and programming
 void inj_reset ( unsigned int sel );
+
+// Reset injector counters
+void inj_reset_counters( unsigned int sel );
+
+// Read counter
+unsigned int inj_read_counter( unsigned int sel, unsigned int SEL_COUNTER );
 
 // Check if the injector is running.
 unsigned int inj_check_run( unsigned int sel );

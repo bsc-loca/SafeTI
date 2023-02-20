@@ -258,7 +258,8 @@ begin  -- rtl
   err_network     <= ib_in.rd_err & ib_in.wr_err;
 
   -- Traffic interface request granted flag
-  request_granted <= ib_out_inter.rd_req AND ib_in.rd_req_grant;
+  request_granted <= (ib_out_inter.rd_req AND ib_in.rd_req_grant) OR
+                     (ib_out_inter.wr_req AND ib_in.wr_req_grant);
 
   -- Debug bus coupling TODO: add debug for each stage descriptor
   debug_pc        <=  (31 downto 20+PC_LEN => '0') & pc_pipeline.exe    &

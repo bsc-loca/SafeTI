@@ -1,4 +1,4 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:        tb_injector_pkg
 -- File:          tb_injector_pkg.vhd
 -- Author:        Francis Fuentes
@@ -6,7 +6,7 @@
 -- Compatibility: This library uses VHDL2008 calls to offer better debugging support.
 --                However, it can be compiled with older versions by comenting VHDL2008
 --                and uncommenting !VHDL2008 lines.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -104,7 +104,7 @@ package tb_injector_pkg is
 
   -- Procedure used to execute read/write transactions.
   -- The validation is done by looking into the descriptor data and simulating what it should be happening.
-  -- The "wait_descr_compl" flag allows to the main testbench to halt if the procedure or injector takes too 
+  -- The "wait_descr_compl" flag allows to the main testbench to halt if the procedure or injector takes too
   -- many clock cycles to be answered.
   procedure test_descriptor_batch(
     signal   clk                : in  std_ulogic;
@@ -138,7 +138,7 @@ package body tb_injector_pkg is
                             addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
                             irq_compl : std_ulogic;                     -- Send APB interruption at descriptor completion
                             last      : std_ulogic                      -- Last descriptor flag
-  ) return descriptor_words is 
+  ) return descriptor_words is
     variable descr_words  : descriptor_words  := (others => (others => '0'));
     variable size_std     : std_logic_vector(18 downto 0) := (others => '0');
     variable count_std    : std_logic_vector(5 downto 0)  := (others => '0');
@@ -220,7 +220,7 @@ package body tb_injector_pkg is
     constant inj_base_addr      : in  std_logic_vector(31 downto 0);
     constant descriptor_bank_tb : in  descriptor_bank_tb;
     signal   apbi               : out apb_slave_in
-  ) is 
+  ) is
     variable descriptor         :     descriptor_words;
   begin
     -- Set the signals to write descriptors through the APB serial register
@@ -245,9 +245,9 @@ package body tb_injector_pkg is
   end procedure load_descriptors;
 
 
-  -- Since this procedure manages both writes and reads in a similar way, it could be reduced to a half in length by 
-  -- nesting another procedure, which would contain "if" statements to differentiate between read and write 
-  -- transactions on the bits they differ. However, having them sepparated may help to understand the procedure and 
+  -- Since this procedure manages both writes and reads in a similar way, it could be reduced to a half in length by
+  -- nesting another procedure, which would contain "if" statements to differentiate between read and write
+  -- transactions on the bits they differ. However, having them sepparated may help to understand the procedure and
   -- facilitate any modification if future injector versions implement more differences between transfer modes.
   procedure test_descriptor_batch(
     signal   clk                : in  std_ulogic;
@@ -348,7 +348,7 @@ package body tb_injector_pkg is
               --wait until rising_edge(clk); -- May change to add random wait
 
             end loop; -- BURST loop
-        
+
 
           when OP_WRITE | OP_WRITE_FIX => -- Write transaction routine
 
@@ -357,7 +357,7 @@ package body tb_injector_pkg is
 
               -- Each burst requires a handshake request process. The first one is done on the main loop to allow select transaction mode routine.
               if(ibin.wr_req = '0') then wait until rising_edge(ibin.wr_req) ; end if;
-                
+
               -- Grant the burst request.
               ibout.wr_req_grant <= '1';
 
@@ -396,28 +396,37 @@ package body tb_injector_pkg is
               wait until falling_edge(ibin.wr_req); -- Waiting for request deassertion allows to manage beats
               ibout.wr_req_grant <= '0';
 
-              -- Data transfer loop simulation
-              while (burst_size > dbits/8) loop
+              -- Request is considered as write beat
+              if(burst_size > dbits/8) then
                 burst_size    := burst_size - dbits/8;
+              else
+                burst_size    := 0;
+              end if;
+
+              -- Data transfer loop simulation
+              while (burst_size /= 0) loop
+                if(burst_size > dbits/8) then
+                  burst_size  := burst_size - dbits/8;
+                else
+                  burst_size  := 0;
+                end if;
                 ibout.wr_full <= '0';
                 wait until rising_edge(clk);
                 ibout.wr_full <= '1';
                 wait until rising_edge(clk); -- This wait can be multiple
               end loop;
-                
+
               -- Finishing writing a beat
-              ibout.wr_full   <= '0';
-              wait until rising_edge(clk);
               ibout.wr_full   <= '1';
               ibout.wr_done   <= '1';
               wait until rising_edge(clk);
               ibout.wr_done   <= '0';
               --wait until rising_edge(clk); -- May change to add random wait
-                
+
             end loop; -- BURST loop
 
 
-          when others => 
+          when others =>
             ibout             <= DEF_INJ_IB;
 
         end case; -- DESCRIPTOR TYPE STIMULUS SELECTOR
@@ -432,13 +441,13 @@ package body tb_injector_pkg is
         wait until rising_edge(irq);
       end if;
       wait_descr_compl <= '0';
-        
+
     end loop; -- LOOP for descriptors of injector program
 
 
     -- Check in the injector configuration if the Queue mode is enabled.
     if(inj_conf(2) = '1') then
-      -- On queue mode enabled, check if it is requesting transaction for 
+      -- On queue mode enabled, check if it is requesting transaction for
       -- the first descriptor in the program, while also reseting the injector.
       case descr_bnk(0)(0)(5 downto 1) is
         when OP_READ  | OP_READ_FIX  =>
@@ -449,7 +458,7 @@ package body tb_injector_pkg is
             end loop;
           end if;
           if(ibin.rd_addr /= descr_bnk(0)(1)) then
-            assert FALSE report "Queue mode was enabled, injector is requesting READ" & 
+            assert FALSE report "Queue mode was enabled, injector is requesting READ" &
               " (correctly), but not the correct address." severity failure;
           end if;
 
@@ -461,7 +470,7 @@ package body tb_injector_pkg is
           end loop;
         end if;
         if(ibin.wr_addr /= descr_bnk(0)(1)) then
-          assert FALSE report "Queue mode was enabled, injector is requesting WRITE" & 
+          assert FALSE report "Queue mode was enabled, injector is requesting WRITE" &
             " (correctly), but not the correct address." severity failure;
         end if;
 
