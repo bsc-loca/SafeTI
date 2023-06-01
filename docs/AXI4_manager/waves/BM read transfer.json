@@ -1,0 +1,12 @@
+{signal: [
+  {name: 'clk', 					wave: 'P.........'},
+  	['   bm_miso',
+  		{name: 'rd_data[31:0]', 	wave: 'x33.33|38x', data: ['data0','data1','data2','data3     ','dataN']},
+  		{name: 'rd_valid', 			wave: '01.01.|.0.'},
+        {name: 'rd_done', 			wave: '0......10.'},
+        {name: 'rd_req_grant', 		wave: '0......1..'}
+   	]
+],
+ edge: ['s'],
+ config: { hscale: 1, skin: 'default' }
+}

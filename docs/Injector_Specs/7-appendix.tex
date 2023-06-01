@@ -1,0 +1,71 @@
+\newpage
+\section{Appendixes}
+\subsection{Example injection program}
+\label{appendix-programexample}
+
+\begin{lstlisting}[language=Verilog, caption=Example injection program function from the bare-metal driver file \textbf{injector.c}.]
+//*** Template Program Functions ***/
+
+// Number of descriptors        / Type of transactions / Enable Queue mode                      /
+// Transfer size per descriptor / R/W address          / Delay weigth after transfer descriptor /
+void inj_program( unsigned int DESC_N_BATCH, unsigned int DESC_TYPE, unsigned int INJ_QUEUE, unsigned int SIZE_RD_WR, unsigned int DESC_ATTACK_ADDR, unsigned int SIZE_DELAY ) {
+  unsigned int i  = 0;  // Loop variable
+  inj_config inj_cfg;   // Injector configuration
+  desc_ctrl  ctrl_word; // Descriptor control word
+  desc_delay delay;     // Descriptor for DELAY type
+  desc_rd_wr rd_wr;     // Descriptor for READ and WRTIE types
+
+  // Check if the injector is running and reset it if it is.
+  if(inj_check_run() != 0) {
+    inj_reset();
+    printf("WARNING: The injector was running before programming it. Thus, it has been reset.\n");
+  }
+
+  // Injector configuration
+  inj_cfg.enable            = 1;
+  inj_cfg.reset             = 0;
+  if(INJ_QUEUE == 1)
+    inj_cfg.queue_mode_en   = 1;
+  else
+    inj_cfg.queue_mode_en   = 0;
+  inj_cfg.irq_prog_compl_en = 0;
+  inj_cfg.irq_err_core_en   = 1;
+  inj_cfg.irq_err_net_en    = 1;
+  inj_cfg.freeze_irq_en     = 0;
+
+  // Common descriptor setup
+  ctrl_word.irq_compl_en    = 0;
+
+  // Descriptor generation and setup
+  for(i = 0; i < DESC_N_BATCH; i++) {
+
+    ctrl_word.irq_compl_en = 0;     // Enable interrupt on descriptor completion
+    ctrl_word.count   = 0;          // Number of repetitions of the descriptor
+
+    if(i == DESC_N_BATCH - 1)       // Last descriptor bit
+      ctrl_word.last  = 1;
+    else
+      ctrl_word.last  = 0;
+
+    // Insert DELAY descriptor between two READ/WRITE descriptors if SIZE_DELAY has a value
+    if(SIZE_DELAY != 0 & i%2 == 1) {
+      ctrl_word.type  = INJ_OP_DELAY;
+      ctrl_word.size  = SIZE_DELAY;
+      delay.ctrl      = ctrl_word;
+      setup_descriptor_delay(&delay);
+    } else {
+      ctrl_word.type  = DESC_TYPE;
+      ctrl_word.size  = SIZE_RD_WR;
+      rd_wr.ctrl      = ctrl_word;
+      rd_wr.act_addr  = DESC_ATTACK_ADDR;
+      setup_descriptor_rd_wr(&rd_wr);
+    }
+
+  }
+
+  // Launch the injector with the configuration
+  inj_run(&inj_cfg);
+}
+
+\end{lstlisting}
+

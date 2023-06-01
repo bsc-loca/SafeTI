@@ -10,7 +10,7 @@ LOCAL_LOG=.lquesta.log
 rm -f  $LOG
 
 # Go to target folder 
-cd ../tb/
+cd ../tb/questasim/tb_injector
 
 rm -f $LOCAL_LOG
 
@@ -28,7 +28,7 @@ else
 printf "Questa - $val: ${RED}FAIL${RED}${NC}\n"
 exit 1
 fi
-cat $LOCAL_LOG >> ../ci/$LOG
-cd ../ci
+cat $LOCAL_LOG >> ../../../ci/$LOG
+cd -
 ##Exit without errors
 exit 0

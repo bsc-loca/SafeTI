@@ -1,0 +1,18 @@
+\newpage
+\section{Designing software for traffic generation and control}
+\label{software}
+
+The SafeTI IP includes bare-metal drivers, located on \textbf{bsc\_safeti/sw} project folder, providing the foundation for the injection program the user is designing. 
+It is required that both files \textbf{injector.c} and \textbf{injector.h} are included on the main program that uses the injector calls, usually as library files.
+
+This section supposes that the SafeTI is already implemented on the desired platform, meaning it has a fixed \textbf{INJ\_BASE\_ADDR}, which is the base address 
+where the injector is allocated as an APB Slave component. This parameter must be updated accordingly on the \textbf{injector.h} file, so the calls are executed 
+on the memory space the injector is allocated. In the case the \textbf{INJ\_BASE\_ADDR} is unknown, refer to section \fullref{} for further information.
+
+The following section \fullref{software-drivers} presents the available calls by default on the drivers used to design an injection program.
+However, they're limited in scope, thus, section \fullref{software-config} provides the information required to expand the drivers.
+
+\input{2-subsection_1}
+
+\input{2-subsection_2}
+

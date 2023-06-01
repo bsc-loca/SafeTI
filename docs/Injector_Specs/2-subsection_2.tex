@@ -1,0 +1,143 @@
+\newpage
+\subsection{Bare-metal configuration}
+\label{software-config}
+
+In order to expand the existing drivers, it is required to acknowledge the APB registers of the injector's interface, so the injector can be configured, 
+controlled and take actions on status, or also set the injection program to be executed.
+
+\begin{register}{h}{APB configuration register}{\textbf{INJ\_BASE\_ADDR}+0x00}
+  \label{reg:APB_control}
+  \regfield{Reserved}             {25}{7}{{Unreachable}} % Reserved range (unnused)
+  \regfield{freeze\_irq\_en}      {1}{6}{0}
+  \regfield{irq\_err\_net\_en}    {1}{5}{0}
+  \regfield{irq\_err\_core\_en}   {1}{4}{0}
+  \regfield{irq\_prog\_compl\_en} {1}{3}{0}
+  \regfield{queue\_mode\_en}      {1}{2}{0}
+  \regfield{reset\_sw}            {1}{1}{0}
+  \regfield{enable}               {1}{0}{0}
+  \reglabel{Reset}
+  \regfieldtext{25}               {25}{7}
+  \regfieldtext{1}                {1}{6}
+  \regfieldtext{1}                {1}{5}
+  \regfieldtext{1}                {1}{4}
+  \regfieldtext{1}                {1}{3}
+  \regfieldtext{1}                {1}{2}
+  \regfieldtext{1}                {1}{1}
+  \regfieldtext{1}                {1}{0}
+  \reglabel{}
+  \regnewline
+\end{register}
+
+The functionality of each bit has been presented previously on \autoref{module desc-config}. 
+Note that the \textbf{enable} bit may be set to 0 by the injector itself when a pipeline freeze occurs.
+
+The access to these APB registers must be executed on data transactions of 32-bit, meaning there's no support for other data width accesses.
+This is particularly important on the \fullref{reg:APB_desc_input}, since this register is where each word of the injection program 
+must be written in order of descriptor execution and word, loads a 32-bit word per write access.
+
+\begin{register}{h}{APB program memory feed register}{\textbf{INJ\_BASE\_ADDR}+0x3F}
+  \label{reg:APB_desc_input}
+  \regfield{}                     {32}{0}{{Exclusive write access}}
+  \regfieldtext{32}               {32}{0}
+  \regnewline
+\end{register}
+
+With these, all access to the injector core has been explained, but the programming itself that is explained on the following \fullref{software-program}.
+
+
+\subsection{Bare-metal programming}
+\label{software-program}
+Each descriptor has its own different machine format for codifying the different parameters used during the execution. 
+However, these have common parameters such as \textbf{LAST} and \textbf{IRQ\_EN}, which indicate the last descriptor of 
+an injection program and set an APB interruption when the descriptor has been completed, respectively. 
+
+Multiple word descriptors must be wrote into the \fullref{reg:APB_desc_input} in ascendant order, being first the word 0x00, then 0x04 and so on. 
+
+
+\subsubsection{Descriptor DELAY}
+\label{software-program-delay}
+The \textbf{DELAY} descriptor sets a standby time equal to \textbf{SIZE} times \textbf{COUNT}+1. 
+This descriptor only has one 32-bit word, depicted on Register \ref{reg:desc_delay}. 
+
+\begin{register}{h}{DELAY descriptor word}{}
+  \label{reg:desc_delay}
+  \regfieldb{}              {19}{13}
+  \regfieldb{}              {6}{7}
+  \regfieldb{}              {1}{6}
+  \regfieldb{}              {5}{1}
+  \regfieldb{}              {1}{0}
+  \regfieldtext{19}         {19}{13}
+  \regfieldtext{6}          {6}{7}
+  \regfieldtext{1}          {1}{6}
+  \regfieldtext{5}          {5}{1}
+  \regfieldtext{1}          {1}{0}
+  \regfieldtext{SIZE}       {19}{13}
+  \regfieldtext{COUNT}      {6}{7}
+  \regfieldtext{IRQ\_EN}    {1}{6}
+  \regfieldtext{00000}      {5}{1}
+  \regfieldtext{LAST}       {1}{0}
+  \regnewline
+\end{register}
+
+
+\subsubsection{Descriptors READ, WRITE, READ\_FIX and WRITE\_FIX}
+\label{software-program-rd_wr}
+The \textbf{READ} and \textbf{WRITE} descriptors, including its address fixed variants with the added suffix \textbf{\_FIX}, sets a total byte transfer of that 
+type at least to \textbf{SIZE} times \textbf{COUNT}+1 bytes.
+For each \textbf{COUNT}+1 execution of the descriptor, the \textbf{SIZE} is split in multiple batches on the request to the compatible network interface.
+The maximum data batch transfer is set by a design variable called \textbf{MAX\_SIZE\_BURST}, which is specific to each implementation of the SafeTI. 
+Review \fullref{} for further information about this and other generic variables.
+
+The transfers are executed starting from the coded \textbf{ATTACK\_ADDR} address, even though it maintains the address fixed if the access type is a fixed 
+address variant.
+These descriptors have two 32-bit words, depicted on Registers \ref{reg:desc_rd_wr0} and \ref{reg:desc_rd_wr1}. 
+
+\begin{register}{h}{READ, WRITE, READ\_FIX and WRITE\_FIX descriptor word}{0x00}
+  \label{reg:desc_rd_wr0}
+  \reglabelc{}
+  \regfieldb{}              {19}{13}
+  \regfieldb{}              {6}{7}
+  \regfieldb{}              {1}{6}
+  \regfieldb{}              {5}{1}
+  \regfieldb{}              {1}{0}
+  \reglabelc{}
+  \regfieldtext{19}         {19}{13}
+  \regfieldtext{6}          {6}{7}
+  \regfieldtext{1}          {1}{6}
+  \regfieldtext{5}          {5}{1}
+  \regfieldtext{1}          {1}{0}
+  \reglabelc{READ}
+  \regfieldtext{SIZE}       {19}{13}
+  \regfieldtext{COUNT}      {6}{7}
+  \regfieldtext{IRQ\_EN}    {1}{6}
+  \regfieldtext{00001}      {5}{1}
+  \regfieldtext{LAST}       {1}{0}
+  \reglabelc{WRITE}
+  \regfieldtext{SIZE}       {19}{13}
+  \regfieldtext{COUNT}      {6}{7}
+  \regfieldtext{IRQ\_EN}    {1}{6}
+  \regfieldtext{00010}      {5}{1}
+  \regfieldtext{LAST}       {1}{0}
+  \reglabelc{READ\_FIX}
+  \regfieldtext{SIZE}       {19}{13}
+  \regfieldtext{COUNT}      {6}{7}
+  \regfieldtext{IRQ\_EN}    {1}{6}
+  \regfieldtext{00101}      {5}{1}
+  \regfieldtext{LAST}       {1}{0}
+  \reglabelc{WRITE\_FIX}
+  \regfieldtext{SIZE}       {19}{13}
+  \regfieldtext{COUNT}      {6}{7}
+  \regfieldtext{IRQ\_EN}    {1}{6}
+  \regfieldtext{00110}      {5}{1}
+  \regfieldtext{LAST}       {1}{0}
+  \regnewline
+\end{register}  
+\begin{register}{h}{READ, WRITE, READ\_FIX and WRITE\_FIX descriptor word}{0x04}
+  \label{reg:desc_rd_wr1}
+  \regfieldb{}                {32}{0}
+  \regfieldtext{32}           {32}{0}
+  \regfieldtext{ATTACK\_ADDR} {32}{0}
+  \regnewline
+\end{register}
+
+

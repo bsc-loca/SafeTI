@@ -1,0 +1,17 @@
+# Project files to test with SpyGlass
+../hdl/network_interfaces/injector_axi.vhd
+../hdl/network_interfaces/axi4_manager.vhd
+../hdl/injector_core.vhd
+../hdl/injector_apb.vhd
+../hdl/injector_fetch.vhd
+../hdl/injector_decode.vhd
+../hdl/injector_exe.vhd
+../hdl/injector_control.vhd
+../hdl/exe_submodules/injector_delay.vhd
+../hdl/exe_submodules/injector_read.vhd
+../hdl/exe_submodules/injector_write.vhd
+
+# BSC library files
+safety
+../hdl/injector_pkg.vhd
+../hdl/network_interfaces/axi4_pkg.vhd
