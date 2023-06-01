@@ -28,8 +28,8 @@ O. Sala et al., "SafeTI: a Hardware Traffic Injector for MPSoC Functional and Ti
 ```
 @INPROCEEDINGS{9486689,
   author={Sala, Oriol and Alcaide, Sergi and Cabo, Guillem and Bas, Francisco and Lorenzo, Ruben and Benedicte, Pedro and Trilla, David and Gil, Guillermo and Mazzocchetti, Fabio and Abella, Jaume},
-  booktitle={2021 IEEE 27th International Symposium on On-Line Testing and Robust System Design (IOLTS)},
-  title={SafeTI: a Hardware Traffic Injector for MPSoC Functional and Timing Validation},
+  booktitle={2021 IEEE 27th International Symposium on On-Line Testing and Robust System Design (IOLTS)}, 
+  title={SafeTI: a Hardware Traffic Injector for MPSoC Functional and Timing Validation}, 
   year={2021},
   volume={},
   number={},
