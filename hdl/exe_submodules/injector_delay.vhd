@@ -19,6 +19,7 @@ entity injector_delay is
     rstn              : in  std_ulogic;
     clk               : in  std_ulogic;
     -- Internal I/O
+    enable            : in  std_logic;
     rst_sw            : in  std_logic;
     start             : in  std_logic;
     busy              : out std_logic;
@@ -65,10 +66,12 @@ begin
   seq0 : process(clk, rstn)
   begin
     if(rstn = '0' and ASYNC_RST) then
+      done_reg        <= '0';
       wait_time       <= (others => '0');
       status_reg      <= DEBUG_STATE_IDLE;
     elsif rising_edge(clk) then
       if(rstn = '0' or rst_sw = '1') then
+        done_reg      <= '0';
         wait_time     <= (others => '0');
         status_reg    <= DEBUG_STATE_IDLE;
       else
@@ -77,7 +80,7 @@ begin
           done_reg    <= '1';
           wait_time   <= desc_data.num_cycles;
           status_reg  <= DEBUG_STATE_NO_OPERATION;
-        elsif(ongoing = '1') then
+        elsif(ongoing = '1' and enable = '1') then
           wait_time   <= wait_time - 1;
         else
           done_reg    <= '0';

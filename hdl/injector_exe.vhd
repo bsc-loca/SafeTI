@@ -73,6 +73,7 @@ architecture rtl of injector_exe is
       rstn              : in  std_ulogic;
       clk               : in  std_ulogic;
       -- Internal I/O
+      enable            : in  std_logic;
       rst_sw            : in  std_logic;
       start             : in  std_logic;
       busy              : out std_logic;
@@ -287,6 +288,7 @@ begin -- rtl
     port map (
       rstn              => rstn,
       clk               => clk,
+      enable            => enable,
       rst_sw            => rst_sw,
       start             => start_subm.delay_sub,
       busy              => busy_subm.delay_sub,

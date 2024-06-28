@@ -32,7 +32,7 @@ unsigned int program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsig
   unsigned int n_words = 1;              // Number of descriptor words
   desc_ctrl  ctrl_word = desc_ctrl_rst;  // Descriptor control word
   desc_delay delay     = desc_delay_rst; // Descriptor for DELAY type
-  desc_rd_wr rd_wr     = desc_rd_wr_rst; // Descriptor for READ and WRTIE types
+  desc_rd_wr rd_wr     = desc_rd_wr_rst; // Descriptor for READ and WRITE types
 
   // Check values are in-range and prepare descriptor parameters
   switch(DESC_TYPE) {
@@ -44,6 +44,8 @@ unsigned int program_descriptor( unsigned int SEL, unsigned int DESC_TYPE, unsig
       rd_wr.act_addr = ATTACK_ADDR;
       // Then continue with same setup as DELAY
     case INJ_OP_DELAY:
+      if(SIZE == 0) // Null SIZE doesn't require action for READ, WRITE, DELAY
+        return 0;
       if(SIZE > 524288)
         printf("\n\nERROR SW SafeTI: Size too big, maximum is 524288.\n");
       else if(COUNT > 63)
@@ -227,14 +229,12 @@ unsigned int inj_get_base_addr(unsigned int sel) {
 
 // Write Injector APB Register
 void inj_write_reg(unsigned int entry, unsigned int value, unsigned int sel) {
-  volatile unsigned int *p;
-  volatile unsigned int base_address = 0;
   // Get Injector "sel" base APB address
-  base_address = inj_get_base_addr(sel);
+  unsigned int base_address = inj_get_base_addr(sel);
   if(base_address != 0) {
   // Write data to that address
     if(entry < APB_MEM_SPACE) {
-      p = (unsigned int*)(base_address + entry);
+      volatile uint32_t *p = (volatile uint32_t *) (uintptr_t) (base_address + entry);
       *p = value;
     } else
       printf("\n\nERROR SW SafeTI: Software tried to write outside the injector's allocated memory space APB_MEM_SPACE.\n");
@@ -244,22 +244,20 @@ void inj_write_reg(unsigned int entry, unsigned int value, unsigned int sel) {
 
 // Read Injector APB Register
 unsigned int inj_read_reg (unsigned int entry, unsigned int sel) {
-  volatile unsigned int *p;
-  volatile unsigned int value = 0;
-  volatile unsigned int base_address = 0;
+  uint32_t value;
   // Get Injector "sel" base APB address
-  base_address = inj_get_base_addr(sel);
+  unsigned int base_address = inj_get_base_addr(sel);
   if(base_address != 0) {
   // Read data to that address
     if(entry < APB_MEM_SPACE) {
-      p = (unsigned int*)(base_address + entry);
+      volatile uint32_t *p = (volatile uint32_t *) (uintptr_t) (base_address + entry);
       value = *p;
     } else {
       printf("\n\nERROR SW SafeTI: Software tried to read outside the injector's allocated memory space APB_MEM_SPACE.\n");
       value = 0;
   } } else
     printf("\n\nERROR SW SafeTI: SafeTI cannot be allocated at base address 0x00000000\n");
-  return value;
+  return (unsigned int) value;
 }
 
 // Start Injector "SELENE" Execution given its configuration
