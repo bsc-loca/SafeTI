@@ -44,22 +44,24 @@ F. Fuentes et al., "Black-Box IP Validation with the SafeTI Traffic Injector: A 
 
 F. Fuentes et al., "On-chip Traffic Injection to Counteract Timing Side-Channel Attacks". ERTS2024, Jun 2024, Labège, Toulouse, France. pp.197-208. ⟨hal-04614786⟩.
 
-@inproceedings{fuentes:hal-04614786,
-  TITLE = {{On-chip Traffic Injection to Counteract Timing Side-Channel Attacks}},
-  AUTHOR = {Fuentes, Francisco and Alcaide, Sergi and Casanova, Raimon and Abella, Jaume},
-  URL = {https://hal.science/hal-04614786},
-  BOOKTITLE = {{ERTS2024}},
-  ADDRESS = {Lab{\`e}ge, Toulouse, France},
-  EDITOR = {Mohamed Kaaniche and Kevin Delmas and Christophe Grand and Eric Jenn and Christine Rochange},
-  PUBLISHER = {{Philippe Cuenot}},
-  PAGES = {197-208},
-  YEAR = {2024},
-  MONTH = Jun,
-  KEYWORDS = {Cyber security ; MPSoC ; Side-channel attack mitigation ; AES encryption},
-  PDF = {https://hal.science/hal-04614786/file/main.pdf},
-  HAL_ID = {hal-04614786},
-  HAL_VERSION = {v1},
+```
+@INPROCEEDINGS{fuentes:hal-04614786,
+  title = {{On-chip Traffic Injection to Counteract Timing Side-Channel Attacks}},
+  author = {Fuentes, Francisco and Alcaide, Sergi and Casanova, Raimon and Abella, Jaume},
+  url = {https://hal.science/hal-04614786},
+  booktitle = {{ERTS2024}},
+  address = {Lab{\`e}ge, Toulouse, France},
+  editor = {Mohamed Kaaniche and Kevin Delmas and Christophe Grand and Eric Jenn and Christine Rochange},
+  publisher = {{Philippe Cuenot}},
+  pages = {197-208},
+  year = {2024},
+  month = Jun,
+  keywords = {Cyber security ; MPSoC ; Side-channel attack mitigation ; AES encryption},
+  pdf = {https://hal.science/hal-04614786/file/main.pdf},
+  hal_id = {hal-04614786},
+  hal_version = {v1},
 }
+```
 
 
 O. Sala et al., "SafeTI: a Hardware Traffic Injector for MPSoC Functional and Timing Validation," 2021 IEEE 27th International Symposium on On-Line Testing and Robust System Design (IOLTS), 2021, pp. 1-7, doi: 10.1109/IOLTS52814.2021.9486689.
@@ -70,7 +72,5 @@ O. Sala et al., "SafeTI: a Hardware Traffic Injector for MPSoC Functional and Ti
   booktitle={2021 IEEE 27th International Symposium on On-Line Testing and Robust System Design (IOLTS)},
   title={SafeTI: a Hardware Traffic Injector for MPSoC Functional and Timing Validation},
   year={2021},
-  volume={},
-  number={},
   pages={1-7},
   doi={10.1109/IOLTS52814.2021.9486689}}
