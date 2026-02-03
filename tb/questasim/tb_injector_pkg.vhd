@@ -22,19 +22,28 @@ use safety.injector_pkg.all;
 package tb_injector_pkg is
 
   -----------------------------------------------------------------------------
+  -- Records and types
+  -----------------------------------------------------------------------------
+
+  -- Since we are working with many descriptors, it's better to use both types
+  type descriptor_words is array (0 to 1) of std_logic_vector(31 downto 0); -- 2 word per descriptor
+  type descriptor_bank_tb  is array (natural range <>) of descriptor_words;    -- X number of descriptors
+  type addr_bank        is array (natural range <>) of std_logic_vector(31 downto 0); -- X number of addresses
+  type array_integer is array (natural range <>) of integer;
+  subtype DESC_BANK_RANGE is Natural range 0 to 5;
+
+  -----------------------------------------------------------------------------
   -- Constant declaration
   -----------------------------------------------------------------------------
 
   constant T : time := 5 ns; -- Clock cycle period
 
   -- APB input stimulus to start injector
-  constant DEF_INJ_APB : apb_slave_in := (
-    sel     => '0',
+  constant DEF_INJ_CSR : csr_in := (
     en      => '0',
     addr    => (others => '0'),
     wr_en   => '0',
-    wdata   => (others => '0'),
-    irq     => '0'
+    wdata   => (others => '0')
   );
 
   -- IB output (injector input) default state
@@ -47,30 +56,23 @@ package tb_injector_pkg is
     wr_req_grant  => '0',
     wr_full       => '1',
     wr_done       => '0',
-    wr_err        => '0'
+    wr_err        => '0',
+    external_addr => (others => '0')
   );
 
-  -----------------------------------------------------------------------------
-  -- Records and types
-  -----------------------------------------------------------------------------
-
-  -- Since we are working with many descriptors, it's better to use both types
-  type descriptor_words is array (0 to 1) of std_logic_vector(31 downto 0); -- 2 word per descriptor
-  type descriptor_bank_tb  is array (natural range <>) of descriptor_words;    -- X number of descriptors
-  type addr_bank        is array (natural range <>) of std_logic_vector(31 downto 0); -- X number of addresses
-  type array_integer is array (natural range <>) of integer;
+  constant RESET_DESC_BANK : descriptor_bank_tb(DESC_BANK_RANGE) := (others => (others => (others => '0')));
 
   -----------------------------------------------------------------------------
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
 
   -- Function used to generate a descriptor. They're created with the enable and interrupt flags asserted.
-  function descriptor_rd_wr(size      : integer range 1 to 524288;      -- Total size of a transfer
-                            count     : integer range 0 to 63;          -- Number of repeats of the transfer
-                            action    : std_logic_vector(4 downto 0);   -- Transaction type (read, write, delay)
-                            addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
-                            irq_compl : std_ulogic;                     -- Send APB interruption at descriptor completion
-                            last      : std_ulogic                      -- Last descriptor flag
+  function gen_descriptor(size      : integer range 1 to 524288;      -- Total size of a transfer
+                          count     : integer range 0 to 63;          -- Number of repeats of the transfer
+                          action    : std_logic_vector(4 downto 0);   -- Transaction type (read, write, delay)
+                          addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
+                          irq_compl : std_ulogic;                     -- Send APB interruption at descriptor completion
+                          last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words;
 
   -- IF function for when VHDL can not use if (like at constants).
@@ -79,8 +81,8 @@ package tb_injector_pkg is
   -- Procedure used to read from the APB bus, in which the injector is a slave.
   procedure read_address(
     signal   clk              : in  std_ulogic;
-    signal   apbo             : in  apb_slave_out;
-    signal   apbi             : out apb_slave_in;
+    signal   csro             : in  csr_out;
+    signal   csri             : out csr_in;
     constant address          : in  std_logic_vector(31 downto 0);
     variable rd_data          : out std_logic_vector(31 downto 0)
   );
@@ -88,8 +90,8 @@ package tb_injector_pkg is
   -- Procedure used to write on the APB bus, in which the injector is a slave.
   procedure write_address(
     signal   clk                : in  std_ulogic;
-    signal   apbo               : in  apb_slave_out;
-    signal   apbi               : out apb_slave_in;
+    signal   csro               : in  csr_out;
+    signal   csri               : out csr_in;
     constant address            : in  std_logic_vector(31 downto 0);
     constant wr_data            : in  std_logic_vector(31 downto 0)
   );
@@ -98,8 +100,8 @@ package tb_injector_pkg is
   procedure load_descriptors(
     signal   clk                : in  std_ulogic;
     constant inj_base_addr      : in  std_logic_vector(31 downto 0); -- Injector's address location on APB memory
-    constant descriptor_bank_tb : in  descriptor_bank_tb; -- Descriptor batch to offer at rdata
-    signal   apbi               : out apb_slave_in        -- APB bus to write descriptors
+    constant descriptor_bank_tb : in  descriptor_bank_tb(DESC_BANK_RANGE); -- Descriptor batch to offer at rdata
+    signal   csri               : out csr_in              -- CSR bus to write descriptors
   );
 
   -- Procedure used to execute read/write transactions.
@@ -111,9 +113,9 @@ package tb_injector_pkg is
     signal   rstn               : out std_ulogic;
     signal   ibin               : in  ib_mosi;            -- IB bus set by injector
     signal   ibout              : out ib_miso;            -- IB bus set by testbench
-    signal   apbo               : in  apb_slave_out;      -- APB bus
-    signal   apbi               : out apb_slave_in;       -- APB bus
-    constant descr_bnk          : in  descriptor_bank_tb; -- Descriptor batch to be executed
+    signal   csro               : in  csr_out;            -- CSR bus
+    signal   csri               : out csr_in;             -- CSR bus
+    constant descr_bnk          : in  descriptor_bank_tb(DESC_BANK_RANGE); -- Descriptor batch to be executed
     constant MAX_BURST          : in  integer;            -- Maximum length in bytes for a beat in burst
     constant dbits              : in  integer;            -- IB data bus width
     constant inj_base_addr      : in  std_logic_vector(31 downto 0);  -- Injector APB base address
@@ -132,12 +134,12 @@ package body tb_injector_pkg is
   -- Function and types
   -----------------------------------------------------------------------------
 
-  function descriptor_rd_wr(size      : integer range 1 to 524288;      -- Total size of a transfer -1
-                            count     : integer range 0 to 63;          -- Number of repeats of the transfer
-                            action    : std_logic_vector(4 downto 0);   -- Transaction type (read, write, delay)
-                            addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
-                            irq_compl : std_ulogic;                     -- Send APB interruption at descriptor completion
-                            last      : std_ulogic                      -- Last descriptor flag
+  function gen_descriptor(size      : integer range 1 to 524288;      -- Total size of a transfer -1
+                          count     : integer range 0 to 63;          -- Number of repeats of the transfer
+                          action    : std_logic_vector(4 downto 0);   -- Transaction type (read, write, delay)
+                          addr      : std_logic_vector(31 downto 0);  -- Initial address to apply transaction
+                          irq_compl : std_ulogic;                     -- Send APB interruption at descriptor completion
+                          last      : std_ulogic                      -- Last descriptor flag
   ) return descriptor_words is
     variable descr_words  : descriptor_words  := (others => (others => '0'));
     variable size_std     : std_logic_vector(18 downto 0) := (others => '0');
@@ -157,7 +159,7 @@ package body tb_injector_pkg is
       );
 
     return descr_words;
-  end function descriptor_rd_wr;
+  end function gen_descriptor;
 
   -- IF function that outputs the first input if the boolean is true, the second if false.
   function sel(A, B : integer; sel : boolean) return integer is
@@ -174,73 +176,79 @@ package body tb_injector_pkg is
 
   procedure read_address(
     signal   clk              : in  std_ulogic;
-    signal   apbo             : in  apb_slave_out;
-    signal   apbi             : out apb_slave_in;
+    signal   csro             : in  csr_out;
+    signal   csri             : out csr_in;
     constant address          : in  std_logic_vector(31 downto 0);
     variable rd_data          : out std_logic_vector(31 downto 0)
   ) is
   begin
-    apbi.en     <= '0';
-    apbi.addr   <= address;
+    csri.en     <= '0';
+    csri.addr   <= address(7 downto 0);
     wait until rising_edge(clk);
-    apbi.en     <= '1';
-    apbi.wr_en  <= '0';
+    csri.en     <= '1';
+    csri.wr_en  <= '0';
     wait until rising_edge(clk);
-    rd_data     := apbo.rdata;
-    apbi.en     <= '0';
-    apbi.wr_en  <= '0';
-    apbi.addr   <= (others => '0');
-    apbi.wdata  <= (others => '0');
+    rd_data     := csro.rdata;
+    csri.en     <= '0';
+    csri.wr_en  <= '0';
+    csri.addr   <= (others => '0');
+    csri.wdata  <= (others => '0');
   end procedure read_address;
 
   procedure write_address(
     signal   clk              : in  std_ulogic;
-    signal   apbo             : in  apb_slave_out;
-    signal   apbi             : out apb_slave_in;
+    signal   csro             : in  csr_out;
+    signal   csri             : out csr_in;
     constant address          : in  std_logic_vector(31 downto 0);
     constant wr_data          : in  std_logic_vector(31 downto 0)
   ) is
   begin
-    apbi.en     <= '0';
-    apbi.addr   <= address;
-    apbi.wdata  <= wr_data;
+    csri.en     <= '0';
+    csri.addr   <= address(7 downto 0);
+    csri.wdata  <= wr_data;
     wait until rising_edge(clk);
-    apbi.en     <= '1';
-    apbi.wr_en  <= '1';
+    csri.en     <= '1';
+    csri.wr_en  <= '1';
     wait until rising_edge(clk);
-    apbi.en     <= '0';
-    apbi.wr_en  <= '0';
-    apbi.addr   <= (others => '0');
-    apbi.wdata  <= (others => '0');
+    csri.en     <= '0';
+    csri.wr_en  <= '0';
+    csri.addr   <= (others => '0');
+    csri.wdata  <= (others => '0');
   end procedure write_address;
 
 
   procedure load_descriptors(
     signal   clk                : in  std_ulogic;
     constant inj_base_addr      : in  std_logic_vector(31 downto 0);
-    constant descriptor_bank_tb : in  descriptor_bank_tb;
-    signal   apbi               : out apb_slave_in
+    constant descriptor_bank_tb : in  descriptor_bank_tb(DESC_BANK_RANGE);
+    signal   csri               : out csr_in
   ) is
+    variable address            :     std_logic_vector(31 downto 0);
     variable descriptor         :     descriptor_words;
+    variable desc_type          :     std_logic_vector( 4 downto 0);
   begin
     -- Set the signals to write descriptors through the APB serial register
-    apbi.addr   <= std_logic_vector(unsigned(inj_base_addr) + X"FC");
-    apbi.en     <= '1';
-    apbi.wr_en  <= '1';
+    address     := std_logic_vector(unsigned(inj_base_addr) + X"FC");
+    csri.addr   <= address(7 downto 0);
+    csri.en     <= '1';
+    csri.wr_en  <= '1';
 
     for j in descriptor_bank_tb'range loop -- Loop for each descriptors
       descriptor  := descriptor_bank_tb(j);
+      desc_type   := descriptor(0)(5 downto 1);
 
-      for i in descriptor'range loop -- Loop for each word of the descriptor
-        apbi.wdata <= descriptor(i); -- APB data bus is 32-bit
-
+      csri.wdata <= descriptor(0); -- First descriptor word
+      wait until rising_edge(clk);
+      if( not((desc_type = OP_DELAY) or (desc_type = OP_OBSERVER_HOLD)) ) then
+        csri.wdata <= descriptor(1); -- Second descriptor word
         wait until rising_edge(clk);
-      end loop;
+      end if;
+
     end loop;
 
-    apbi.addr   <= (others => '0');
-    apbi.en     <= '0';
-    apbi.wr_en  <= '0';
+    csri.addr   <= (others => '0');
+    csri.en     <= '0';
+    csri.wr_en  <= '0';
 
   end procedure load_descriptors;
 
@@ -254,9 +262,9 @@ package body tb_injector_pkg is
     signal   rstn               : out std_ulogic;
     signal   ibin               : in  ib_mosi;
     signal   ibout              : out ib_miso;
-    signal   apbo               : in  apb_slave_out;
-    signal   apbi               : out apb_slave_in;
-    constant descr_bnk          : in  descriptor_bank_tb;
+    signal   csro               : in  csr_out;
+    signal   csri               : out csr_in;
+    constant descr_bnk          : in  descriptor_bank_tb(DESC_BANK_RANGE);
     constant MAX_BURST          : in  integer;
     constant dbits              : in  integer;
     constant inj_base_addr      : in  std_logic_vector(31 downto 0);
@@ -272,7 +280,7 @@ package body tb_injector_pkg is
   begin
 
     -- Configure and start injector
-    write_address(clk, apbo, apbi, inj_base_addr, inj_conf);
+    write_address(clk, csro, csri, inj_base_addr, inj_conf);
 
     -- LOOP for every programmed descriptor at the injector program
     for descr_num in descr_bnk'range loop

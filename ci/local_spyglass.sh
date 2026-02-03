@@ -20,14 +20,15 @@ echo "##Data Import Section" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/network_interfaces/injector_axi.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/network_interfaces/axi4_manager.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_core.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/injector_apb.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_csr.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_fetch.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/injector_ram.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_decode.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_exe.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/injector_control.vhd" >> /tmp/$N/$N.prj
 echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_delay.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_read.vhd" >> /tmp/$N/$N.prj
-echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_write.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_requester.vhd" >> /tmp/$N/$N.prj
+echo "read_file -type vhdl $PWD/../hdl/exe_submodules/injector_observer.vhd" >> /tmp/$N/$N.prj
 # Set library name and path
 echo "set_option lib safety {$PWD/safety}" >> /tmp/$N/$N.prj
 # BSC library files

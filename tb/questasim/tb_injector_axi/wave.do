@@ -1,129 +1,170 @@
 onerror {resume}
 quietly WaveActivateNextPane {} 0
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/rstn
-add wave -noupdate -divider {SafeTI APB}
-add wave -noupdate /tb_injector_axi/core/apbi.en
-add wave -noupdate /tb_injector_axi/core/apbo.irq
-add wave -noupdate -divider {AXI BUS}
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate -divider {To check}
+add wave -noupdate -divider SafeTI
+add wave -noupdate /tb_injector_axi/core/rstn
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate -divider {SafeTI CSR}
+add wave -noupdate -childformat {{/tb_injector_axi/core/csri.addr -radix hexadecimal} {/tb_injector_axi/core/csri.wdata -radix hexadecimal}} -subitemconfig {/tb_injector_axi/core/csri.addr {-height 18 -radix hexadecimal} /tb_injector_axi/core/csri.wdata {-height 18 -radix hexadecimal}} /tb_injector_axi/core/csri
+add wave -noupdate /tb_injector_axi/core/csro
+add wave -noupdate -divider {SafeTI AXI}
 add wave -noupdate /tb_injector_axi/axi4mi
-add wave -noupdate -childformat {{/tb_injector_axi/axi4mo.aw_size -radix binary} {/tb_injector_axi/axi4mo.ar_size -radix binary}} -subitemconfig {/tb_injector_axi/axi4mo.aw_size {-height 18 -radix binary} /tb_injector_axi/axi4mo.ar_size {-height 18 -radix binary}} /tb_injector_axi/axi4mo
-add wave -noupdate -divider {AXI Manager interface}
-add wave -noupdate /tb_injector_axi/AXI4_M0/rd_main
-add wave -noupdate /tb_injector_axi/AXI4_M0/rd_burst
-add wave -noupdate /tb_injector_axi/AXI4_M0/wr_main
-add wave -noupdate /tb_injector_axi/AXI4_M0/wr_burst
-add wave -noupdate -divider {SafeTI injector}
-add wave -noupdate -divider APB
-add wave -noupdate /tb_injector_axi/rstn
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/apbi
-add wave -noupdate /tb_injector_axi/apbo
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs
+add wave -noupdate /tb_injector_axi/axi4mo
+add wave -noupdate -childformat {{/tb_injector_axi/ib_out_injector.rd_addr -radix hexadecimal} {/tb_injector_axi/ib_out_injector.rd_size -radix unsigned} {/tb_injector_axi/ib_out_injector.wr_addr -radix hexadecimal} {/tb_injector_axi/ib_out_injector.wr_size -radix unsigned}} -subitemconfig {/tb_injector_axi/ib_out_injector.rd_addr {-height 18 -radix hexadecimal} /tb_injector_axi/ib_out_injector.rd_size {-height 18 -radix unsigned} /tb_injector_axi/ib_out_injector.wr_addr {-height 18 -radix hexadecimal} /tb_injector_axi/ib_out_injector.wr_size {-height 18 -radix unsigned}} /tb_injector_axi/ib_out_injector
+add wave -noupdate -childformat {{/tb_injector_axi/ib_in_injector.rd_data -radix hexadecimal} {/tb_injector_axi/ib_in_injector.external_addr -radix hexadecimal}} -subitemconfig {/tb_injector_axi/ib_in_injector.rd_data {-height 18 -radix hexadecimal} /tb_injector_axi/ib_in_injector.external_addr {-height 18 -radix hexadecimal}} /tb_injector_axi/ib_in_injector
+add wave -noupdate -childformat {{/tb_injector_axi/ib_in_manager.rd_addr -radix hexadecimal} {/tb_injector_axi/ib_in_manager.rd_size -radix unsigned} {/tb_injector_axi/ib_in_manager.wr_addr -radix hexadecimal} {/tb_injector_axi/ib_in_manager.wr_size -radix unsigned} {/tb_injector_axi/ib_in_manager.wr_data -radix hexadecimal}} -subitemconfig {/tb_injector_axi/ib_in_manager.rd_addr {-height 18 -radix hexadecimal} /tb_injector_axi/ib_in_manager.rd_size {-height 18 -radix unsigned} /tb_injector_axi/ib_in_manager.wr_addr {-height 18 -radix hexadecimal} /tb_injector_axi/ib_in_manager.wr_size {-height 18 -radix unsigned} /tb_injector_axi/ib_in_manager.wr_data {-height 18 -radix hexadecimal}} /tb_injector_axi/ib_in_manager
+add wave -noupdate -childformat {{/tb_injector_axi/ib_out_manager.rd_data -radix hexadecimal}} -subitemconfig {/tb_injector_axi/ib_out_manager.rd_data {-height 18 -radix hexadecimal}} /tb_injector_axi/ib_out_manager
+add wave -noupdate -radix hexadecimal /tb_injector_axi/external_addr
+add wave -noupdate -divider {SafeTI injector core}
+add wave -noupdate -divider CSR
+add wave -noupdate /tb_injector_axi/core/rstn
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/irq_flag
+add wave -noupdate /tb_injector_axi/core/csr/request_granted
+add wave -noupdate -childformat {{/tb_injector_axi/core/csr/csr_regs.network_profile -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter -radix unsigned -childformat {{/tb_injector_axi/core/csr/csr_regs.irq_counter(31) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(30) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(29) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(28) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(27) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(26) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(25) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(24) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(23) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(22) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(21) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(20) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(19) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(18) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(17) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(16) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(15) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(14) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(13) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(12) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(11) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(10) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(9) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(8) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(7) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(6) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(5) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(4) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(3) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(2) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(1) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(0) -radix hexadecimal}}} {/tb_injector_axi/core/csr/csr_regs.request_counter -radix unsigned} {/tb_injector_axi/core/csr/csr_regs.desc_word -radix hexadecimal -childformat {{/tb_injector_axi/core/csr/csr_regs.desc_word(31) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(30) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(29) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(28) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(27) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(26) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(25) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(24) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(23) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(22) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(21) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(20) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(19) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(18) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(17) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(16) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(15) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(14) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(13) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(12) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(11) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(10) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(9) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(8) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(7) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(6) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(5) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(4) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(3) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(2) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(1) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(0) -radix hexadecimal}}}} -subitemconfig {/tb_injector_axi/core/csr/csr_regs.network_profile {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter {-height 18 -radix unsigned -childformat {{/tb_injector_axi/core/csr/csr_regs.irq_counter(31) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(30) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(29) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(28) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(27) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(26) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(25) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(24) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(23) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(22) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(21) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(20) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(19) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(18) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(17) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(16) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(15) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(14) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(13) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(12) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(11) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(10) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(9) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(8) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(7) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(6) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(5) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(4) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(3) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(2) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(1) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.irq_counter(0) -radix hexadecimal}}} /tb_injector_axi/core/csr/csr_regs.irq_counter(31) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(30) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(29) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(28) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(27) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(26) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(25) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(24) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(23) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(22) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(21) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(20) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(19) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(18) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(17) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(16) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(15) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(14) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(13) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(12) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(11) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(10) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(9) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(8) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(7) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(6) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(5) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(4) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(3) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(2) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(1) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.irq_counter(0) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.request_counter {-height 18 -radix unsigned} /tb_injector_axi/core/csr/csr_regs.desc_word {-height 18 -radix hexadecimal -childformat {{/tb_injector_axi/core/csr/csr_regs.desc_word(31) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(30) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(29) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(28) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(27) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(26) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(25) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(24) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(23) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(22) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(21) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(20) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(19) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(18) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(17) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(16) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(15) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(14) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(13) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(12) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(11) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(10) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(9) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(8) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(7) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(6) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(5) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(4) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(3) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(2) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(1) -radix hexadecimal} {/tb_injector_axi/core/csr/csr_regs.desc_word(0) -radix hexadecimal}}} /tb_injector_axi/core/csr/csr_regs.desc_word(31) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(30) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(29) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(28) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(27) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(26) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(25) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(24) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(23) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(22) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(21) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(20) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(19) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(18) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(17) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(16) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(15) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(14) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(13) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(12) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(11) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(10) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(9) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(8) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(7) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(6) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(5) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(4) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(3) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(2) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(1) {-height 18 -radix hexadecimal} /tb_injector_axi/core/csr/csr_regs.desc_word(0) {-height 18 -radix hexadecimal}} /tb_injector_axi/core/csr/csr_regs
 add wave -noupdate -divider FETCH
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs.gen_config.enable
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/csr_regs.gen_config.enable
+add wave -noupdate /tb_injector_axi/core/fetch/mem/rd_en
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/enable
+add wave -noupdate -group Fetch /tb_injector_axi/core/csr/disable
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/pc_wr
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/desc_word_wr
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/desc_word_wen
-add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/mem
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/pc_rd
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/desc_w_counter
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/desc_w_stop
-add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/desc_word_rd
-add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/pc
+add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/mem_rd
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/desc_buffer
+add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/fetch_en
+add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/fetch_en_reg
+add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/fetch_en_del
+add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/fetch_en_pulse
+add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/pc
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/fetch_ready
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/decode_read
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/irq
 add wave -noupdate -group Fetch /tb_injector_axi/core/fetch/state
+add wave -noupdate -group MEM -radix unsigned -childformat {{/tb_injector_axi/core/fetch/mem/rd_addr(31) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(30) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(29) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(28) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(27) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(26) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(25) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(24) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(23) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(22) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(21) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(20) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(19) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(18) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(17) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(16) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(15) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(14) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(13) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(12) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(11) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(10) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(9) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(8) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(7) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(6) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(5) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(4) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(3) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(2) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(1) -radix unsigned} {/tb_injector_axi/core/fetch/mem/rd_addr(0) -radix unsigned}} -subitemconfig {/tb_injector_axi/core/fetch/mem/rd_addr(31) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(30) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(29) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(28) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(27) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(26) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(25) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(24) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(23) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(22) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(21) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(20) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(19) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(18) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(17) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(16) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(15) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(14) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(13) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(12) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(11) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(10) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(9) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(8) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(7) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(6) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(5) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(4) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(3) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(2) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(1) {-height 18 -radix unsigned} /tb_injector_axi/core/fetch/mem/rd_addr(0) {-height 18 -radix unsigned}} /tb_injector_axi/core/fetch/mem/rd_addr
+add wave -noupdate -group MEM -radix hexadecimal /tb_injector_axi/core/fetch/mem/rd_data
+add wave -noupdate -group MEM /tb_injector_axi/core/fetch/mem/wr_en
+add wave -noupdate -group MEM -radix unsigned /tb_injector_axi/core/fetch/mem/wr_addr
+add wave -noupdate -group MEM -radix hexadecimal /tb_injector_axi/core/fetch/mem/wr_data
+add wave -noupdate -group MEM -radix hexadecimal -childformat {{/tb_injector_axi/core/fetch/mem/RAM(0) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(1) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(2) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(3) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(4) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(5) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(6) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(7) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(8) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(9) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(10) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(11) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(12) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(13) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(14) -radix hexadecimal} {/tb_injector_axi/core/fetch/mem/RAM(15) -radix hexadecimal}} -subitemconfig {/tb_injector_axi/core/fetch/mem/RAM(0) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(1) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(2) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(3) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(4) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(5) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(6) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(7) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(8) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(9) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(10) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(11) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(12) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(13) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(14) {-height 18 -radix hexadecimal} /tb_injector_axi/core/fetch/mem/RAM(15) {-height 18 -radix hexadecimal}} /tb_injector_axi/core/fetch/mem/RAM
 add wave -noupdate -divider DECODE
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs.gen_config.enable
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/csr_regs.gen_config.enable
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/enable
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/fetch_ready
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/decode_read
+add wave -noupdate -group Decode -radix unsigned /tb_injector_axi/core/decode/exe_pc
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/desc
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/act_subm
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/no_rep
-add wave -noupdate -group Decode -expand /tb_injector_axi/core/decode/common
-add wave -noupdate -group Decode -expand /tb_injector_axi/core/decode/rd_wr
+add wave -noupdate -group Decode -childformat {{/tb_injector_axi/core/decode/common.pc -radix unsigned}} -subitemconfig {/tb_injector_axi/core/decode/common.pc {-height 18 -radix unsigned}} /tb_injector_axi/core/decode/common
+add wave -noupdate -group Decode -childformat {{/tb_injector_axi/core/decode/rd_wr.addr -radix hexadecimal}} -subitemconfig {/tb_injector_axi/core/decode/rd_wr.addr {-height 18 -radix hexadecimal}} /tb_injector_axi/core/decode/rd_wr
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/delay
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/decode_ready
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/exe_read
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/irq
 add wave -noupdate -group Decode /tb_injector_axi/core/decode/state
 add wave -noupdate -divider EXE
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs.gen_config.enable
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/csr_regs.gen_config.enable
 add wave -noupdate -group EXE /tb_injector_axi/core/exe/enable
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/decode_ready
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/exe_read
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/active_subm
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/last_count
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/last_descr
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/irq_desc_en
+add wave -noupdate -group EXE /tb_injector_axi/core/exe/program
 add wave -noupdate -group EXE /tb_injector_axi/core/exe/start
 add wave -noupdate -group EXE /tb_injector_axi/core/exe/busy
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/done
+add wave -noupdate -group EXE /tb_injector_axi/core/exe/decode_ready
+add wave -noupdate -group EXE -radix binary /tb_injector_axi/core/exe/activation_subm
+add wave -noupdate -group EXE /tb_injector_axi/core/exe/start_halt
+add wave -noupdate -group EXE -radix binary /tb_injector_axi/core/exe/start_subm
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/active_subm(0) -radix binary} {/tb_injector_axi/core/exe/active_subm(1) -radix binary} {/tb_injector_axi/core/exe/active_subm(2) -radix binary} {/tb_injector_axi/core/exe/active_subm(3) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/active_subm(0) {-height 18 -radix binary} /tb_injector_axi/core/exe/active_subm(1) {-height 18 -radix binary} /tb_injector_axi/core/exe/active_subm(2) {-height 18 -radix binary} /tb_injector_axi/core/exe/active_subm(3) {-height 18 -radix binary}} /tb_injector_axi/core/exe/active_subm
 add wave -noupdate -group EXE /tb_injector_axi/core/exe/irq_desc_comp
 add wave -noupdate -group EXE /tb_injector_axi/core/exe/desc_comp
 add wave -noupdate -group EXE /tb_injector_axi/core/exe/program_comp
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/error_subm
-add wave -noupdate -group EXE /tb_injector_axi/core/exe/state_subm
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/hold_subm(0) -radix binary} {/tb_injector_axi/core/exe/hold_subm(1) -radix binary} {/tb_injector_axi/core/exe/hold_subm(2) -radix binary} {/tb_injector_axi/core/exe/hold_subm(3) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/hold_subm(0) {-height 18 -radix binary} /tb_injector_axi/core/exe/hold_subm(1) {-height 18 -radix binary} /tb_injector_axi/core/exe/hold_subm(2) {-height 18 -radix binary} /tb_injector_axi/core/exe/hold_subm(3) {-height 18 -radix binary}} /tb_injector_axi/core/exe/hold_subm
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/busy_subm(0) -radix binary} {/tb_injector_axi/core/exe/busy_subm(1) -radix binary} {/tb_injector_axi/core/exe/busy_subm(2) -radix binary} {/tb_injector_axi/core/exe/busy_subm(3) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/busy_subm(0) {-height 18 -radix binary} /tb_injector_axi/core/exe/busy_subm(1) {-height 18 -radix binary} /tb_injector_axi/core/exe/busy_subm(2) {-height 18 -radix binary} /tb_injector_axi/core/exe/busy_subm(3) {-height 18 -radix binary}} /tb_injector_axi/core/exe/busy_subm
+add wave -noupdate -group EXE -radix binary /tb_injector_axi/core/exe/full_subm
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/error_subm(0) -radix binary} {/tb_injector_axi/core/exe/error_subm(1) -radix binary} {/tb_injector_axi/core/exe/error_subm(2) -radix binary} {/tb_injector_axi/core/exe/error_subm(3) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/error_subm(0) {-height 18 -radix binary} /tb_injector_axi/core/exe/error_subm(1) {-height 18 -radix binary} /tb_injector_axi/core/exe/error_subm(2) {-height 18 -radix binary} /tb_injector_axi/core/exe/error_subm(3) {-height 18 -radix binary}} /tb_injector_axi/core/exe/error_subm
+add wave -noupdate -group EXE /tb_injector_axi/core/exe/en_fifo
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/exe_fifo(0) -radix binary} {/tb_injector_axi/core/exe/exe_fifo(1) -radix binary} {/tb_injector_axi/core/exe/exe_fifo(2) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/exe_fifo(0) {-height 18 -radix binary} /tb_injector_axi/core/exe/exe_fifo(1) {-height 18 -radix binary} /tb_injector_axi/core/exe/exe_fifo(2) {-height 18 -radix binary}} /tb_injector_axi/core/exe/exe_fifo
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/options_fifo(0) -radix binary -childformat {{/tb_injector_axi/core/exe/options_fifo(0).pc -radix unsigned} {/tb_injector_axi/core/exe/options_fifo(0).last_count -radix binary} {/tb_injector_axi/core/exe/options_fifo(0).last_descr -radix binary} {/tb_injector_axi/core/exe/options_fifo(0).irq_desc_en -radix binary}}} {/tb_injector_axi/core/exe/options_fifo(1) -radix binary -childformat {{/tb_injector_axi/core/exe/options_fifo(1).pc -radix unsigned} {/tb_injector_axi/core/exe/options_fifo(1).last_count -radix binary} {/tb_injector_axi/core/exe/options_fifo(1).last_descr -radix binary} {/tb_injector_axi/core/exe/options_fifo(1).irq_desc_en -radix binary}}} {/tb_injector_axi/core/exe/options_fifo(2) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/options_fifo(0) {-height 18 -radix binary -childformat {{/tb_injector_axi/core/exe/options_fifo(0).pc -radix unsigned} {/tb_injector_axi/core/exe/options_fifo(0).last_count -radix binary} {/tb_injector_axi/core/exe/options_fifo(0).last_descr -radix binary} {/tb_injector_axi/core/exe/options_fifo(0).irq_desc_en -radix binary}}} /tb_injector_axi/core/exe/options_fifo(0).pc {-height 18 -radix unsigned} /tb_injector_axi/core/exe/options_fifo(0).last_count {-height 18 -radix binary} /tb_injector_axi/core/exe/options_fifo(0).last_descr {-height 18 -radix binary} /tb_injector_axi/core/exe/options_fifo(0).irq_desc_en {-height 18 -radix binary} /tb_injector_axi/core/exe/options_fifo(1) {-height 18 -radix binary -childformat {{/tb_injector_axi/core/exe/options_fifo(1).pc -radix unsigned} {/tb_injector_axi/core/exe/options_fifo(1).last_count -radix binary} {/tb_injector_axi/core/exe/options_fifo(1).last_descr -radix binary} {/tb_injector_axi/core/exe/options_fifo(1).irq_desc_en -radix binary}}} /tb_injector_axi/core/exe/options_fifo(1).pc {-height 18 -radix unsigned} /tb_injector_axi/core/exe/options_fifo(1).last_count {-height 18 -radix binary} /tb_injector_axi/core/exe/options_fifo(1).last_descr {-height 18 -radix binary} /tb_injector_axi/core/exe/options_fifo(1).irq_desc_en {-height 18 -radix binary} /tb_injector_axi/core/exe/options_fifo(2) {-height 18 -radix binary}} /tb_injector_axi/core/exe/options_fifo
+add wave -noupdate -group EXE /tb_injector_axi/core/exe/active_options
+add wave -noupdate -group EXE -radix hexadecimal /tb_injector_axi/core/exe/wr_data_csr
+add wave -noupdate -group EXE -radix binary -childformat {{/tb_injector_axi/core/exe/state_subm(0) -radix binary} {/tb_injector_axi/core/exe/state_subm(1) -radix binary} {/tb_injector_axi/core/exe/state_subm(2) -radix binary} {/tb_injector_axi/core/exe/state_subm(3) -radix binary}} -subitemconfig {/tb_injector_axi/core/exe/state_subm(0) {-height 18 -radix binary} /tb_injector_axi/core/exe/state_subm(1) {-height 18 -radix binary} /tb_injector_axi/core/exe/state_subm(2) {-height 18 -radix binary} /tb_injector_axi/core/exe/state_subm(3) {-height 18 -radix binary}} /tb_injector_axi/core/exe/state_subm
 add wave -noupdate -divider DELAY
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs.gen_config.enable
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/csr_regs.gen_config.enable
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/program
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/start
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/hold
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/busy
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/full
+add wave -noupdate -group SUB_DELAY -radix unsigned -childformat {{/tb_injector_axi/core/exe/sub_delay/desc_data.num_cycles -radix unsigned}} -subitemconfig {/tb_injector_axi/core/exe/sub_delay/desc_data.num_cycles {-height 18 -radix unsigned}} /tb_injector_axi/core/exe/sub_delay/desc_data
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/status
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/full_reg
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/size_buffer
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/hold_buffer
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/busy_reg
+add wave -noupdate -group SUB_DELAY -radix unsigned /tb_injector_axi/core/exe/sub_delay/wait_time
+add wave -noupdate -group SUB_DELAY /tb_injector_axi/core/exe/sub_delay/status_reg
 add wave -noupdate -divider READ
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs.gen_config.enable
-add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_out.rd_addr
-add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_out.rd_size
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/csr_regs.gen_config.enable
+add wave -noupdate -group IB_RD -radix hexadecimal /tb_injector_axi/core/ib_out.rd_addr
+add wave -noupdate -group IB_RD -radix unsigned /tb_injector_axi/core/ib_out.rd_size
 add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_out.rd_fix_addr
 add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_out.rd_req
-add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_in.rd_data
+add wave -noupdate -group IB_RD -radix hexadecimal /tb_injector_axi/core/ib_in.rd_data
 add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_in.rd_req_grant
 add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_in.rd_valid
 add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_in.rd_done
 add wave -noupdate -group IB_RD /tb_injector_axi/core/ib_in.rd_err
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/enable
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/program
 add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/start
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/full
 add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/busy
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/transfer_on
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/hold
+add wave -noupdate -group SUB_READ -childformat {{/tb_injector_axi/core/exe/sub_rd/desc_reg.size -radix unsigned} {/tb_injector_axi/core/exe/sub_rd/desc_reg.addr -radix hexadecimal}} -subitemconfig {/tb_injector_axi/core/exe/sub_rd/desc_reg.size {-height 18 -radix unsigned} /tb_injector_axi/core/exe/sub_rd/desc_reg.addr {-height 18 -radix hexadecimal}} /tb_injector_axi/core/exe/sub_rd/desc_reg
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/busy_reg
 add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/req_reg
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/desc_to_exe
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/not_last_transf
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/size_transf_rem
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/last_reg
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/trans_reg
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/full_reg
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/status_reg
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/last_req
 add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/error_start
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/error_valid
-add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/error_done
+add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/error_data
 add wave -noupdate -group SUB_READ /tb_injector_axi/core/exe/sub_rd/status
 add wave -noupdate -divider WRITE
-add wave -noupdate /tb_injector_axi/clk
-add wave -noupdate /tb_injector_axi/core/apb/apb_regs.gen_config.enable
+add wave -noupdate /tb_injector_axi/core/clk
+add wave -noupdate /tb_injector_axi/core/csr/csr_regs.gen_config.enable
 add wave -noupdate /tb_injector_axi/core/exe/pc_ongoing
-add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_out.wr_addr
-add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_out.wr_size
+add wave -noupdate -group IB_WR -radix hexadecimal /tb_injector_axi/core/ib_out.wr_addr
+add wave -noupdate -group IB_WR -radix unsigned /tb_injector_axi/core/ib_out.wr_size
 add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_out.wr_fix_addr
 add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_out.wr_req
-add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_out.wr_data
+add wave -noupdate -group IB_WR -radix hexadecimal /tb_injector_axi/core/ib_out.wr_data
 add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_in.wr_req_grant
 add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_in.wr_full
 add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_in.wr_done
 add wave -noupdate -group IB_WR /tb_injector_axi/core/ib_in.wr_err
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/enable
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/program
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/full
 add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/start
 add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/busy
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/transfer_on
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/hold
+add wave -noupdate -group SUB_WRITE -childformat {{/tb_injector_axi/core/exe/sub_wr/desc_reg.size -radix unsigned} {/tb_injector_axi/core/exe/sub_wr/desc_reg.addr -radix hexadecimal}} -subitemconfig {/tb_injector_axi/core/exe/sub_wr/desc_reg.size {-height 18 -radix unsigned} /tb_injector_axi/core/exe/sub_wr/desc_reg.addr {-height 18 -radix hexadecimal}} /tb_injector_axi/core/exe/sub_wr/desc_reg
 add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/req_reg
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/done_wait
-add wave -noupdate -group SUB_WRITE -expand /tb_injector_axi/core/exe/sub_wr/desc_to_exe
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/not_last_transf
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/size_transf_rem
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/last_reg
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/trans_reg
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/full_reg
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/status_reg
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/last_req
 add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/error_start
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/error_full
-add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/error_done
+add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/error_data
 add wave -noupdate -group SUB_WRITE /tb_injector_axi/core/exe/sub_wr/status
 add wave -noupdate -divider CONTROL
 add wave -noupdate /tb_injector_axi/core/control/irq_err_pipeline
@@ -131,11 +172,13 @@ add wave -noupdate /tb_injector_axi/core/control/irq_err_network
 add wave -noupdate /tb_injector_axi/core/control/exe_irq_desc_comp
 add wave -noupdate /tb_injector_axi/core/control/exe_desc_comp
 add wave -noupdate /tb_injector_axi/core/control/exe_program_comp
+add wave -noupdate -divider SAFETI_AHB2
+add wave -noupdate /tb_injector_axi/core/clk
 TreeUpdate [SetDefaultTree]
-WaveRestoreCursors {{Cursor 1} {1858 ns} 0}
+WaveRestoreCursors {{Cursor 1} {22100 ns} 0}
 quietly wave cursor active 1
-configure wave -namecolwidth 150
-configure wave -valuecolwidth 130
+configure wave -namecolwidth 231
+configure wave -valuecolwidth 100
 configure wave -justifyvalue left
 configure wave -signalnamewidth 1
 configure wave -snapdistance 10
@@ -148,4 +191,4 @@ configure wave -griddelta 40
 configure wave -timeline 0
 configure wave -timelineunits ns
 update
-WaveRestoreZoom {0 ns} {5250 ns}
+WaveRestoreZoom {0 ns} {66299 ns}

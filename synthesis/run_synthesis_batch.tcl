@@ -10,14 +10,17 @@ file mkdir $outputDir
 #
 read_vhdl -library safety ../hdl/injector_pkg.vhd
 read_vhdl ../hdl/injector_core.vhd
-read_vhdl ../hdl/injector_apb.vhd
+read_vhdl ../hdl/injector_csr.vhd
 read_vhdl ../hdl/injector_fetch.vhd
+read_vhdl ../hdl/injector_ram.vhd
 read_vhdl ../hdl/injector_decode.vhd
 read_vhdl ../hdl/injector_exe.vhd
 read_vhdl ../hdl/injector_control.vhd
 read_vhdl ../hdl/exe_submodules/injector_delay.vhd
-read_vhdl ../hdl/exe_submodules/injector_read.vhd
-read_vhdl ../hdl/exe_submodules/injector_write.vhd
+#read_vhdl ../hdl/exe_submodules/injector_read.vhd
+#read_vhdl ../hdl/exe_submodules/injector_write.vhd
+read_vhdl ../hdl/exe_submodules/injector_requester.vhd
+read_vhdl ../hdl/exe_submodules/injector_observer.vhd
 read_vhdl -library safety ../hdl/network_interfaces/axi4_pkg.vhd
 read_vhdl ../hdl/network_interfaces/injector_axi.vhd
 read_vhdl ../hdl/network_interfaces/axi4_manager.vhd

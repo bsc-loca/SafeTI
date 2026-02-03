@@ -2,14 +2,14 @@
 ../hdl/network_interfaces/injector_axi.vhd
 ../hdl/network_interfaces/axi4_manager.vhd
 ../hdl/injector_core.vhd
-../hdl/injector_apb.vhd
+../hdl/injector_csr.vhd
 ../hdl/injector_fetch.vhd
 ../hdl/injector_decode.vhd
 ../hdl/injector_exe.vhd
 ../hdl/injector_control.vhd
 ../hdl/exe_submodules/injector_delay.vhd
-../hdl/exe_submodules/injector_read.vhd
-../hdl/exe_submodules/injector_write.vhd
+../hdl/exe_submodules/injector_requester.vhd
+../hdl/exe_submodules/injector_observer.vhd
 
 # BSC library files
 safety

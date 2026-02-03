@@ -35,7 +35,7 @@ entity injector_read is
     ib_addr_fix       : out std_logic;                        -- Transaction to execute on fixed address.
   -- Internal I/O
     enable            : in  std_logic;                        -- Enable descriptor execution
-    rst_sw            : in  std_logic;                        -- Software reset through APB
+    rst_sw            : in  std_logic;                        -- Software reset through CSR
     start             : in  std_logic;                        -- Start descriptor execution flag
     busy              : out std_logic;                        -- Ongoing descriptor execution flag
     done              : out std_logic;                        -- Completion of the descriptor iteration flag

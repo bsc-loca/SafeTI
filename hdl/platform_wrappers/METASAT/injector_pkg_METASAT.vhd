@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------------
--- Package:     injector_pkg_selene
--- File:        injector_pkg_selene.vhd
+-- Package:     injector_pkg_metasat
+-- File:        injector_pkg_metasat.vhd
 -- Author:      Francis Fuentes
 -- Description: Internal package for AHB interface of the injector.
 --              Only to be loaded by the platform.
@@ -15,41 +15,10 @@ library techmap;
 use techmap.gencomp.all;
 
 
-package injector_pkg_selene is
+package injector_pkg_metasat is
 
-  -- AHB interface wrapper for SELENE platform
-  component injector_ahb_SELENE is
-    generic (
-    -- SafeTI configuration
-      INJ_MEM_LENGTH    : integer range 2 to   10       :=    4;      -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
-      MAX_SIZE_BURST    : integer range 32 to 1024      := 1024;      -- Maximum byte size of a network/BM transaction. 1024/4096 for AHB/AXI4
-      tech              : integer range 0  to NTECH     := inferred;  -- Target technology
-    -- APB configuration
-      pindex            : integer                       := 0;
-      paddr             : integer                       := 0;
-      pmask             : integer                       := 16#FFF#;
-      pirq              : integer range 0 to NAHBIRQ-1  := 0;
-    -- AHB configuration
-      AHB_DATAW         : integer range 8  to 1024      := 32;        -- Data bus width of AHB. [Only power of 2s allowed]
-      hindex            : integer                       :=  0
-    );
-    port (
-      rstn              : in  std_ulogic;
-      clk               : in  std_ulogic;
-      -- APB Subordinate interface signals
-      apbi              : in  apb_slv_in_type;                        -- APB subordinate input to injector
-      apbo              : out apb_slv_out_type;                       -- APB subordinate output from injector
-      -- AHB Manager interface signals
-      ahbmi             : in  ahb_mst_in_type;                        -- AHB manager 0 input from bus
-      ahbmo             : out ahb_mst_out_type;                       -- AHB manager 0 output to bus
-      -- AHB External Subordinate interface signals
-      snoop_en          : in  std_logic;                              -- L1 subordinate en transaction
-      snoop_addr        : in  std_logic_vector(31 downto 0)           -- L1 subordinate addr to injector
-    );
-  end component injector_ahb_SELENE;
-
-  -- AXI interface wrapper for SELENE platform
-  component injector_axi4_SELENE is
+  -- AXI interface wrapper for METASAT platform
+  component injector_axi4_METASAT is
     generic (
     -- SafeTI configuration
       INJ_MEM_LENGTH    : integer range  2 to   10      :=    4;      -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
@@ -79,20 +48,20 @@ package injector_pkg_selene is
     -- APB interface signals
       apbi              : in  apb_slv_in_type;  -- APB subordinate input to injector
       apbo              : out apb_slv_out_type; -- APB subordinate output from injector
-    -- AXI4 interconnect SELENE bus
+    -- AXI4 interconnect bus
       axi4mi            : in  axi_somi_type;    -- AXI4 manager input to injector
       axi4mo            : out axi4_mosi_type;   -- AXI4 manager output from injector
     -- AHB External Subordinate interface signals
-      axi4si            : in  axi4_mosi_type    -- AXI4 subordinate addr to injector
+      axi4_snoop        : in  axi4_mosi_type    -- AXI4 snooping bus for synchronization
     );
-  end component injector_axi4_SELENE;
+  end component injector_axi4_METASAT;
 
   -- IF function for when VHDL can not use if (like at constants).
   function sel(A, B : integer; sel : boolean) return integer;
 
-end package injector_pkg_selene;
+end package injector_pkg_metasat;
 
-package body injector_pkg_selene is
+package body injector_pkg_metasat is
 
   -- IF function that outputs the first input if the boolean is true, the second if false.
   function sel(A, B : integer; sel : boolean) return integer is
@@ -102,4 +71,4 @@ package body injector_pkg_selene is
     end if;
   end sel;
 
-end package body injector_pkg_selene;
+end package body injector_pkg_metasat;

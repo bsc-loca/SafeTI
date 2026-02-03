@@ -1,28 +1,28 @@
------------------------------------------------------------------------------   
+-----------------------------------------------------------------------------
 -- Entity:      axi4_manager
 -- File:        axi4_manager.vhd
 -- Author:      Francisco Javier Fuentes Diaz (BSC-CNS)
 -- Description: AXI4 FULL Manager entity.
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 --  Changelog:
 --              - v0.8.9  11 July, 2022.
---                The interface has been reworked, in such a way where the logic has been split 
---                between handshake (hs) and burst (burst) state machines, in order to allow granting 
+--                The interface has been reworked, in such a way where the logic has been split
+--                between handshake (hs) and burst (burst) state machines, in order to allow granting
 --                transactions on the IB side even when a transaction is ongoing at the AXI side.
---                This means that the interface may now generate requests at the AXI side during a 
+--                This means that the interface may now generate requests at the AXI side during a
 --                burst transfer of the previous IB transaction.
 --                If the burst is granted, that burst will not initiate until the ongoing one ends.
---                Enabling "injector_mode" allows to simulate the IB signaling without really making 
---                any data transfer between the IB component and the interface, making read data to be 
---                discarded and write data being zeroed. This is the only way to finish the transaction 
---                on the IB side the earliest so it can generate the next request even when on the AXI 
+--                Enabling "injector_mode" allows to simulate the IB signaling without really making
+--                any data transfer between the IB component and the interface, making read data to be
+--                discarded and write data being zeroed. This is the only way to finish the transaction
+--                on the IB side the earliest so it can generate the next request even when on the AXI
 --                side may be ongoing the last requested transaction.
---                Due to some bugs that have been detected, this version is expected to be only used 
---                with the "injector_mode" enabled as TRUE. Future updates will allow the interface to 
+--                Due to some bugs that have been detected, this version is expected to be only used
+--                with the "injector_mode" enabled as TRUE. Future updates will allow the interface to
 --                work as a real interface and transfer data between the IB component and the AXI network.
 --
 --
------------------------------------------------------------------------------- 
+------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -36,10 +36,10 @@ use safety.axi4_pkg.all;
 -- Manager interface features:
 --
 -- - Only INC and FIXED burst modes are available and every burst generated use all AXI data lanes available per beat.
--- - Full support for unaligned address requests. This includes even if two subordinates are accessed in a 
+-- - Full support for unaligned address requests. This includes even if two subordinates are accessed in a
 --   single transaction request or if multiple bursts are required on the same subordinate.
 -- - Maximum number of bytes per IB transaction request is 4096 bytes (encoded as 0xFFF).
--- - Extensible IB component and AXI data buses width 8, 16, 32, 64, 128, 256, 512 and 1024 bits (read 
+-- - Extensible IB component and AXI data buses width 8, 16, 32, 64, 128, 256, 512 and 1024 bits (read
 --   further considerations on integration of the interface for limitations).
 --
 --
@@ -47,39 +47,39 @@ use safety.axi4_pkg.all;
 --
 -- - DATA_WIDTH >= dbits. The AXI data bus width must be greater or equal to the IB data bus.
 --
--- - IB size requests <= 4096 (4kB, limited by AXI4 addressing rule). The maximum number of bytes 
+-- - IB size requests <= 4096 (4kB, limited by AXI4 addressing rule). The maximum number of bytes
 --   per IB transaction is 4096 bytes (encoded as 0xFFF).
 --
 -- - Little endian data structure. Higher bit position links to higher memory positions.
 --
--- - Unaligned access by IB requests are supported through aligning the address with the AXI data bus 
---   width, while delivering only the requested data on read transactions and using the write strobe 
+-- - Unaligned access by IB requests are supported through aligning the address with the AXI data bus
+--   width, while delivering only the requested data on read transactions and using the write strobe
 --   on AXI write transactions.
 --
 -- - The Manager only requests bursts with the AXI size code that uses the whole AXI data bus width.
 --
--- - This interface requires the signaling of the last AXI beat to be at the correct beat on read 
+-- - This interface requires the signaling of the last AXI beat to be at the correct beat on read
 --   transactions, or unrequested data could be read instead of the requested.
 --
--- - The interface may send control and data when the valid flag is not asserted. These signals 
+-- - The interface may send control and data when the valid flag is not asserted. These signals
 --   must be discarded since the valid flag is low.
 --
 --
 -- This AXI4 Manager interface translates and manage the requests made by the IB component,
 -- using the IB input and output buses, to the AXI4 network, using the AXI4 input and output buses.
 --
--- The IB component has an opaque vision of what the interface requests to the AXI network, since 
--- it only receives the data that it has been requested. Be it requests with unaligned or even to multiple 
+-- The IB component has an opaque vision of what the interface requests to the AXI network, since
+-- it only receives the data that it has been requested. Be it requests with unaligned or even to multiple
 -- subordinates access (only 2 as maximum), the interface filters it to deliver only the requested data.
--- 
--- If the IB request implies access to two different subordinates, the Manager interface will generate two 
--- batches of data that are distribuited in one or multiple bursts each, with the appropiated addressing 
+--
+-- If the IB request implies access to two different subordinates, the Manager interface will generate two
+-- batches of data that are distribuited in one or multiple bursts each, with the appropiated addressing
 -- and burst length (number of beats in the burst) for each burst). Multiple bursts for the same batch
--- depends on the AXI data bus width, since implemenations with an AXI data bus width lower than 128 bits 
--- require multiple bursts to the same subordinate to be able to access the 4kB of data (4096 addresses) 
+-- depends on the AXI data bus width, since implemenations with an AXI data bus width lower than 128 bits
+-- require multiple bursts to the same subordinate to be able to access the 4kB of data (4096 addresses)
 -- it can allocate (limit fixed by the AXI4 communication protocol).
--- 
--- 
+--
+--
 -----------------------------------------------------------------------------
 
 entity axi4_manager is
@@ -104,7 +104,7 @@ entity axi4_manager is
     rstn                      : in  std_ulogic; -- Reset
     clk                       : in  std_ulogic; -- Clock
     -- AXI interface signals
-    axi4mi                    : in  axi4_miso;  -- AXI4 manager input 
+    axi4mi                    : in  axi4_miso;  -- AXI4 manager input
     axi4mo                    : out axi4_mosi;  -- AXI4 manager output
     -- IB component signals
     ib_in                     : in  ib_mosi;    -- IB interface input
@@ -122,7 +122,7 @@ architecture rtl of axi4_manager is
     constant AXI4_DATA_BYTE   : integer := log_2(DATA_WIDTH/8); -- Number of bits required to address the AXI data bus bytes.
     constant MAX_BURST_BYTE   : integer := log_2(4096);         -- Number of bits required to address the maximum transfer size by the protocol.
 
-    -- The Mult_bursts_subor flag indicates when TRUE that the implementation allows for the possible requirement of multiple bursts to the same 
+    -- The Mult_bursts_subor flag indicates when TRUE that the implementation allows for the possible requirement of multiple bursts to the same
     -- subordinate (same 4kB memory space) to satisfy the size requested by the IB component (maximum 4096 bytes, encoded as 0xFFF in ib_in.ib_size).
     constant Mult_bursts_subor: boolean := DATA_WIDTH < 128;
 
@@ -130,67 +130,67 @@ architecture rtl of axi4_manager is
   -- Records and types
   -----------------------------------------------------------------------------
   --
-  -- This interface, accepts RD (read) and WR (write) transaction requests from the IB bus, listening to the starting address and the total transfer 
-  -- size of the operation. This last must be lower or equal to 4096 and it is encoded as an unsigned integer decremented by one respect the real size. 
+  -- This interface, accepts RD (read) and WR (write) transaction requests from the IB bus, listening to the starting address and the total transfer
+  -- size of the operation. This last must be lower or equal to 4096 and it is encoded as an unsigned integer decremented by one respect the real size.
   -- So the codification of ib_in.rd_data 0x000 means 1 byte transfer, and the maximum is 0xFFF that is 4096 bytes to transfer.
   --
-  -- Once the request has been granted, the interface processes the control data to check if the total transfer surpasses the 4kB address boundary, 
-  -- splitting the transaction in two batches in such situations. This is done to arrange the transfer sizes of the batches for the first and 
-  -- second AXI subordinates, having each different 4kB address allocation spaces. Note that after a IB transaction request has been granted, the 
+  -- Once the request has been granted, the interface processes the control data to check if the total transfer surpasses the 4kB address boundary,
+  -- splitting the transaction in two batches in such situations. This is done to arrange the transfer sizes of the batches for the first and
+  -- second AXI subordinates, having each different 4kB address allocation spaces. Note that after a IB transaction request has been granted, the
   -- grant flag will be deasserted until the first burst of the granted transaction has been granted by the AXI network.
-  -- 
+  --
   -- If the "injector_mode" is set to TRUE, the interface will start the correct IB signaling of the "rd_valid", "rd_done", "wr_full" and "wr_done"
-  -- flags right away as it would on the real transaction, instead of waiting for the data read or write response, since all read data is discarded and 
-  -- writing data are set to zeroes. This allows for an earlier termination of the transaction on the IB side while on the AXI is ongoing. However, any 
+  -- flags right away as it would on the real transaction, instead of waiting for the data read or write response, since all read data is discarded and
+  -- writing data are set to zeroes. This allows for an earlier termination of the transaction on the IB side while on the AXI is ongoing. However, any
   -- error that may be found during the transaction may not propagate correctly to the IB component, since this may have finished the transaction by then.
   --
-  -- For the burst requests, the interface always sets an AXI size mode to use the whole data bus width of the AXI side (DATA_WIDTH), computes the 
+  -- For the burst requests, the interface always sets an AXI size mode to use the whole data bus width of the AXI side (DATA_WIDTH), computes the
   -- number of beats (burst length) to satisfy the request transfer and aligns the address requested (ib_addr) with the AXI data bus width (DATA_WIDTH).
   -- In case a single burst is not enough to satisfy the transfer size for the subordinate in question, the maximum length will be set (256 beats).
   -- However, this can only happen at implementations that have an DATA_WIDTH < 128 bits. Thus, this is managed with the "Mult_bursts_subor"
   -- flag to only proceed with the correspondent checks to generate multiple bursts to the same subordinate in the implementation if it is the case.
   --
-  -- The interface depends on the assertion of the AXI last signal on the last beat of the burst on read transactions in order to stop the transfer. 
+  -- The interface depends on the assertion of the AXI last signal on the last beat of the burst on read transactions in order to stop the transfer.
   -- Otherwise, the interface may read data from the AXI data bus that should not and may transfered to the IB component instead of the requested data.
-  -- 
+  --
   --
   -- Each transaction logic has three loops that work in parallel, which are MAIN, BURST and ib_TRANSFER, which has the following stages:
   -- MAIN   -> The MAIN loop manages IB transaction requests, performs the 4kB check and generates the request of the first AXI burst of the transaction.
-  --  IDLE      ->  Grants IB transaction request, taking the control data for the generation of the transaction and advancing to the CHECK_4kB stage. 
+  --  IDLE      ->  Grants IB transaction request, taking the control data for the generation of the transaction and advancing to the CHECK_4kB stage.
   --                On WR transactions, it waits until the previous transaction has finished on the IB side to grant a new IB transaction.
   --                On RD transactions this is not necessary, since read data is sent to the IB component at the moment is avaiable on the FIFO buffer.
   --  CHECK_4kB ->  Computes a 4kB address check to ensure that, if the transaction will require to comunicate with two different 4kB boundaries, the
-  --                transaction is split between two batches (ib_size and rem_size) so a burst finishes and another is generated on the 4kB address. 
+  --                transaction is split between two batches (ib_size and rem_size) so a burst finishes and another is generated on the 4kB address.
   --                This stage takes one clock cycle and always continues to the PREPARE_HS stage.
-  --  PREPARE_HS->  Sets the AXI address to be aligned with the AXI data bus width (DATA_WIDTH bits) and does not request the AXI burst nor continue 
+  --  PREPARE_HS->  Sets the AXI address to be aligned with the AXI data bus width (DATA_WIDTH bits) and does not request the AXI burst nor continue
   --                to the HANDSHAKE stage until the BURST loop is at the IDLE stage or at the last AXI burst of the previous transaction.
-  --  HANDSHAKE ->  Executes the handshake of the first burst of the last requested IB transaction, sending the corresponding data to the BURST loop 
-  --                once this has finished the last AXI burst of the previous transaction completely. 
-  --  
+  --  HANDSHAKE ->  Executes the handshake of the first burst of the last requested IB transaction, sending the corresponding data to the BURST loop
+  --                once this has finished the last AXI burst of the previous transaction completely.
+  --
   -- BURST  -> The BURST loop manages the data given by the MAIN loop to request the multiple bursts, if necessary, to the AXI network.
-  --  IDLE       -> Wait for MAIN loop control data of a new transaction. Once the first AXI burst handshake of the transaction happens, it continues to 
+  --  IDLE       -> Wait for MAIN loop control data of a new transaction. Once the first AXI burst handshake of the transaction happens, it continues to
   --                the TRANSFER stage.
-  --  TRANSFER   -> Sets the AXI control signals of VALID and READY for WR and RD transactions respectively, including the writing strobe, during the 
+  --  TRANSFER   -> Sets the AXI control signals of VALID and READY for WR and RD transactions respectively, including the writing strobe, during the
   --                data transfer. If the internal FIFO buffer is full, this will put on standby the ongoing burst until empty space is made.
-  --                Once the burst is complete, the control data for a new burst is computed to burst to the same (case that only can happen 
+  --                Once the burst is complete, the control data for a new burst is computed to burst to the same (case that only can happen
   --                when DATA_WIDTH < 128 bits, which is managed with the "Mult_bursts_subor" constant) or to another subordinate if necessary and
   --                continues to the PREPARE_HS stage. If the whole transaction has been finished on the AXI side, it returns to the IDLE stage.
   --                The data is stored on the top of the FIFO on RD transactions, while is sent from the bottom of the FIFO on WR transactions,
   --                unless the "injector_mode" is set to TRUE, which discards read data and zeroes write data.
   --  PREPARE_HS -> Computes the number of beats of the next AXI burst (LEN), and on the case of WR transactions, the next beat strobe.
-  --                Since the BURST loop has priority over the MAIN loop on AXI handshakes, it always requests the burst and continues to the 
+  --                Since the BURST loop has priority over the MAIN loop on AXI handshakes, it always requests the burst and continues to the
   --                HANDSHAKE stage on the next clock cycle.
   --  HANDSHAKE  -> Waits for the burst grant and proceeds with the TRANSFER stage.
-  --  
-  -- ib_TRANSFER -> The IB transfer logic, that also uses the "wr/rd_burst" record, manages the data to be transfered between the IB component 
+  --
+  -- ib_TRANSFER -> The IB transfer logic, that also uses the "wr/rd_burst" record, manages the data to be transfered between the IB component
   --                and the internal FIFO.
-  --                If the "injector_mode" is set to TRUE, the IB signaling is simulated to complete the transaction as fast as possible, 
+  --                If the "injector_mode" is set to TRUE, the IB signaling is simulated to complete the transaction as fast as possible,
   --                lacking the correct error propagation from the AXI transaction.
-  --                However, if the "injector_mode" is set to FALSE, the read data will be taken from the bottom of the FIFO at the time is 
+  --                However, if the "injector_mode" is set to FALSE, the read data will be taken from the bottom of the FIFO at the time is
   --                available during RD transactions, and the write data will be input into the top of the FIFO. (WIP)
-  --                Each clock cycle, the FIFO buffers rolls downwards the data to be read or writen, which is transfered at the moment it 
-  --                gets to the bottom. In case the beat transfer cannot be executed (only on AXI side, thus, WR operations), the roll does 
-  --                not push the data word, since this one has not been transfered, but continues to roll from top to bottom if the lower 
+  --                Each clock cycle, the FIFO buffers rolls downwards the data to be read or writen, which is transfered at the moment it
+  --                gets to the bottom. In case the beat transfer cannot be executed (only on AXI side, thus, WR operations), the roll does
+  --                not push the data word, since this one has not been transfered, but continues to roll from top to bottom if the lower
   --                FIFO register is empty.
   --
 
@@ -218,7 +218,7 @@ architecture rtl of axi4_manager is
 
     start_shift   : unsigned( AXI4_DATA_BYTE - 1 downto 0); -- Number of right-bytes to skip when reading or writing data_bus at start of IB transfer.
     end_strb      : unsigned( AXI4_DATA_BYTE - 1 downto 0); -- Number of bytes to read from data_bus at the last IB transfer.
-  end record rd_handshake_operation; 
+  end record rd_handshake_operation;
 
   -- Initial handshake type for read transactions.
   type rd_main_operation is record
@@ -266,7 +266,7 @@ architecture rtl of axi4_manager is
     axi_addr      : std_logic_vector( ADDR_WIDTH     - 1 downto 0); -- AXI output parameter: Starting pointer of the AXI burst.
     axi_strobe    : std_logic_vector( DATA_WIDTH/8   - 1 downto 0); -- AXI output parameter: What AXI data lanes to read from during AXI transfer.
     axi_valid     : std_logic;                    -- AXI output parameter: valid flag for output control signals (addr, len, size, mode).
-  end record wr_handshake_operation; 
+  end record wr_handshake_operation;
 
   type wr_main_operation is record
     state         : main_state;       -- State of the main handshake on write transactions.
@@ -398,13 +398,13 @@ architecture rtl of axi4_manager is
   -- Function/procedure declaration
   -----------------------------------------------------------------------------
 
-  -- To compute the number of beats required in the burst (length), the size requested is added to the LSB 
-  -- of the starting address that has been requested. This sum contains the number of beats on the field 
+  -- To compute the number of beats required in the burst (length), the size requested is added to the LSB
+  -- of the starting address that has been requested. This sum contains the number of beats on the field
   -- over AXI4_DATA_BYTE, since each beat use the whole AXI data bus width (DATA_WIDTH).
   function decide_len(
     ib_size   : std_logic_vector(MAX_BURST_BYTE - 1 downto 0);      -- Transfer size of the burst (real num needs +1)
     ib_addr   : std_logic_vector(rd_main.hs.ib_addr'high downto 0)  -- IB request address
-  ) return std_logic_vector is 
+  ) return std_logic_vector is
       variable len_temp : std_logic_vector(MAX_BURST_BYTE - 1 downto 0);
   begin
     -- Number of bytes to AXI transfer (it cannot surpass 4kB) = IB address + IB size
@@ -416,10 +416,10 @@ architecture rtl of axi4_manager is
     -- If AXI DATA_WIDTH = 128 bits, the length will never surpass 256 (xFF), but it doesn't require padding.
     elsif(DATA_WIDTH = 128) then
       return len_temp(MAX_BURST_BYTE - 1 downto AXI4_DATA_BYTE);
-    -- If AXI DATA_WIDTH < 128 bits, the length is on the MSB starting from AXI4_DATA_BYTE. However, if any bit 
+    -- If AXI DATA_WIDTH < 128 bits, the length is on the MSB starting from AXI4_DATA_BYTE. However, if any bit
     -- higher than AXI4_DATA_BYTE + 7 is asserted, the length will be 256 beats (xFF) and additional bursts will
     -- be necessary for this batch (thus, Mult_bursts_subor flag is TRUE).
-    elsif(len_temp(MAX_BURST_BYTE downto AXI4_DATA_BYTE + 8) = (MAX_BURST_BYTE downto AXI4_DATA_BYTE + 8 => '0')) then
+    elsif(len_temp(MAX_BURST_BYTE - 1 downto AXI4_DATA_BYTE + 8) = (MAX_BURST_BYTE - 1 downto AXI4_DATA_BYTE + 8 => '0')) then
       return len_temp(AXI4_DATA_BYTE + 7 downto AXI4_DATA_BYTE);
     else
       return x"FF";
@@ -427,14 +427,14 @@ architecture rtl of axi4_manager is
 
   end function decide_len;
 
-  
+
 begin -- rtl
 
   -----------------
   -- Assignments --
   -----------------
-  
-  -- The assignments to the AXI interconnect bus are set in such way where the burst 
+
+  -- The assignments to the AXI interconnect bus are set in such way where the burst
   -- handshake requests are prioritized over the ones requested by main.
   handshake_priority : process (rd_main, rd_burst, wr_main, wr_burst, axi4mi)
   begin
@@ -442,7 +442,7 @@ begin -- rtl
       -- Write address channel out
     if(wr_burst.hs.axi_valid = '1') then
       axi4mo.aw_id      <= (axi4mo.aw_id'high   downto ID_W_WIDTH => '0') & std_logic_vector( to_unsigned(axi_id, ID_W_WIDTH) );
-      axi4mo.aw_addr    <= (axi4mo.aw_addr'high downto ADDR_WIDTH => '0') & wr_burst.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
+      axi4mo.aw_addr    <= (axi4mo.aw_addr'high downto ADDR_WIDTH => '0') & wr_burst.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE)
                           & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
       axi4mo.aw_region  <= wr_burst.hs.axi_qos;
       axi4mo.aw_len     <= wr_burst.hs.axi_len;  -- Number of beats
@@ -455,7 +455,7 @@ begin -- rtl
       axi4mo.aw_valid   <= wr_burst.hs.axi_valid;
     elsif(wr_main.hs.axi_valid = '1') then
       axi4mo.aw_id      <= (axi4mo.aw_id'high   downto ID_W_WIDTH => '0') & std_logic_vector( to_unsigned(axi_id, ID_W_WIDTH) );
-      axi4mo.aw_addr    <= (axi4mo.aw_addr'high downto ADDR_WIDTH => '0') & wr_main.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
+      axi4mo.aw_addr    <= (axi4mo.aw_addr'high downto ADDR_WIDTH => '0') & wr_main.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE)
                           & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
       axi4mo.aw_region  <= wr_main.hs.axi_region;
       axi4mo.aw_len     <= wr_main.hs.axi_len;  -- Number of beats
@@ -489,7 +489,7 @@ begin -- rtl
       -- Read address channel out
     if(rd_burst.hs.axi_valid = '1') then
       axi4mo.ar_id      <= (axi4mo.ar_id'high   downto ID_R_WIDTH => '0') & std_logic_vector(to_unsigned(axi_id, ID_R_WIDTH));
-      axi4mo.ar_addr    <= (axi4mo.ar_addr'high downto ADDR_WIDTH => '0') & rd_burst.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
+      axi4mo.ar_addr    <= (axi4mo.ar_addr'high downto ADDR_WIDTH => '0') & rd_burst.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE)
                            & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
       axi4mo.ar_region  <= rd_burst.hs.axi_region;
       axi4mo.ar_len     <= rd_burst.hs.axi_len;  -- Number of beats
@@ -502,7 +502,7 @@ begin -- rtl
       axi4mo.ar_valid   <= rd_burst.hs.axi_valid;
     elsif(rd_main.hs.axi_valid = '1') then
       axi4mo.ar_id      <= (axi4mo.ar_id'high   downto ID_R_WIDTH => '0') & std_logic_vector(to_unsigned(axi_id, ID_R_WIDTH));
-      axi4mo.ar_addr    <= (axi4mo.ar_addr'high downto ADDR_WIDTH => '0') & rd_main.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE) 
+      axi4mo.ar_addr    <= (axi4mo.ar_addr'high downto ADDR_WIDTH => '0') & rd_main.hs.axi_addr(ADDR_WIDTH-1 downto AXI4_DATA_BYTE)
                            & (AXI4_DATA_BYTE-1 downto 0 => '0'); -- Aligned starting address of the burst
       axi4mo.ar_region  <= rd_main.hs.axi_region;
       axi4mo.ar_len     <= rd_main.hs.axi_len;
@@ -584,7 +584,7 @@ begin -- rtl
     ib_out.rd_done      <= rd_burst.ib_done;
     ib_out.rd_err       <= rd_burst.ib_error;
   end process handshake_priority;
-  
+
   -----------------------------------------------------------------------------
   -- Sequential process
   -----------------------------------------------------------------------------
@@ -601,7 +601,7 @@ begin -- rtl
 
     -- Variables only used on implementations where DATA_WIDTH < 128 bits.
     variable rd_next_ib_size      : std_logic_vector(rd_burst.hs.ib_size'range);-- Num of bytes left to transfer on the next clk cycle of this burst.
-    
+
   begin
     if (rstn = '0' and ASYNC_RST) then
        -- Default variable values
@@ -633,7 +633,7 @@ begin -- rtl
             -- Reset registers
             rd_main           <= RST_RD_MAIN;
             rd_main.ib_grant  <= '1';
-          
+
             -- Load request information from BM
             if (ib_in.rd_req = '1' and rd_main.ib_grant = '1') then
               rd_main.ib_grant      <= '0'; -- Deassert granting requests for IB component
@@ -653,13 +653,13 @@ begin -- rtl
               -- Next, check 4kB out of bounds access
               rd_main.state         <= check_4kB;
             end if;
-          
-          
+
+
           when check_4kB =>
             -- Check if transaction will access two 4KB address regions
             rd_addr_end             := add_vector(rd_main.hs.ib_size, rd_main.hs.ib_addr(11 downto 0), rd_addr_end'length);
             rd_main.hs.burst_4kb    <= rd_addr_end(12);
-          
+
             -- If transaction must be split in two bursts due to 4KB overflow boundary, calculate...
             if(rd_addr_end(12) = '1') then
               -- first burst size (-1 from real size)  MAX=4095, MIN=0
@@ -667,14 +667,14 @@ begin -- rtl
               -- second burst size (-1 from real size) MAX=4094, MIN=0
               rd_main.hs.rem_size   <= rd_addr_end(rd_main.hs.rem_size'range);
             end if;
-          
+
             -- Number of bytes to transfer at the last IB transfer = LSB ending address + 1 due to size being -1 from real
             rd_main.hs.end_strb     <= unsigned(rd_addr_end(AXI4_DATA_BYTE - 1 downto 0)) + 1;
-          
+
             -- Next, compute size mode
             rd_main.state           <= prepare_hs;
-          
-          
+
+
           when prepare_hs =>
             -- Set AXI size mode to DATA_WIDTH and align the starting address with the DATA_WIDTH slot.
             rd_main.hs.axi_size     <= std_logic_vector(to_unsigned(AXI4_DATA_BYTE, rd_main.hs.axi_size'length));
@@ -682,22 +682,22 @@ begin -- rtl
 
             -- Compute how many beats will be necessary to transfer the requested data in this burst.
             rd_main.hs.axi_len      <= decide_len(rd_main.hs.ib_size(11 downto 0), rd_main.hs.ib_addr);
-          
+
             -- Save the number of bytes to discard unrequested data at the first IB transfer = LSB IB unaligned address + IB data bus width bytes
             rd_main.hs.start_shift  <= unsigned(rd_main.hs.ib_addr(AXI4_DATA_BYTE - 1 downto 0));
-          
-            -- Request AXI read burst when burst loop is on idle or bursting the last beat of the last burst. To verify the later when 
+
+            -- Request AXI read burst when burst loop is on idle or bursting the last beat of the last burst. To verify the later when
             -- Mult_bursts_subor = TRUE, an additional check must be performed (rd_burst.hs.ib_size < 256*DATA_WIDTH/8).
-            if( rd_burst.state = idle 
+            if( rd_burst.state = idle
             or(not(Mult_bursts_subor) and axi4mi.r_last = '1' and rd_burst.hs.burst_4kb = '0'           )
-            or(    Mult_bursts_subor  and axi4mi.r_last = '1' and rd_burst.hs.burst_4kb = '0' 
-                                      and rd_burst.hs.ib_size(rd_burst.hs.ib_size'high downto AXI4_DATA_BYTE + 8) 
+            or(    Mult_bursts_subor  and axi4mi.r_last = '1' and rd_burst.hs.burst_4kb = '0'
+                                      and rd_burst.hs.ib_size(rd_burst.hs.ib_size'high downto AXI4_DATA_BYTE + 8)
                                           = (rd_burst.hs.ib_size'high downto AXI4_DATA_BYTE + 8 => '0') ) ) then
               rd_main.hs.axi_valid  <= '1';
               rd_main.state         <= handshake;
             end if;
-            
-          
+
+
           when handshake =>
             if( (rd_main_axi_grant and rd_main.hs.axi_valid) = '1') then
               rd_main.hs.axi_valid  <= '0'; -- At request being granted, deassert request
@@ -716,7 +716,7 @@ begin -- rtl
             end if;
 
         end case;
-          
+
         -----------------------------
         -- RD BURST TRANSFER LOGIC --
         -----------------------------
@@ -726,12 +726,12 @@ begin -- rtl
 
           when transfer => -- AXI transfer --
           -- The AXI transfer occurs by buffering the read data onto the rd_burst.axi_data_buffer register when the subordinate asserts the valid data flag.
-          -- Then, the rd_burst.axi_data_buffer is loaded onto a FIFO register, which will be used at the IB transfer. However, due to this single clock 
+          -- Then, the rd_burst.axi_data_buffer is loaded onto a FIFO register, which will be used at the IB transfer. However, due to this single clock
           -- cycle delay between AXI read and data load, both valid and the mask signals are also buffered on the "buffer" registers (these
-          -- are outside of the state machine and updated with each clock pulse). 
+          -- are outside of the state machine and updated with each clock pulse).
 
               -- Check if subordinate is delivering valid data with the same AXI ID as requested and if manager is listening.
-            if (axi4mi.r_valid = '1' and axi4mi.r_id(ID_R_WIDTH-1 downto 0) = std_logic_vector(to_unsigned(axi_id, ID_R_WIDTH)) 
+            if (axi4mi.r_valid = '1' and axi4mi.r_id(ID_R_WIDTH-1 downto 0) = std_logic_vector(to_unsigned(axi_id, ID_R_WIDTH))
                 and rd_burst.axi_ready = '1') then
 
               -- Register inputs to separate AXI network from further computation.
@@ -747,7 +747,7 @@ begin -- rtl
               end if;
 
               -- The last AXI transfer of the whole transaction will set the proper rd_burst.fifo_last bit, so the IB transfer logic knows when to end.
-              -- However, there's a distinction between DATA_WIDTH <= 64 bits and higher data widths. If there's still data to transfer to the same 
+              -- However, there's a distinction between DATA_WIDTH <= 64 bits and higher data widths. If there's still data to transfer to the same
               -- subordinate because this burst has not been enough, do not assert the last IB transfer on the FIFO register and update rd_burst.ib_size.
               if(Mult_bursts_subor) then
                 rd_next_ib_size     := sub_vector(rd_burst.hs.ib_size, DATA_WIDTH/8, rd_next_ib_size'length);
@@ -764,12 +764,12 @@ begin -- rtl
                 -- Compute new handshake if multiple bursts are necessary to complete this data batch:
                 if( Mult_bursts_subor and rd_next_ib_size(rd_next_ib_size'high) = '0' ) then
                   if(rd_burst.hs.axi_mode = INC) then
-                    rd_burst.hs.axi_addr  <= add_vector(rd_burst.hs.axi_addr(rd_burst.hs.ib_addr'high downto 8 + AXI4_DATA_BYTE), 1, 
+                    rd_burst.hs.axi_addr  <= add_vector(rd_burst.hs.axi_addr(rd_burst.hs.ib_addr'high downto 8 + AXI4_DATA_BYTE), 1,
                                               rd_burst.hs.axi_addr'high - 7 - AXI4_DATA_BYTE) & (7 + AXI4_DATA_BYTE downto 0 => '0');
                   end if;
                   rd_burst.state    <= prepare_hs;
 
-                -- Or compute a new handshake if there's another batch of data due to the 4kB split. 
+                -- Or compute a new handshake if there's another batch of data due to the 4kB split.
                 elsif(rd_burst.hs.burst_4kb = '1') then
                   if(Mult_bursts_subor) then
                     rd_burst.hs.ib_size   <= '0' & rd_burst.hs.rem_size;
@@ -777,7 +777,7 @@ begin -- rtl
                     rd_burst.hs.ib_size   <= rd_burst.hs.rem_size;
                   end if;
                   if(rd_burst.hs.axi_mode = INC) then
-                    rd_burst.hs.axi_addr  <= add_vector(rd_burst.hs.axi_addr(rd_burst.hs.axi_addr'high downto 12), 1, 
+                    rd_burst.hs.axi_addr  <= add_vector(rd_burst.hs.axi_addr(rd_burst.hs.axi_addr'high downto 12), 1,
                                               rd_burst.hs.axi_addr'high - 11) & (11 downto 0 => '0');
                   end if;
                   rd_burst.state    <= prepare_hs;
@@ -795,7 +795,7 @@ begin -- rtl
           when prepare_hs =>
             -- Compute how many beats will be necessary to transfer the requested data in this burst.
             rd_burst.hs.axi_len     <= decide_len(rd_burst.hs.ib_size(11 downto 0), rd_burst.hs.axi_addr);
-          
+
             -- Next, the handshake step.
             rd_burst.hs.axi_valid   <= '1'; -- Request AXI read burst.
             rd_burst.state          <= handshake;
@@ -822,7 +822,7 @@ begin -- rtl
       -- RD IB DATA TRANSFER --
       -------------------------
         -- WIP: Due to technical difficulties that must be solved in the future, the IB transfer logic must be revised.
-        --      Thus, for the moment, use the injector_mode that simulates the correct number of readings without actually 
+        --      Thus, for the moment, use the injector_mode that simulates the correct number of readings without actually
         --      transfering the data.
       -- The injector mode, when enabled, discards all read data while simulates the correct IB signaling for the transaction.
         if(injector_mode) then
@@ -845,10 +845,10 @@ begin -- rtl
 
         else -- INJECTOR_MODE = FALSE
 
-      -- The IB transfer logic transfers from the RD FIFO to the IB component at dbits bits per clock cycle throughput without pause, unless  
-      -- there's not enough data in the FIFO to IB transfer. This is achieved by loading rd_burst.fifo(ib_index) onto rd_burst.data_fwidth 
-      -- used as output, which transfers data and shifts while there's enough to perform a IB transfer (rd_burst.ib_counter >= dbits/8). 
-      -- When the rd_burst.data_fwidth does not have enough data for a IB transfer, the next FIFO register is read and positioned after the  
+      -- The IB transfer logic transfers from the RD FIFO to the IB component at dbits bits per clock cycle throughput without pause, unless
+      -- there's not enough data in the FIFO to IB transfer. This is achieved by loading rd_burst.fifo(ib_index) onto rd_burst.data_fwidth
+      -- used as output, which transfers data and shifts while there's enough to perform a IB transfer (rd_burst.ib_counter >= dbits/8).
+      -- When the rd_burst.data_fwidth does not have enough data for a IB transfer, the next FIFO register is read and positioned after the
       -- data left to be read, freeing the FIFO register since it has been read for new AXI beat readings.
 
 --          -- Set combinational variables --
@@ -858,7 +858,7 @@ begin -- rtl
 --          -- Check if there's data to IB transfer. Delayed with a buffer register so the last AXI beat transfer is finished on this FIFO register.
 --          if(rd_burst.ib_fifo_full(0) = '1' or rd_burst.ib_first = '0') then
 --
---          -- Before any IB transfer, load and shift the FIFO register to put the requested data on 0 to higher, flushing unrequested data read 
+--          -- Before any IB transfer, load and shift the FIFO register to put the requested data on 0 to higher, flushing unrequested data read
 --          -- by the AXI side. Then, initilize the rd_burst.ib_counter with [the whole AXI data bus width bytes value or with the number of bytes
 --          -- to read from the last FIFO register to IB transfer] minus the shift performed on this rd_burst.ib_first cycle.
 --            if(rd_burst.ib_first = '1') then
@@ -866,7 +866,7 @@ begin -- rtl
 --              -- Deassert the first IB transfer flag, since it's only required to shift rd_burst.start_shift before than the first IB transfer.
 --              rd_burst.ib_first   <= '0';
 --
---              -- The initial counter is set by rd_burst.end_strb if there's only one FIFO register to transfer. 
+--              -- The initial counter is set by rd_burst.end_strb if there's only one FIFO register to transfer.
 --              if(rd_burst.fifo_last(0) = '1') then
 --                rd_burst.ib_counter <= rd_burst.hs.end_strb - rd_burst.hs.start_shift;
 --              else -- Otherwise, the initial counter is the AXI data bus bytes.
@@ -874,7 +874,7 @@ begin -- rtl
 --              end if;
 --
 --              -- Load, shift and free the FIFO register. Also, record if this is the last AXI beat of the whole IB transaction.
---              rd_burst.data_fwidth  <= (rd_burst.data_fwidth'high downto DATA_WIDTH - 8*to_integer(rd_burst.hs.start_shift) => '0') 
+--              rd_burst.data_fwidth  <= (rd_burst.data_fwidth'high downto DATA_WIDTH - 8*to_integer(rd_burst.hs.start_shift) => '0')
 --                                       & rd_burst.fifo(0)(DATA_WIDTH - 1 downto DATA_WIDTH - 8*to_integer(rd_burst.hs.start_shift));
 --              rd_burst.fifo_full(0) <= '0';
 --              rd_fifo_free_bottom   := '1';
@@ -901,12 +901,12 @@ begin -- rtl
 --              elsif(rd_burst.ib_fifo_full(0) = '1' or rd_burst.ib_fifo_last = '1') then
 --
 --              -- In case this cycle will deplete rd_burst.data_fwidth and the next FIFO register is prepared to be transfered,
---              -- use the remaining data (rd_burst.ib_counter lower or equal to AXI data bus bytes) as LSB and take the 
+--              -- use the remaining data (rd_burst.ib_counter lower or equal to AXI data bus bytes) as LSB and take the
 --              -- lacking bytes to fill dbits from the next FIFO register, while also shifting its content for posterior transfers.
---              -- (since the shifting index k surpasses the bytes available in the next FIFO register on unaligned starting transfers, 
+--              -- (since the shifting index k surpasses the bytes available in the next FIFO register on unaligned starting transfers,
 --              -- fill the remaining byte positions with zeros, that, in number of bytes, will be always lower than the bytes in dbits)
---                rd_burst.data_fwidth  <= (DATA_WIDTH + 8*to_integer(rd_burst.ib_counter) - 1 downto dbits => '0') 
---                                          & rd_burst.fifo(0) 
+--                rd_burst.data_fwidth  <= (DATA_WIDTH + 8*to_integer(rd_burst.ib_counter) - 1 downto dbits => '0')
+--                                          & rd_burst.fifo(0)
 --                                          & rd_burst.data_fwidth(8*to_integer(rd_burst.ib_counter) - 1 downto dbits);
 --
 --                -- Set the present FIFO register to be prepared for new AXI transfer and change the FIFO register rd_burst.ib_index.
@@ -918,7 +918,7 @@ begin -- rtl
 --                if(rd_burst.fifo_last(1) = '1') then
 --                  rd_burst.ib_counter <= rd_burst.hs.end_strb + rd_burst.ib_counter - dbits/8;
 --
---                  -- In addition, if the number of bytes read on this clock cycle from rd_burst.fifo(rd_ib_next_index) include all the data required 
+--                  -- In addition, if the number of bytes read on this clock cycle from rd_burst.fifo(rd_ib_next_index) include all the data required
 --                  -- by rd_burst.end_strb, end the transfer on the next clock cycle. (done, mask and return to idle)
 --                  if(to_unsigned(dbits/8, rd_burst.ib_counter'length) - rd_burst.ib_counter >= rd_burst.hs.end_strb) then
 --                    rd_burst.ib_done  <= '1';
@@ -927,15 +927,15 @@ begin -- rtl
 --
 --                else
 --                  rd_burst.ib_counter <= rd_burst.ib_counter + DATA_WIDTH/8 - dbits/8;
---                end if;              
+--                end if;
 --
 --              else   -- rd_burst.fifo_full(rd_ib_next_index) = 0 check
 --
---              -- In case there's not enough data to read from the FIFO, check if this is the last FIFO register to IB transfer. If it 
---              -- is, check how many bytes of remaining data are left. If it's lower than dbits/8, this is the last IB transfer. However, 
---              -- if it's exactly dbits/8 and it's the last FIFO register, delay the end of the IB transfer for another clock cycle 
+--              -- In case there's not enough data to read from the FIFO, check if this is the last FIFO register to IB transfer. If it
+--              -- is, check how many bytes of remaining data are left. If it's lower than dbits/8, this is the last IB transfer. However,
+--              -- if it's exactly dbits/8 and it's the last FIFO register, delay the end of the IB transfer for another clock cycle
 --              -- (do not increase the rd_burst.ib_counter, let the execution return to this step to execute the end of the IB transfer).
---                if(rd_burst.fifo_last(0) = '1') then 
+--                if(rd_burst.fifo_last(0) = '1') then
 --                  rd_burst.ib_counter <= rd_burst.ib_counter - dbits/8;
 --                  rd_burst.ib_done  <= '1';
 --                  rd_burst.state    <= idle;
@@ -958,7 +958,7 @@ begin -- rtl
 
         -- Delayed signals, to be revised.
         rd_burst.ib_fifo_full <= rd_burst.fifo_full;
-        
+
 
       -------------
       -- RD FIFO --
@@ -993,7 +993,7 @@ begin -- rtl
 
     -- Variables only used on implementations where DATA_WIDTH < 128 bits.
     variable wr_next_ib_size      : std_logic_vector(wr_burst.hs.ib_size'range);-- Num of bytes left to transfer on the next clk cycle of this burst.
-    
+
   begin
     if(rstn = '0' and ASYNC_RST) then
       wr_main               <= RST_WR_MAIN;
@@ -1017,7 +1017,7 @@ begin -- rtl
           when idle =>
             -- Grant IB if previous IB transaction has been completed.
             wr_main.ib_grant        <= not(wr_burst.ib_active);
-          
+
             -- Load request information from BM
             if (ib_in.wr_req = '1' and wr_main.ib_grant = '1') then
               wr_main.ib_grant      <= '0';           -- Deassert granting requests for IB component
@@ -1036,13 +1036,13 @@ begin -- rtl
               -- Next, check 4kB out of bounds access
               wr_main.state         <= check_4kB;
             end if;
-          
-          
+
+
           when check_4kB => -- Worst delay path: ADD 12+12, SUB 13-13
             -- Check if transaction will access two 4KB address regions
             wr_addr_end             := add_vector(wr_main.hs.ib_size, wr_main.hs.ib_addr(11 downto 0), wr_addr_end'length);
             wr_main.hs.burst_4kb    <= wr_addr_end(12);
-          
+
             -- If transaction must be split in two bursts, due to 4KB overflow boundary, calculate...
             if(wr_addr_end(12) = '1') then
               -- first burst size  (-1 from real size) MAX=4095, MIN=0
@@ -1053,8 +1053,8 @@ begin -- rtl
 
             -- Next, compute size mode
             wr_main.state           <= prepare_hs;
-          
-          
+
+
           when prepare_hs =>
             -- Set AXI size mode to DATA_WIDTH and align the starting address with the DATA_WIDTH slot.
             wr_main.hs.axi_size     <= std_logic_vector(to_unsigned(AXI4_DATA_BYTE, wr_main.hs.axi_size'length));
@@ -1071,21 +1071,21 @@ begin -- rtl
                 wr_main.hs.axi_strobe(k) <= '1';
               end if;
             end loop;
-            
-            -- Request AXI write burst when burst loop is on idle or bursting the last beat of the last burst. To verify the later when 
+
+            -- Request AXI write burst when burst loop is on idle or bursting the last beat of the last burst. To verify the later when
             -- Mult_bursts_subor = TRUE, an additional check must be performed (wr_burst.hs.ib_size < DATA_WIDTH).
-            if( wr_burst.state = idle 
-            or(not(Mult_bursts_subor) and wr_burst.hs.burst_4kb = '0'                                   ) 
-            or(    Mult_bursts_subor  and wr_burst.hs.burst_4kb = '0' 
-                                      and wr_burst.hs.ib_size(wr_burst.hs.ib_size'high downto AXI4_DATA_BYTE + 8) 
+            if( wr_burst.state = idle
+            or(not(Mult_bursts_subor) and wr_burst.hs.burst_4kb = '0'                                   )
+            or(    Mult_bursts_subor  and wr_burst.hs.burst_4kb = '0'
+                                      and wr_burst.hs.ib_size(wr_burst.hs.ib_size'high downto AXI4_DATA_BYTE + 8)
                                           = (wr_burst.hs.ib_size'high downto AXI4_DATA_BYTE + 8 => '0') ) ) then
               wr_main.hs.axi_valid      <= '1'; -- Request AXI write burst.
               wr_main.state             <= handshake;
             end if;
-          
-          
+
+
           when handshake =>
-            -- Having all computation steps and proper registration separated allows maximum 
+            -- Having all computation steps and proper registration separated allows maximum
             -- frequency of operation when including this AXI manager interface at the interconnect
             -- bus. For a write burst, AW AXI control buses are used to send the burst control data.
             if( (wr_main_axi_grant and wr_main.hs.axi_valid) = '1') then
@@ -1096,17 +1096,17 @@ begin -- rtl
               wr_burst.hs               <= wr_main.hs;
               wr_burst.hs.axi_valid     <= '0';
               -- Add ib_address to first batch size so it's aligned with DATA_WIDTH. This, will be used for the last beat strobe.
-              wr_burst.hs.ib_size       <= add_vector(wr_main.hs.ib_size, wr_main.hs.ib_addr(AXI4_DATA_BYTE - 1 downto 0), 
+              wr_burst.hs.ib_size       <= add_vector(wr_main.hs.ib_size, wr_main.hs.ib_addr(AXI4_DATA_BYTE - 1 downto 0),
                                            wr_burst.hs.ib_size'length);
               -- Shift and set the strobe for the first beat.
-              wr_burst.hs.axi_strobe    <= std_logic_vector(shift_left( unsigned(wr_main.hs.axi_strobe), 
+              wr_burst.hs.axi_strobe    <= std_logic_vector(shift_left( unsigned(wr_main.hs.axi_strobe),
                                             to_integer(unsigned(wr_main.hs.ib_addr(AXI4_DATA_BYTE - 1 downto 0))) ));
               -- Assert last beat if there's only one beat in the next burst.
               if(wr_main.hs.axi_len = (wr_main.hs.axi_len'range => '0')) then
                 wr_burst.axi_last       <= '1';
               end if;
               wr_burst.state            <= transfer;
-              
+
               -- Next, beat transfers
               wr_main.state             <= idle;
             end if;
@@ -1117,14 +1117,14 @@ begin -- rtl
       -----------------------------
       -- WR BURST TRANSFER LOGIC --
       -----------------------------
-        case wr_burst.state is 
+        case wr_burst.state is
           when idle =>
             null;
 
 
           when transfer => -- AXI transfer --
-          -- The AXI transfer sets the AXI valid write flag anytime there's data available in a buffer register that reads from the FIFO, 
-          -- freeing the FIFO register for IB fransfers. In addition, the size left to transfer wr.ib_size is decreased with the number of 
+          -- The AXI transfer sets the AXI valid write flag anytime there's data available in a buffer register that reads from the FIFO,
+          -- freeing the FIFO register for IB fransfers. In addition, the size left to transfer wr.ib_size is decreased with the number of
           -- bytes transfered.
 
             -- Load the variables for last AXI beat in the burst, next FIFO index at the AXI side and the read flag.
@@ -1164,7 +1164,7 @@ begin -- rtl
             end if;
 
             -- Check if it's the last beat (length = 0 or length = 1 but that one has been sent).
-            if( (wr_burst.hs.axi_len(wr_burst.hs.axi_len'high downto 1) = (wr_burst.hs.axi_len'high downto 1 => '0')  
+            if( (wr_burst.hs.axi_len(wr_burst.hs.axi_len'high downto 1) = (wr_burst.hs.axi_len'high downto 1 => '0')
                and wr_fifo_free_bottom = '1') ) then
                 wr_burst.axi_last       <= '1';
             end if;
@@ -1177,7 +1177,7 @@ begin -- rtl
               -- If multiple bursts to same subordinate may be necessary, check for those cases.
               if(Mult_bursts_subor and wr_next_ib_size(wr_next_ib_size'high) = '0') then
                   if(wr_burst.hs.axi_mode = INC) then
-                    wr_burst.hs.axi_addr    <= add_vector(wr_burst.hs.axi_addr(wr_burst.hs.axi_addr'high downto 8 + AXI4_DATA_BYTE), 1, 
+                    wr_burst.hs.axi_addr    <= add_vector(wr_burst.hs.axi_addr(wr_burst.hs.axi_addr'high downto 8 + AXI4_DATA_BYTE), 1,
                                                wr_burst.hs.axi_addr'high - 7 - AXI4_DATA_BYTE) & (7 + AXI4_DATA_BYTE downto 0 => '0');
                   end if;
                   wr_burst.state        <= prepare_hs;
@@ -1189,7 +1189,7 @@ begin -- rtl
                   wr_burst.hs.ib_size   <= wr_burst.hs.rem_size;
                 end if;
                 if(wr_burst.hs.axi_mode = INC) then
-                  wr_burst.hs.axi_addr  <= add_vector(wr_burst.hs.axi_addr(wr_burst.hs.axi_addr'high downto 12), 1, 
+                  wr_burst.hs.axi_addr  <= add_vector(wr_burst.hs.axi_addr(wr_burst.hs.axi_addr'high downto 12), 1,
                                            wr_burst.hs.axi_addr'high - 11) & (11 downto 0 => '0');
                 end if;
                 wr_burst.state          <= prepare_hs;
@@ -1274,7 +1274,7 @@ begin -- rtl
           end if;
         end loop;
 
-        
+
       -------------------------
       -- WRITE RESPONSE READ --
       -------------------------
@@ -1282,8 +1282,8 @@ begin -- rtl
         if(axi4mi.b_valid = '1' and axi4mi.b_id(ID_W_WIDTH-1 downto 0) = std_logic_vector(to_unsigned(axi_id, ID_W_WIDTH))) then
           wr_burst.ib_error <= axi4mi.b_resp(1);
         end if;
-      
-      
+
+
       end if;
     end if;
   end process write_proc;

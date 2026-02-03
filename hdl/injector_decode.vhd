@@ -19,7 +19,6 @@ entity injector_decode is
   generic (
     PC_LEN            : integer                     :=    4;  -- Length of PC register
     CORE_DATA_WIDTH   : integer range 8 to 1024     :=   32;  -- Data width of the injector core. [Only power of 2s allowed]
-    MAX_SIZE_BURST    : integer range 8 to 4096     := 1024;  -- Maximum number of bytes per transaction
     ASYNC_RST         : boolean                     := TRUE   -- Allow asynchronous reset flag
   );
   port (
@@ -28,7 +27,7 @@ entity injector_decode is
     clk               : in  std_ulogic;                       -- Clock
   -- Internal I/O
     enable            : in  std_logic;                        -- Enable DECODE stage
-    rst_sw            : in  std_logic;                        -- Software reset through APB
+    rst_sw            : in  std_logic;                        -- Software reset through CSR
     queue_mode_en     : in  std_logic;                        -- Queue mode enable signal
       -- Signals from/for FETCH
     fetch_ready       : in  std_logic;                        -- Descriptor ready to be read flag
@@ -42,7 +41,7 @@ entity injector_decode is
     exe_data          : out bus_decode_exe;                   -- Control signals for operation execution
       -- Debug signals
     irq               : out std_logic;                        -- Error interruption
-    state             : out std_logic_vector(MAX_STATUS_LEN - 1 downto 0)
+    state             : out DEBUG_STATE
 );
 end entity injector_decode;
 
@@ -52,18 +51,6 @@ architecture rtl of injector_decode is
   -- Labels
   -------------------------------------------------------------------------------
 
-    -- Descriptor types (action_type)
-    constant OP_DELAY       : std_logic_vector(4 downto 0) := "00000";
-    constant OP_READ        : std_logic_vector(4 downto 0) := "00001";
-    constant OP_WRITE       : std_logic_vector(4 downto 0) := "00010";
-    constant OP_BRANCH      : std_logic_vector(4 downto 0) := "00100"; -- TODO: Implement the BRANCH operation.
-    constant OP_READ_FIX    : std_logic_vector(4 downto 0) := "00101";
-    constant OP_WRITE_FIX   : std_logic_vector(4 downto 0) := "00110";
-    constant OP_READ_SEQ    : std_logic_vector(4 downto 0) := "01001";
-    constant OP_WRITE_SEQ   : std_logic_vector(4 downto 0) := "01010";
-    constant OP_META        : std_logic_vector(4 downto 0) := "11111"; -- TODO: Use META type to add new descriptor words.
-
-
   -----------------------------------------------------------------------------
   -- Types and reset constants declaration
   -----------------------------------------------------------------------------
@@ -72,37 +59,30 @@ architecture rtl of injector_decode is
   type descriptor_control is record
     pc              : unsigned(PC_LEN - 1 downto 0);-- PC of the decoded descriptor
     act_subm        : submodule_bit;                -- Active submodule on EXE during iterations
-    count           : unsigned(10 downto 0);        -- Iteration count
-    size_seq        : unsigned(14 downto 0);        -- Original descriptor size for SEQ operations (+1 bit for overflow)
+    count           : unsigned(5 downto 0);         -- Iteration count
     irq_en          : std_logic;                    -- Interruption flag at descriptor completion
     last            : std_logic;                    -- Last descriptor of injector program
   end record descriptor_control;
 
   constant RESET_DESCRIPTOR_CONTROL : descriptor_control := (
     pc              => (others => '0'),
-    act_subm        => (others => '0'),
+    act_subm        => RESET_SUBMODULE_BIT,
     count           => (others => '0'),
-    size_seq        => (others => '0'),
     irq_en          => '0',
     last            => '0'
   );
 
   constant RESET_OPERATION_RD_WR : operation_rd_wr := (
-    size_left       => (others => '0'),
-    size_burst      => (others => '0'),
+    size            => (others => '0'),
     addr            => (others => '0'),
     addr_fix        => '0'
   );
 
-  -- Reset values for submodule_enable type
-  constant RESET_SUBMODULE_BIT : submodule_bit := (
-    delay_sub         => '0',
-    read_sub          => '0',
-    write_sub         => '0'
+  constant RESET_OPERATION_OBSERVER : operation_observer := (
+    set_addr        => '0',
+    set_mask        => (others => '0'),
+    set_hold        => '0'
   );
-
-  -- Set a constant to manage maximum size access allowed on SEQ operations.
-  constant MAX_SIZE_BURST_SEQ : integer :=  if_else(16384 < MAX_SIZE_BURST, 16384, MAX_SIZE_BURST);
 
 
   -----------------------------------------------------------------------------
@@ -110,11 +90,14 @@ architecture rtl of injector_decode is
   -----------------------------------------------------------------------------
 
   -- Registers
-  signal common     : descriptor_control;
+  signal common     : descriptor_control := RESET_DESCRIPTOR_CONTROL;
   signal disable    : std_logic;      -- Disable EXE's descriptor feed due to last descriptor has been sent.
+  signal flush      : std_logic;      -- Send an empty descriptor to flush EXE after non-queue program's last descriptor.
   signal rd_wr      : operation_rd_wr;
   signal delay      : operation_delay;
-  signal state_reg  : std_logic_vector(state'range);
+  signal observer   : operation_observer;
+  signal state_reg  : DEBUG_STATE;
+  signal desc_empty : std_logic;      -- Send empty descriptor for flushing EXE pipeline
 
   -- Control signals
   signal desc_read  : std_logic;      -- Descriptor is being read from FETCH signal
@@ -124,6 +107,7 @@ architecture rtl of injector_decode is
 
   signal act_subm   : submodule_bit;  -- Combinational select submodule bus
   signal desc_act   : std_logic;      -- Active descriptor to be executed flag
+  signal send_last  : std_logic;      -- Actual descriptor is last in program
   signal no_rep     : std_logic;      -- High when all iterations but last are complete
   signal err_type   : std_logic;      -- Error flag
 
@@ -132,17 +116,14 @@ architecture rtl of injector_decode is
   signal desc_last  : std_logic;
   signal desc_type  : std_logic_vector( 4 downto 0);
   signal desc_irq   : std_logic;
-  signal desc_count : std_logic_vector( 5 downto 0);
-  signal desc_size  : std_logic_vector(rd_wr.size_burst'range);
-  signal desc_addr  : std_logic_vector(31 downto 0);
-    -- SEQ access operations
-  signal desc_seq_size  : std_logic_vector(common.size_seq'high - 1 downto 0);
-  signal desc_seq_count : std_logic_vector(common.count'range);
+  signal desc_count : std_logic_vector(common.count'range);
+  signal desc_size  : std_logic_vector(rd_wr.size'range);
+  signal desc_addr  : std_logic_vector(rd_wr.addr'range);
 
   -- Descriptor type specific signals
-  signal size_burst : unsigned(rd_wr.size_burst'range);
-  signal desc_fix_addr  : std_logic; -- Used on FIX address operations
-  signal desc_seq_addr  : std_logic; -- Used on SEQ address operations
+  signal desc_fix_addr      : std_logic; -- Used on FIX address operations
+  signal desc_set_obs_addr  : std_logic; -- Used for programming observer address
+  signal desc_set_obs_hold  : std_logic; -- Used for setting HOLD next descriptor
 
 
 begin -- rtl
@@ -161,6 +142,7 @@ begin -- rtl
   exe_data.last_count   <= no_rep;            -- Last iteration execution of the descriptor
   exe_data.delay        <= delay;             -- Decoded descriptor data to execute DELAY
   exe_data.rd_wr        <= rd_wr;             -- Decoded descriptor data to execute READ or WRITE injection vector
+  exe_data.observer     <= observer;          -- Decoded descriptor data to execute OBSERVER
   state                 <= state_reg;         -- DECODE state
   irq                   <= err_type;          -- Interrupt error signal
 
@@ -169,7 +151,6 @@ begin -- rtl
   ----
   ----[31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00]-- bits
   ----|                      size                              |      count      | A|  RD/WR type  | B|-- word 0 fields of rd/wr and delay type
-  ----|  seq_count   |                      size               |    seq_count    | A|  RD/WR type  | B|-- word 0 fields of rd/wr sequential type
   ----
   ---- A: Interruption enable at descriptor completion          B: Last descriptor of the injector program
   ----
@@ -180,21 +161,17 @@ begin -- rtl
   desc_size       <= desc(0)(31 downto 13);
   desc_addr       <= desc(1);
 
-  desc_seq_size   <= desc(0)(26 downto 13);
-  desc_seq_count  <= desc(0)(31 downto 27) & desc(0)(12 downto 7);
-
-
   -- Descriptor is yet to be executed if any of the active submodule bits are high.
   desc_act        <= '1' when (common.act_subm /= RESET_SUBMODULE_BIT) else '0';
 
   -- Prepared to read descriptor from FETCH when DECODE is enabled and there's no more iterations.
-  desc_rd_en      <= enable and no_rep and not(desc_act xor desc_sent);
+  desc_rd_en      <= enable and no_rep and not(desc_act xor desc_sent) and not(disable);
 
   -- Signal high when descriptor is being read from FETCH stage.
   desc_read       <= desc_rd_en and fetch_ready;
 
   -- Signal high when decoded descriptor is ready to be sent to EXE stage.
-  desc_ready      <= desc_act and not(disable);
+  desc_ready      <= desc_act or flush;
 
   -- Signal high when the decoded descriptor is being sent to EXE stage.
   desc_sent       <= desc_ready and exe_read;
@@ -202,66 +179,51 @@ begin -- rtl
   -- No repetitions required signal.
   no_rep          <= '1' when (common.count = (common.count'range => '0')) else '0';
 
+  -- Last descriptor repetition of a non-queue program will be sent
+  send_last       <= no_rep and common.last and not(queue_mode_en);
+
 
   -- Decode the incoming descriptor type onto the active_submodule bit array.
   comb0 : process(desc_type)
   begin
     -- Default values
-    err_type      <= '0';
-    act_subm      <= (others => '0');
-    desc_fix_addr <= '0';
-    desc_seq_addr <= '0';
+    act_subm          <= RESET_SUBMODULE_BIT;
+    desc_fix_addr     <= '0';
+    desc_set_obs_addr <= '0';
+    desc_set_obs_hold <= '0';
+    err_type          <= '0';
 
     case(desc_type) is
       when OP_DELAY =>
-        act_subm.delay_sub  <= '1';
+        act_subm(SUBM_ID_DELAY)     <= '1';
 
       when OP_READ  =>
-        act_subm.read_sub   <= '1';
+        act_subm(SUBM_ID_READ)      <= '1';
 
       when OP_WRITE =>
-        act_subm.write_sub  <= '1';
+        act_subm(SUBM_ID_WRITE)     <= '1';
 
       when OP_READ_FIX  =>
-        act_subm.read_sub   <= '1';
-        desc_fix_addr       <= '1';
+        act_subm(SUBM_ID_READ)      <= '1';
+        desc_fix_addr <= '1';
 
       when OP_WRITE_FIX =>
-        act_subm.write_sub  <= '1';
-        desc_fix_addr       <= '1';
+        act_subm(SUBM_ID_WRITE)     <= '1';
+        desc_fix_addr <= '1';
 
-      when OP_READ_SEQ =>
-        act_subm.read_sub   <= '1';
-        desc_seq_addr       <= '1';
+      when OP_OBSERVER_ADDR =>
+        act_subm(SUBM_ID_OBSERVER)  <= '1';
+        desc_set_obs_addr           <= '1';
 
-      when OP_WRITE_SEQ =>
-        act_subm.write_sub  <= '1';
-        desc_seq_addr       <= '1';
+      when OP_OBSERVER_HOLD =>
+        act_subm(SUBM_ID_OBSERVER)  <= '1';
+        desc_set_obs_hold           <= '1';
 
       when others =>
-        err_type            <= '1';
+        err_type      <= '1';
 
     end case;
   end process comb0;
-
-  -- Pre-compute the burst size for READ and WRITE operations for the first transaction.
-  comb1 : process(desc_size, desc_seq_size, desc_seq_addr)
-  begin
-    if(desc_seq_addr = '0') then -- READ, WRITE and FIX variants have a MAX_SIZE_BURST size.
-      if(unsigned(desc_size) > to_unsigned(MAX_SIZE_BURST - 1, desc_size'length)) then
-        size_burst <= to_unsigned(MAX_SIZE_BURST - 1, desc_size'length);
-      else
-        size_burst <= unsigned(desc_size);
-      end if;
-    else -- READ_SEQ and WRITE_SEQ variants have a MAX_SIZE_BURST_SEQ size.
-      if(unsigned(desc_seq_size) > to_unsigned(MAX_SIZE_BURST_SEQ - 1, desc_seq_size'length)) then
-        size_burst <= to_unsigned(MAX_SIZE_BURST_SEQ - 1, desc_size'length);
-      else
-        size_burst <= (size_burst'high downto desc_seq_size'length => '0') & unsigned(desc_seq_size);
-      end if;
-    end if;
-
-  end process comb1;
 
 
   -----------------------------------------------------------------------------
@@ -269,20 +231,23 @@ begin -- rtl
   -----------------------------------------------------------------------------
 
   seq0 : process(clk, rstn)
-    variable size_seq_t : unsigned(desc_size'range);
   begin
     if(rstn = '0' and ASYNC_RST) then
       common      <= RESET_DESCRIPTOR_CONTROL;
       disable     <= '0';
+      flush       <= '0';
       rd_wr       <= RESET_OPERATION_RD_WR;
       delay       <= (others => (others => '0'));
+      observer    <= RESET_OPERATION_OBSERVER;
       state_reg   <= DEBUG_STATE_IDLE;
     elsif rising_edge(clk) then
       if(rstn = '0' or rst_sw = '1') then
         common    <= RESET_DESCRIPTOR_CONTROL;
         disable   <= '0';
+        flush     <= '0';
         rd_wr     <= RESET_OPERATION_RD_WR;
         delay     <= (others => (others => '0'));
+        observer  <= RESET_OPERATION_OBSERVER;
         state_reg <= DEBUG_STATE_IDLE;
       else
 
@@ -295,15 +260,21 @@ begin -- rtl
               -- Decrease iteration counter after a EXE read if not 0.
               common.count      <= common.count - 1;
               state_reg         <= DEBUG_STATE_REPETITION;
-              -- If the execution type is SEQ, increase address for next block.
-              if(desc_seq_addr = '1') then
-                rd_wr.addr      <= rd_wr.addr + common.size_seq;
-              end if;
             else
               -- Disable active decoded descriptor if last iteration is being executed.
-              common.act_subm   <= (others => '0');
+              common.act_subm   <= RESET_SUBMODULE_BIT;
               if(desc_read = '0') then
                 state_reg <= DEBUG_STATE_IDLE;
+              end if;
+              -- Flush EXE with a single empty descriptor
+              if( (common.last and not(queue_mode_en)) = '1' ) then
+                flush     <= '1';
+                common.pc       <= (others => '1');
+                common.act_subm <= RESET_SUBMODULE_BIT;
+                common.irq_en   <= '0';
+                common.last     <= '0';
+              elsif(flush = '1') then
+                flush     <= '0';
               end if;
             end if;
           end if; -- descriptor read by EXE
@@ -319,42 +290,41 @@ begin -- rtl
             common.irq_en       <= desc_irq;
             common.last         <= desc_last;
 
-            -- Count repetitions differs between SEQ and non-SEQ operations.
-            if(desc_seq_addr = '0') then
-              common.count      <= (common.count'high downto desc_count'length => '0') & unsigned(desc_count);
-            else
-              common.count      <= unsigned(desc_seq_count);
-            end if;
+            -- Count repetitions.
+            common.count        <= unsigned(desc_count);
 
             -- Restore default register values on descriptor completion.
             rd_wr               <= RESET_OPERATION_RD_WR;
             delay               <= (others => (others => '0'));
-
+            observer            <= RESET_OPERATION_OBSERVER;
 
             -- Operation specific signals.
               -- DELAY
-            if(act_subm.delay_sub = '1') then
-              delay.num_cycles  <= unsigned(desc_size);
+            if(act_subm(SUBM_ID_DELAY) = '1') then
+              delay.num_cycles  <= desc_size;
             end if;
 
               -- READ and WRITE
-            if(act_subm.read_sub = '1' or act_subm.write_sub = '1') then -- RD and WR share same DECODE registers.
-              rd_wr.addr        <= unsigned(desc_addr);
+            if(act_subm(SUBM_ID_READ) = '1' or act_subm(SUBM_ID_WRITE) = '1') then -- RD and WR share same DECODE registers.
+              rd_wr.addr        <= desc_addr;
               rd_wr.addr_fix    <= desc_fix_addr;
-              if(desc_seq_addr = '1') then -- If the operation is SEQ, take into account the narrow size_seq field.
-                common.size_seq <= unsigned('0' & desc_seq_size) + 1; -- +1 for real size, so the addition with address is correct
-                size_seq_t      := (size_burst'high downto desc_seq_size'length => '0') & unsigned(desc_seq_size) - size_burst;
-                rd_wr.size_left   <= (rd_wr.size_left'high downto desc_seq_size'length => '0') & size_seq_t(desc_seq_size'high downto 0);
-                rd_wr.size_burst  <= size_burst;
-              else
-                rd_wr.size_left   <= unsigned(desc_size) - size_burst;
-                rd_wr.size_burst  <= size_burst;
-              end if;
+              rd_wr.size        <= desc_size;
             end if;
 
-            -- Disable sending the descriptor being read from FETCH if the last sent
-            -- was the last on the program and the queue mode is disabled.
-            disable             <= common.last and not(queue_mode_en);
+              -- OBSERVER
+            if(act_subm(SUBM_ID_OBSERVER) = '1') then
+              if(desc_set_obs_addr = '1') then -- Program observer to look for an address
+                rd_wr.addr        <= desc_addr;
+                observer.set_addr <= desc_set_obs_addr;
+              end if;
+              -- Program observer to force hold to next transfer descriptor
+              observer.set_mask <= desc_size;
+              observer.set_hold <= desc_set_obs_hold;
+            end if;
+
+            -- Disable reading any more descriptors from FETCH
+            -- in case of non-queue and last descriptor
+            disable             <= desc_last and not(queue_mode_en);
 
             -- Set the DECODE state for first decode of the descriptor.
             state_reg           <= DEBUG_STATE_1st_DECODE;
@@ -363,11 +333,10 @@ begin -- rtl
 
         else    -- DECODE stage disabled
 
-          -- After an injetor disable due to program completion, reset the disable register.
+          -- After an injector disable due to program completion, reset the disable register.
           disable               <= '0';
 
         end if;
-
 
       end if;
     end if;

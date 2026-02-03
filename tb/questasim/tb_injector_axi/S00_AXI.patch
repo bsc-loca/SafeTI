@@ -1,0 +1,37 @@
+#	Patch inits Xilinx Vivado AXI Subordinate to avoid time 0 warning and errors.
+--- vivado/ip_repo/subordinate_1.0/hdl/subordinate_v1_0_S00_AXI.vhd	2026-02-03 10:38:50.072183211 +0100
++++ vivado/ip_repo/subordinate_1.0/hdl/subordinate_v1_0_S00_AXI_patched.vhd	2026-02-03 10:45:30.138487557 +0100
+@@ -188,11 +188,11 @@
+ 	-- aw_wrap_size is the size of the write transfer, the
+ 	-- write address wraps to a lower address if upper address
+ 	-- limit is reached
+-	signal aw_wrap_size : integer;
++	signal aw_wrap_size : integer := 0;
+ 	-- ar_wrap_size is the size of the read transfer, the
+ 	-- read address wraps to a lower address if upper address
+ 	-- limit is reached
+-	signal ar_wrap_size : integer;
++	signal ar_wrap_size : integer := 0;
+ 	-- The axi_awv_awr_flag flag marks the presence of write address valid
+ 	signal axi_awv_awr_flag    : std_logic;
+ 	--The axi_arv_arr_flag flag marks the presence of read address valid
+@@ -203,8 +203,8 @@
+ 	signal axi_arlen_cntr      : std_logic_vector(7 downto 0);
+ 	signal axi_arburst      : std_logic_vector(2-1 downto 0);
+ 	signal axi_awburst      : std_logic_vector(2-1 downto 0);
+-	signal axi_arlen      : std_logic_vector(8-1 downto 0);
+-	signal axi_awlen      : std_logic_vector(8-1 downto 0);
++	signal axi_arlen      : std_logic_vector(8-1 downto 0) := (others => '0');
++	signal axi_awlen      : std_logic_vector(8-1 downto 0) := (others => '0');
+ 	--local parameter for addressing 32 bit / 64 bit C_S_AXI_DATA_WIDTH
+ 	--ADDR_LSB is used for addressing 32/64 bit registers/memories
+ 	--ADDR_LSB = 2 for 32 bits (n downto 2)
+@@ -217,7 +217,7 @@
+ 	------------------------------------------------
+ 	---- Signals for user logic memory space example
+ 	--------------------------------------------------
+-	signal mem_address : std_logic_vector(OPT_MEM_ADDR_BITS downto 0);
++	signal mem_address : std_logic_vector(OPT_MEM_ADDR_BITS downto 0) := (others => '0');
+ 	signal mem_select : std_logic_vector(USER_NUM_MEM-1 downto 0);
+ 	type word_array is array (0 to USER_NUM_MEM-1) of std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
+ 	signal mem_data_out : word_array;

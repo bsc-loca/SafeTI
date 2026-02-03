@@ -4,11 +4,12 @@
 ./bsc_safeti/hdl/platform_wrappers/SELENE/injector_axi4_SELENE.vhd
 ./bsc_safeti/hdl/network_interfaces/axi4_manager.vhd
 ./bsc_safeti/hdl/injector_core.vhd
-./bsc_safeti/hdl/injector_apb.vhd
+./bsc_safeti/hdl/injector_csr.vhd
 ./bsc_safeti/hdl/injector_fetch.vhd
+./bsc_safeti/hdl/injector_ram.vhd
 ./bsc_safeti/hdl/injector_decode.vhd
 ./bsc_safeti/hdl/injector_exe.vhd
 ./bsc_safeti/hdl/injector_control.vhd
 ./bsc_safeti/hdl/exe_submodules/injector_delay.vhd
-./bsc_safeti/hdl/exe_submodules/injector_read.vhd
-./bsc_safeti/hdl/exe_submodules/injector_write.vhd
+./bsc_safeti/hdl/exe_submodules/injector_requester.vhd
+./bsc_safeti/hdl/exe_submodules/injector_observer.vhd

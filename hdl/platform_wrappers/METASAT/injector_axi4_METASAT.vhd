@@ -1,8 +1,8 @@
 -----------------------------------------------------------------------------
--- Entity:      injector_axi4_SELENE
--- File:        injector_axi4_SELENE.vhd
+-- Entity:      injector_axi4_METASAT
+-- File:        injector_axi4_METASAT.vhd
 -- Author:      Francis Fuentes
--- Description: injector top level entity for SELENE platform.
+-- Description: injector top level entity for METASAT platform.
 ------------------------------------------------------------------------------
 
 library ieee;
@@ -21,7 +21,7 @@ use safety.axi4_pkg.all;
 library techmap;
 use techmap.gencomp.all;
 
-entity injector_axi4_SELENE is
+entity injector_axi4_METASAT is
   generic (
     -- SafeTI configuration
     INJ_MEM_LENGTH: integer range  2 to   14            :=    8;    -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
@@ -51,16 +51,16 @@ entity injector_axi4_SELENE is
     -- APB interface signals
     apbi          : in  apb_slv_in_type;  -- APB subordinate input to injector
     apbo          : out apb_slv_out_type; -- APB subordinate output from injector
-    -- AXI4 interconnect SELENE bus
+    -- AXI4 interconnect bus
     axi4mi        : in  axi_somi_type;    -- AXI4 manager input to injector
     axi4mo        : out axi4_mosi_type;   -- AXI4 manager output from injector
     -- AHB External Subordinate interface signals
-    axi4si        : in  axi4_mosi_type    -- AXI4 subordinate addr to injector
+    axi4_snoop    : in  axi4_mosi_type    -- AXI4 snooping bus for synchronization
   );
-end entity injector_axi4_SELENE;
+end entity injector_axi4_METASAT;
 
 
-architecture rtl of injector_axi4_SELENE is
+architecture rtl of injector_axi4_METASAT is
 
   -----------------------------------------------------------------------------
   -- Constant declaration
@@ -226,10 +226,10 @@ begin  -- rtl
         rd_ext_hold   <= '0';
         wr_ext_hold   <= '0';
       else
-        if(axi4si.aw.valid = '1') then
-          external_addr <= axi4si.aw.addr;
-        elsif(axi4si.ar.valid = '1') then
-          external_addr <= axi4si.ar.addr;
+        if(axi4_snoop.aw.valid = '1') then
+          external_addr <= axi4_snoop.aw.addr;
+        elsif(axi4_snoop.ar.valid = '1') then
+          external_addr <= axi4_snoop.ar.addr;
         end if;
         rd_ext_hold     <= ib_out_injector.rd_hold;
         wr_ext_hold     <= ib_out_injector.wr_hold;

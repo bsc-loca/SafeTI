@@ -1,4 +1,4 @@
------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- Entity:      injector_ahb_SELENE
 -- File:        injector_ahb_SELENE.vhd
 -- Author:      Oriol Sala
@@ -22,33 +22,36 @@ use techmap.gencomp.all;
 -----------------------------------------------------------------------------
 -- Top level entity for injector at SELENE platform.
 -- This is a wrapper which integrates injector core to the
--- AHB master - generic bus master bridge
+-- AHB manager - generic bus master bridge
 -----------------------------------------------------------------------------
 
 entity injector_ahb_SELENE is
   generic (
     -- SafeTI configuration
-    INJ_MEM_LENGTH    : integer range 2 to   10       :=    4;      -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
+    INJ_MEM_LENGTH    : integer range 2 to   14       :=    8;      -- Set the maximum number of programmable descriptor words to 2^INJ_MEM_LENGTH
     MAX_SIZE_BURST    : integer range 8 to 1024       := 1024;      -- Maximum number of bytes allowed at a burst transaction.
     tech              : integer range 0 to NTECH      := inferred;  -- Target technology
     -- APB configuration
-    pindex            : integer                       := 0;         -- APB configuration slave index
-    paddr             : integer                       := 0;         -- APB configuration slave address
-    pmask             : integer                       := 16#FFF#;   -- APB configuration slave mask
-    pirq              : integer range  0 to NAHBIRQ-1 := 0;         -- APB configuration slave irq
+    pindex            : integer                       := 0;         -- APB configuration subordinate index
+    paddr             : integer                       := 0;         -- APB configuration subordinate address
+    pmask             : integer                       := 16#FFF#;   -- APB configuration subordinate mask
+    pirq              : integer range  0 to NAHBIRQ-1 := 0;         -- APB configuration subordinate irq
     -- AHB configuration
     AHB_DATAW         : integer range 8  to 1024      := 32;        -- Data bus width of AHB. [Only power of 2s allowed]
-    hindex            : integer                       :=  0         -- AHB master index 0
+    hindex            : integer                       :=  0         -- AHB manager index 0
     );
   port (
     rstn              : in  std_ulogic;                   -- Reset
     clk               : in  std_ulogic;                   -- Clock
-    -- APB interface signals
-    apbi              : in  apb_slv_in_type;              -- APB slave input to injector
-    apbo              : out apb_slv_out_type;             -- APB slave output from injector
-    -- AHB interface signals
-    ahbmi             : in  ahb_mst_in_type;              -- AHB master 0 input from bus
-    ahbmo             : out ahb_mst_out_type              -- AHB master 0 output to bus
+    -- APB Subordinate interface signals
+    apbi              : in  apb_slv_in_type;              -- APB subordinate input to injector
+    apbo              : out apb_slv_out_type;             -- APB subordinate output from injector
+    -- AHB Manager interface signals
+    ahbmi             : in  ahb_mst_in_type;              -- AHB manager 0 input from bus
+    ahbmo             : out ahb_mst_out_type;             -- AHB manager 0 output to bus
+    -- AHB External Subordinate interface signals
+    snoop_en          : in  std_logic;                    -- L1 subordinate en transaction
+    snoop_addr        : in  std_logic_vector(31 downto 0) -- L1 subordinate addr to injector
     );
 end entity injector_ahb_SELENE;
 
@@ -62,20 +65,20 @@ architecture rtl of injector_ahb_SELENE is
   -- Reset configuration
   constant ASYNC_RST : boolean := GRLIB_CONFIG_ARRAY(grlib_async_reset_enable) = 1;
 
-  -- Plug and Play Information (AHB master interface)
+  -- Plug and Play Information (AHB manager interface)
   constant REVISION   : integer := 0;
   constant hconfig    : ahb_config_type := ((
     conv_std_logic_vector(VENDOR_CONTRIB, 8) & conv_std_logic_vector(16#000#, 12) &
     "00" & conv_std_logic_vector(REVISION, 5) & "00000"), others => (others => '0'));
 
-  -- Plug and Play Information (APB slave interface)
+  -- Plug and Play Information (APB subordinate interface)
   constant interrupt  : std_logic_vector( 6 downto 0 ) := conv_std_logic_vector(pirq, 7);
   constant pconfig    : apb_config_type := (
     0 => (conv_std_logic_vector(VENDOR_CONTRIB, 8) & conv_std_logic_vector(16#000#, 12) & interrupt(6 downto 5)
           & conv_std_logic_vector(REVISION, 5) & interrupt(4 downto 0)),
     1 => (conv_std_logic_vector(paddr, 12) & "0000" & conv_std_logic_vector(pmask, 12) & "0001"));
 
-  -- Bus master interface burst chop mask
+  -- Bus manager interface burst chop mask
   --constant burst_chop_mask : integer := (max_burst_length*(log2(AHBDW)-1));
   constant max_burst_length : integer := MAX_SIZE_BURST/(AHBDW/8);
 
@@ -87,14 +90,17 @@ architecture rtl of injector_ahb_SELENE is
   -----------------------------------------------------------------------------
 
   -- BM0 AHB interface signals
-  signal ahb_bmsti  : ahb_bmst_in_type;
-  signal ahb_bmsto  : ahb_bmst_out_type;
+  signal ahb_bmsti      : ahb_bmst_in_type;
+  signal ahb_bmsto      : ahb_bmst_out_type;
   -- SafeTI APB signals
-  signal apbi_inj   : apb_slave_in;
-  signal apbo_inj   : apb_slave_out;
+  signal csri_inj       : csr_in;
+  signal csro_inj       : csr_out;
   -- SafeTI IB/BM signals
-  signal ib_mosi    : ib_mosi;
-  signal ib_miso    : ib_miso;
+  signal ib_mosi        : ib_mosi;
+  signal ib_miso        : ib_miso;
+  -- External address and hold registers
+  signal external_addr  : std_logic_vector(31 downto 0);
+  signal external_hold  : std_logic;
 
 
 begin  -- rtl
@@ -102,11 +108,11 @@ begin  -- rtl
   -----------------
   -- Assignments --
   -----------------
-  ahb_bmsti.hgrant  <= ahbmi.hgrant(hindex);
+  ahb_bmsti.hgrant  <= ahbmi.hgrant(hindex) when (external_hold = '0') else '0';
   ahb_bmsti.hready  <= ahbmi.hready;
   ahb_bmsti.hresp   <= ahbmi.hresp;
 
-  ahbmo.hbusreq     <= ahb_bmsto.hbusreq;
+  ahbmo.hbusreq     <= ahb_bmsto.hbusreq when (external_hold = '0') else '0';
   ahbmo.hlock       <= ahb_bmsto.hlock;
   ahbmo.htrans      <= ahb_bmsto.htrans;
   ahbmo.haddr       <= ahb_bmsto.haddr;
@@ -118,22 +124,45 @@ begin  -- rtl
   ahbmo.hconfig     <= hconfig;
   ahbmo.hindex      <= hindex;
 
-  apbo.prdata       <= apbo_inj.rdata;
-  apbo.pirq(pirq)   <= apbo_inj.irq;
+  apbo.prdata       <= csro_inj.rdata;
+  apbo.pirq(pirq)   <= csro_inj.irq;
   apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 
-  apbi_inj.sel      <= apbi.psel(pindex);
-  apbi_inj.en       <= apbi.penable;
-  apbi_inj.addr     <= apbi.paddr;
-  apbi_inj.wr_en    <= apbi.pwrite;
-  apbi_inj.wdata    <= apbi.pwdata;
-  apbi_inj.irq      <= apbi.pirq(pirq);
-  --apbi_inj.ten      <= apbi.testen;
-  --apbi_inj.trst     <= apbi.testrst;
-  --apbi_inj.scnen    <= apbi.scanen;
-  --apbi_inj.touten   <= apbi.testoen;
-  --apbi_inj.tinen    <= apbi.testin;
+  csri_inj.en       <= apbi.psel(pindex) and apbi.penable;
+  csri_inj.addr     <= apbi.paddr(csri_inj.addr'range);
+  csri_inj.wr_en    <= apbi.pwrite;
+  csri_inj.wdata    <= apbi.pwdata;
+  --csri_inj.ten      <= apbi.testen;
+  --csri_inj.trst     <= apbi.testrst;
+  --csri_inj.scnen    <= apbi.scanen;
+  --csri_inj.touten   <= apbi.testoen;
+  --csri_inj.tinen    <= apbi.testin;
+
+  ib_miso.external_addr <= external_addr;
+
+
+  -----------------------------------------------------------------------------
+  -- Sequential Process
+  -----------------------------------------------------------------------------
+
+  seq0 : process(clk, rstn)
+  begin
+    if(rstn = '0' and ASYNC_RST) then
+      external_addr   <= (others => '0');
+      external_hold   <= '0';
+    elsif rising_edge(clk) then
+      if(rstn = '0') then
+        external_addr <= (others => '0');
+        external_hold <= '0';
+      else
+        if(snoop_en = '1') then
+          external_addr <= snoop_addr;
+        end if;
+        external_hold   <= ib_mosi.rd_hold and ib_mosi.wr_hold;
+      end if;
+    end if;
+  end process seq0;
 
 
   -----------------------------------------------------------------------------
@@ -193,8 +222,8 @@ begin  -- rtl
     port map (
       rstn            => rstn,
       clk             => clk,
-      apbi            => apbi_inj,
-      apbo            => apbo_inj,
+      csri            => csri_inj,
+      csro            => csro_inj,
       ib_out          => ib_mosi,
       ib_in           => ib_miso,
       network_profile => open

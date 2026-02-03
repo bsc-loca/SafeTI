@@ -9,8 +9,8 @@ LOCAL_LOG=.lquesta.log
 #Clear tmp files if any
 rm -f  $LOG
 
-# Go to target folder 
-cd ../tb/questasim/tb_injector
+# Go to target folder
+cd ../tb/questasim/tb_injector_axi
 
 rm -f $LOCAL_LOG
 

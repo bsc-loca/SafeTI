@@ -1,6 +1,8 @@
 ./bsc_safeti/hdl/platform_wrappers/SELENE/injector_pkg_SELENE.vhd
 ./bsc_safeti/hdl/network_interfaces/axi4_pkg.vhd
 ./bsc_safeti/hdl/injector_pkg.vhd
+./bsc_safeti/hdl/platform_wrappers/SELENE/injector_axi4_SELENE.vhd
+./bsc_safeti/hdl/network_interfaces/axi4_manager.vhd
 ./bsc_safeti/hdl/platform_wrappers/SELENE/injector_ahb_SELENE.vhd
 ./bsc_safeti/hdl/injector_core.vhd
 ./bsc_safeti/hdl/injector_csr.vhd
