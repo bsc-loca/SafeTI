@@ -172,7 +172,7 @@ begin  -- rtl
   --csri_inj.tinen    <= apbi.testin(csri_inj.tinen'range) when (NTESTINBITS => 3) else (csri_inj.tinen'high downto NTESTINBITS => '0') & apbi.testin;
   -- APB Slave output from the injectors
   apbo.prdata       <= csro_inj.rdata;
-  apbo.pirq(pirq)   <= csro_inj.irq;
+  apbo.pirq         <= (pirq => apbo_inj.irq, others => '0');
   apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 

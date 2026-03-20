@@ -125,7 +125,7 @@ begin  -- rtl
   ahbmo.hindex      <= hindex;
 
   apbo.prdata       <= csro_inj.rdata;
-  apbo.pirq(pirq)   <= csro_inj.irq;
+  apbo.pirq         <= (pirq => apbo_inj.irq, others => '0');
   apbo.pindex       <= pindex;
   apbo.pconfig      <= pconfig;
 
